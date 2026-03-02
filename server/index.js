@@ -12,6 +12,7 @@ import barsRouter from './routes/bars.js'
 import tagsRouter from './routes/tags.js'
 import photosRouter from './routes/photos.js'
 import annotationsRouter from './routes/annotations.js'
+import admin from './middleware/admin.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -21,6 +22,9 @@ app.use(express.json())
 
 // Static file serving for uploaded photos
 app.use('/uploads', express.static(resolve(__dirname, 'uploads')))
+
+// Admin auth check
+app.get('/api/admin/check', admin, (req, res) => res.json({ ok: true }))
 
 // API routes
 app.use('/api/bars', barsRouter)

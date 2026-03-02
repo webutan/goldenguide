@@ -1,5 +1,15 @@
 const BASE = '/api'
 
+let adminPassword = ''
+
+export function setAdminPassword(pwd) {
+  adminPassword = pwd
+}
+
+function adminHeaders(extra = {}) {
+  return { 'X-Admin-Password': adminPassword, ...extra }
+}
+
 export async function fetchBars() {
   const res = await fetch(`${BASE}/bars`)
   if (!res.ok) throw new Error('Failed to fetch bars')
@@ -21,7 +31,7 @@ export async function fetchTags() {
 export async function updateBar(id, data) {
   const res = await fetch(`${BASE}/bars/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to update bar')
@@ -31,7 +41,7 @@ export async function updateBar(id, data) {
 export async function createTag(data) {
   const res = await fetch(`${BASE}/tags`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to create tag')
@@ -41,7 +51,7 @@ export async function createTag(data) {
 export async function updateTag(id, data) {
   const res = await fetch(`${BASE}/tags/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to update tag')
@@ -51,6 +61,7 @@ export async function updateTag(id, data) {
 export async function deleteTag(id) {
   const res = await fetch(`${BASE}/tags/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+    headers: adminHeaders(),
   })
   if (!res.ok) throw new Error('Failed to delete tag')
   return res.json()
@@ -59,7 +70,7 @@ export async function deleteTag(id) {
 export async function createBar(data) {
   const res = await fetch(`${BASE}/bars`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to create bar')
@@ -67,7 +78,10 @@ export async function createBar(data) {
 }
 
 export async function deleteBar(id) {
-  const res = await fetch(`${BASE}/bars/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE}/bars/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  })
   if (!res.ok) throw new Error('Failed to delete bar')
   return res.json()
 }
@@ -81,7 +95,7 @@ export async function fetchAnnotations() {
 export async function createAnnotation(data) {
   const res = await fetch(`${BASE}/annotations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to create annotation')
@@ -91,7 +105,7 @@ export async function createAnnotation(data) {
 export async function updateAnnotation(id, data) {
   const res = await fetch(`${BASE}/annotations/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to update annotation')
@@ -101,6 +115,7 @@ export async function updateAnnotation(id, data) {
 export async function deleteAnnotation(id) {
   const res = await fetch(`${BASE}/annotations/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+    headers: adminHeaders(),
   })
   if (!res.ok) throw new Error('Failed to delete annotation')
   return res.json()
@@ -112,6 +127,7 @@ export async function uploadPhoto(barId, file, type = 'general') {
   form.append('type', type)
   const res = await fetch(`${BASE}/bars/${barId}/photos`, {
     method: 'POST',
+    headers: adminHeaders(),
     body: form,
   })
   if (!res.ok) throw new Error('Failed to upload photo')

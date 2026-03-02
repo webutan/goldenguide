@@ -9,6 +9,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data_v2:/var/lib/postgresql/data
+      - ./:/import:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U golden_gai -d golden_gai"]
       interval: 5s
@@ -21,6 +22,7 @@ services:
     environment:
       DATABASE_URL: postgres://golden_gai:${DB_PASSWORD}@db:5432/golden_gai
       PORT: 3001
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     volumes:
       - uploads:/app/uploads
     depends_on:
