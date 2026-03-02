@@ -24,10 +24,12 @@ jobs:
           push: true
           tags: webutan/golden-guide:web
 
+      - name: Copy SQL migrations into server build context
+        run: cp -r sql/ server/sql/
+
       - name: Build and push api
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./server/Dockerfile
+          context: ./server
           push: true
           tags: webutan/golden-guide:api
