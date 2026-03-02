@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import WinButton from './win2000/WinButton.vue'
+import WinScrollContainer from './win2000/WinScrollContainer.vue'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -36,6 +37,7 @@ function handleSubmit() {
       </div>
 
       <div class="contact-body">
+        <WinScrollContainer><div class="contact-body-inner">
         <div class="contact-intro">
           <p class="contact-heading">
             {{ jp ? 'Golden Guideへようこそ！' : 'Thank you for visiting Golden Guide!' }}
@@ -96,6 +98,7 @@ function handleSubmit() {
             <WinButton type="button" @click="emit('close')">{{ jp ? 'キャンセル' : 'Cancel' }}</WinButton>
           </div>
         </form>
+        </div></WinScrollContainer>
       </div>
     </div>
   </Teleport>
@@ -174,9 +177,14 @@ function handleSubmit() {
 
 .contact-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   background: #e1e1d5;
+  display: flex;
+}
+
+.contact-body-inner {
   padding: 20px 24px 24px;
+  flex: 1;
 }
 
 .contact-intro {

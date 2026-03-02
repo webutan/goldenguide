@@ -384,4 +384,60 @@ setInterval(updateTime, 30000)
 .tray-clock {
   color: var(--win-text-disabled);
 }
+
+@media (max-width: 768px) {
+  .win-taskbar {
+    height: var(--taskbar-height);
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  /* Bigger touch targets */
+  .taskbar-start,
+  .taskbar-view-btn,
+  .taskbar-lang-btn {
+    height: 42px;
+    padding: 4px 12px;
+  }
+
+  /* Larger icons, hide text labels */
+  .view-icon {
+    font-size: 20px;
+  }
+  .taskbar-view-btn > span:not(.view-icon) {
+    display: none;
+  }
+
+  /* Hide start button text */
+  .start-text {
+    display: none;
+  }
+  .start-icon {
+    font-size: 20px;
+  }
+
+  /* Hide window buttons — not useful on mobile */
+  .taskbar-windows {
+    display: none;
+  }
+
+  /* Lang buttons */
+  .taskbar-lang-btn {
+    font-size: 13px;
+    min-width: 44px;
+  }
+
+  /* Tray — keep clock, hide visited count */
+  .taskbar-tray {
+    height: 42px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .tray-visited {
+    display: none;
+  }
+  .tray-clock {
+    font-size: 12px;
+  }
+}
 </style>

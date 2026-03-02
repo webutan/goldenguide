@@ -62,6 +62,12 @@
   --win-font-size: 11px;
 }
 
+@media (max-width: 768px) {
+  :root {
+    --taskbar-height: 52px;
+  }
+}
+
 /* Disable font smoothing globally for pixel-crisp rendering */
 *, *::before, *::after {
   -webkit-font-smoothing: none;
@@ -108,32 +114,87 @@
   color: var(--win-text);
 }
 
-/* Win2000 scrollbar overrides — dark purple */
+/* Win2000 scrollbar overrides — dark purple with arrow buttons */
 ::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--win-bg);
 }
 
 ::-webkit-scrollbar-track {
-  background: #1a1525;
+  background-color: #1a1525;
+  /* Win2000 hatched track pattern */
+  background-image:
+    linear-gradient(45deg, #1e1930 25%, transparent 25%),
+    linear-gradient(-45deg, #1e1930 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1e1930 75%),
+    linear-gradient(-45deg, transparent 75%, #1e1930 75%);
+  background-size: 4px 4px;
+  background-position: 0 0, 0 2px, 2px -2px, -2px 0;
 }
 
 ::-webkit-scrollbar-thumb {
+  min-height: 20px;
+  min-width: 20px;
   background: var(--win-bg);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
-    inset -1px -1px 0 var(--win-border-dark);
-  border: 1px solid #1a1525;
+    inset -1px -1px 0 var(--win-border-darkest),
+    inset 2px 2px 0 var(--win-bg-light),
+    inset -2px -2px 0 var(--win-border-dark);
 }
 
 ::-webkit-scrollbar-button {
-  background: var(--win-bg);
+  display: block;
+  width: 16px;
+  height: 16px;
+  background-color: var(--win-bg);
+  background-repeat: no-repeat;
+  background-position: center;
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
-    inset -1px -1px 0 var(--win-border-dark);
-  display: block;
-  height: 14px;
-  width: 14px;
+    inset -1px -1px 0 var(--win-border-darkest),
+    inset 2px 2px 0 var(--win-bg-light),
+    inset -2px -2px 0 var(--win-border-dark);
+}
+
+::-webkit-scrollbar-button:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-darkest),
+    inset -1px -1px 0 var(--win-border-light),
+    inset 2px 2px 0 var(--win-border-dark),
+    inset -2px -2px 0 var(--win-bg-light);
+}
+
+/* One arrow per end only */
+::-webkit-scrollbar-button:vertical:decrement:end,
+::-webkit-scrollbar-button:vertical:increment:start,
+::-webkit-scrollbar-button:horizontal:decrement:end,
+::-webkit-scrollbar-button:horizontal:increment:start {
+  display: none;
+}
+
+/* Arrow glyphs — small triangles */
+::-webkit-scrollbar-button:vertical:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpolygon points='4,1 7,7 1,7' fill='%23c8c0d0'/%3E%3C/svg%3E");
+}
+::-webkit-scrollbar-button:vertical:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpolygon points='4,7 1,1 7,1' fill='%23c8c0d0'/%3E%3C/svg%3E");
+}
+::-webkit-scrollbar-button:horizontal:decrement {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpolygon points='1,4 7,1 7,7' fill='%23c8c0d0'/%3E%3C/svg%3E");
+}
+::-webkit-scrollbar-button:horizontal:increment {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpolygon points='7,4 1,1 1,7' fill='%23c8c0d0'/%3E%3C/svg%3E");
+}
+
+/* Firefox fallback */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: var(--win-bg) #1a1525;
 }
 
 /* Pixelated rendering for SVG elements */

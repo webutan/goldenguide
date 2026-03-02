@@ -29,6 +29,7 @@ const translations = {
   'close': { en: 'Close', jp: '閉じる' },
 
   // Search
+  'search':     { en: 'Search',         jp: '検索' },
   'searchBars': { en: 'Search bars...', jp: 'バーを検索...' },
 
   // Directory

@@ -1,5 +1,6 @@
 <script setup>
 import WinButton from './win2000/WinButton.vue'
+import WinScrollContainer from './win2000/WinScrollContainer.vue'
 
 defineProps({
   lang: { type: String, default: 'en' },
@@ -59,20 +60,21 @@ const PROHIBITED_RULES = [
       </div>
 
       <div class="rules-body">
+        <WinScrollContainer>
         <!-- Sign banner -->
         <img class="rules-sign" src="/signs/sign.png" alt="Golden Gai Rules" />
 
         <!-- General rules -->
         <div class="rules-section-header">
-          <span class="rules-section-en">Rules and Manners for Enjoying Golden Gai</span>
-          <span class="rules-section-jp">ゴールデン街を楽しむためのルールとマナー</span>
+          <span v-if="lang !== 'jp'" class="rules-section-en">Rules and Manners for Enjoying Golden Gai</span>
+          <span v-if="lang !== 'en'" class="rules-section-jp">ゴールデン街を楽しむためのルールとマナー</span>
         </div>
 
         <ul class="rules-list">
           <li v-for="(rule, i) in GENERAL_RULES" :key="'g' + i" class="rule-item">
             <div class="rule-text">
-              <span class="rule-en">{{ rule.en }}</span>
-              <span class="rule-jp">{{ rule.jp }}</span>
+              <span v-if="lang !== 'jp'" class="rule-en">{{ rule.en }}</span>
+              <span v-if="lang !== 'en'" class="rule-jp">{{ rule.jp }}</span>
             </div>
             <div class="rule-divider"></div>
             <img class="rule-sprite" :src="rule.sprite" alt="" />
@@ -81,16 +83,16 @@ const PROHIBITED_RULES = [
 
         <!-- Prohibited acts -->
         <div class="rules-section-header rules-section-header--prohibited">
-          <span class="rules-section-en">The Following Acts Are Prohibited</span>
-          <span class="rules-section-jp">屋外（道路）での禁止行為</span>
+          <span v-if="lang !== 'jp'" class="rules-section-en">The Following Acts Are Prohibited</span>
+          <span v-if="lang !== 'en'" class="rules-section-jp">屋外（道路）での禁止行為</span>
         </div>
 
         <ul class="rules-list">
           <li v-for="rule in PROHIBITED_RULES" :key="'p' + rule.num" class="rule-item">
             <div class="rule-text">
               <span class="rule-num">{{ rule.num }}.</span>
-              <span class="rule-en">{{ rule.en }}</span>
-              <span class="rule-jp">{{ rule.jp }}</span>
+              <span v-if="lang !== 'jp'" class="rule-en">{{ rule.en }}</span>
+              <span v-if="lang !== 'en'" class="rule-jp">{{ rule.jp }}</span>
             </div>
             <div class="rule-divider"></div>
             <img class="rule-sprite" :src="rule.sprite" alt="" />
@@ -99,14 +101,15 @@ const PROHIBITED_RULES = [
 
         <!-- Footer rule -->
         <div class="rules-footer-rule">
-          <span>It is illegal for those under 20 years of age to drink alcohol.</span>
-          <span>20歳未満の飲酒は法律で禁止されています。</span>
+          <span v-if="lang !== 'jp'">It is illegal for those under 20 years of age to drink alcohol.</span>
+          <span v-if="lang !== 'en'">20歳未満の飲酒は法律で禁止されています。</span>
         </div>
 
         <!-- Accept button -->
         <div class="rules-accept">
           <WinButton class="rules-accept-btn" @click="emit('accepted')">I Understand</WinButton>
         </div>
+        </WinScrollContainer>
       </div>
     </div>
   </Teleport>
@@ -156,18 +159,19 @@ const PROHIBITED_RULES = [
 
 .rules-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   background: #e1e1d5;
+  display: flex;
 }
 
 /* Sign banner */
 .rules-sign {
   width: 100%;
-  height: 130px;
+  max-height: 90px;
   display: block;
-  object-fit: cover;
-  object-position: center;
+  object-fit: contain;
   image-rendering: pixelated;
+  background: #1a1a1a;
 }
 
 /* Section headers */
@@ -186,16 +190,17 @@ const PROHIBITED_RULES = [
 
 .rules-section-en {
   font-family: var(--win-font);
-  font-size: 13px;
+  font-size: 17px;
   font-weight: bold;
   color: #19613a;
 }
 
 .rules-section-jp {
   font-family: var(--win-font);
-  font-size: 11px;
+  font-size: 15px;
+  font-weight: bold;
   color: #19613a;
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 /* Rules list */
@@ -257,7 +262,7 @@ const PROHIBITED_RULES = [
 }
 
 .rule-sprite {
-  height: 160px;
+  height: 200px;
   width: auto;
   flex-shrink: 0;
   image-rendering: pixelated;

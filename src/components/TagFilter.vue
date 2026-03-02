@@ -4,7 +4,7 @@ import { ref, computed } from 'vue'
 import TagIcon from './TagIcon.vue'
 import { useI18n } from '../composables/useI18n.js'
 
-const SLIDER_MAX = 3000
+const SLIDER_MAX = 1000
 const SLIDER_STEP = 100
 
 const props = defineProps({
@@ -77,8 +77,8 @@ function onMaxChange(val, emitMax, currentMin, emitMin) {
 }
 
 function formatYen(v, isMax) {
-  if (v == null) return isMax ? '3000+' : '0'
-  if (isMax && v >= SLIDER_MAX) return '3000+'
+  if (v == null) return isMax ? '1000+' : '0'
+  if (isMax && v >= SLIDER_MAX) return '1000+'
   return `${v}`
 }
 

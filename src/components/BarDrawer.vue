@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import WinButton from './win2000/WinButton.vue'
+import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
 
 const props = defineProps({
@@ -134,6 +135,7 @@ function getOpenStatus(bar) {
         </button>
       </div>
       <div class="bar-drawer-body">
+        <WinScrollContainer><div class="bar-drawer-body-inner">
         <div v-if="visibleBars.length === 0" class="drawer-empty">
           No bars match the current filter.
         </div>
@@ -197,6 +199,7 @@ function getOpenStatus(bar) {
             </div>
           </div>
         </template>
+        </div></WinScrollContainer>
       </div>
     </div>
   </Transition>
@@ -273,11 +276,16 @@ function getOpenStatus(bar) {
 
 .bar-drawer-body {
   flex: 1;
-  overflow-y: auto;
-  padding: 4px;
+  overflow: hidden;
+  display: flex;
+  min-height: 0;
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
+}
+
+.bar-drawer-body-inner {
+  padding: 4px;
 }
 
 .drawer-empty {

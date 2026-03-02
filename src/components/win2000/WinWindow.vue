@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import WinTitleBar from './WinTitleBar.vue'
+import WinScrollContainer from './WinScrollContainer.vue'
 import { useDraggable } from '../../composables/useDraggable.js'
 
 const props = defineProps({
@@ -57,7 +58,7 @@ function onTitleMouseDown(e) {
       @close="emit('close')"
     />
     <div class="win-window-body">
-      <slot />
+      <WinScrollContainer><div class="win-window-body-inner"><slot /></div></WinScrollContainer>
     </div>
   </div>
 </template>
@@ -82,9 +83,14 @@ function onTitleMouseDown(e) {
 
 .win-window-body {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   background: var(--win-bg);
-  padding: 4px;
   min-height: 0;
+  display: flex;
+}
+
+.win-window-body-inner {
+  padding: 4px;
+  flex: 1;
 }
 </style>

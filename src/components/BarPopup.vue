@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import WinButton from './win2000/WinButton.vue'
+import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
 
 const props = defineProps({
@@ -100,6 +101,7 @@ function openGoogleMaps() {
 
           <!-- Body -->
           <div class="win-dialog-body">
+            <WinScrollContainer><div class="win-dialog-body-inner">
             <!-- Bar list (if multiple) -->
             <div v-if="buildingBars.length > 1" class="bar-list-tabs">
               <button
@@ -206,6 +208,7 @@ function openGoogleMaps() {
                 <WinButton @click="emit('close')">{{ t('close') }}</WinButton>
               </div>
             </template>
+            </div></WinScrollContainer>
           </div>
         </div>
       </div>
@@ -291,11 +294,17 @@ function openGoogleMaps() {
 }
 
 .win-dialog-body {
-  padding: 8px;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex: 1;
+  min-height: 0;
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
+}
+
+.win-dialog-body-inner {
+  padding: 8px;
 }
 
 /* Bar tabs for multi-bar buildings */

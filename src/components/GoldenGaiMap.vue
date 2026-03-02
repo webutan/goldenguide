@@ -452,11 +452,12 @@ function panToBuilding(buildingId) {
   const rotated = rotatePoint(localCx, localCy)
 
   const rect = containerRef.value.getBoundingClientRect()
-  const scale = 4
-  const offsetX = rect.width / 2 - rotated.x * scale
-  const offsetY = rect.height / 2 - rotated.y * scale
+  // Keep current zoom level, just center on the building
+  const { scale } = panzoomInstance.getTransform()
+  // Account for viewBox origin offset when computing pan target
+  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
+  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
 
-  panzoomInstance.zoomAbs(0, 0, scale)
   panzoomInstance.moveTo(offsetX, offsetY)
 
   // Pulse highlight
@@ -734,6 +735,33 @@ function getSvgPoint(e) {
 }
 
 // Emit building selection for admin editing
+// Touch tap detection (panzoom consumes touch events so @click never fires on mobile)
+let touchStartX = 0
+let touchStartY = 0
+let touchStartTime = 0
+
+function onSvgTouchStart(e) {
+  if (e.touches.length !== 1) return
+  touchStartX = e.touches[0].clientX
+  touchStartY = e.touches[0].clientY
+  touchStartTime = Date.now()
+}
+
+function onSvgTouchEnd(e) {
+  if (e.changedTouches.length !== 1) return
+  const dx = e.changedTouches[0].clientX - touchStartX
+  const dy = e.changedTouches[0].clientY - touchStartY
+  const dt = Date.now() - touchStartTime
+  if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 300) {
+    e.preventDefault() // prevent the 300ms-delayed synthetic click
+    handleMapClick({
+      target: e.target,
+      clientX: e.changedTouches[0].clientX,
+      clientY: e.changedTouches[0].clientY,
+    })
+  }
+}
+
 function handleMapClick(e) {
   hideTooltip()
 
@@ -771,6 +799,8 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
       @click="handleMapClick"
       @mousemove="onSvgMouseMove"
       @mouseleave="onSvgMouseLeave"
+      @touchstart.passive="onSvgTouchStart"
+      @touchend="onSvgTouchEnd"
     >
       <g :transform="`rotate(${MAP_ROTATION}, ${MAP_CX}, ${MAP_CY})`">
       <g v-html="mapContent" class="map-bg" />

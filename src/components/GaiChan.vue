@@ -200,7 +200,7 @@ onUnmounted(() => clearInterval(typingTimer))
   width: 100%;
   height: 100%;
   object-fit: contain;
-  object-position: bottom center;
+  object-position: 50% 100%;
   animation: gaichan-bounce 0.5s steps(1, end) alternate infinite;
 }
 

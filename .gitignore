@@ -23,6 +23,7 @@ topoexport-*/
 *.odt
 *.pdf
 *.zip
+data.sql
 
 # OS
 .DS_Store

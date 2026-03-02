@@ -178,8 +178,13 @@ function handleSearchMatches(matches) {
 
 // Register windows
 onMounted(() => {
-  wm.register('search', 'Search', '&#128269;')
+  wm.register('search', t('search'), '&#128269;')
   wm.register('explorer', 'Explorer', '&#128193;')
+})
+
+// Keep search window title in sync with language
+watch(effectiveLang, () => {
+  if (searchWin.value) searchWin.value.title = t('search')
 })
 
 const searchWin = computed(() => wm.getWindow('search'))
@@ -201,8 +206,8 @@ const tagMap = computed(() => {
   return map
 })
 
-function handleToggleAdmin() {
-  toggleAdmin()
+async function handleToggleAdmin() {
+  await toggleAdmin()
   if (isAdmin.value) {
     wm.register('admin', 'Admin Console', '&#128295;')
     wm.minimize('explorer')
@@ -386,7 +391,7 @@ async function handleUnplaceBar(bar) {
         <!-- Search window -->
         <WinWindow
           v-if="searchWin && !isAdmin"
-          title="Search"
+          :title="t('search')"
           icon="&#128269;"
           :width="200"
           :initial-x="8"
