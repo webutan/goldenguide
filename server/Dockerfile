@@ -1,10 +1,11 @@
 FROM node:22-alpine
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY . .
+COPY server/ .
+COPY sql/ ./sql/
 RUN mkdir -p uploads
 
 EXPOSE 3001

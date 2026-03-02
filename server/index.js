@@ -3,6 +3,7 @@ import cors from 'cors'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+import { runMigrations } from './migrate.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: resolve(__dirname, '..', '.env') })
@@ -27,6 +28,14 @@ app.use('/api/tags', tagsRouter)
 app.use('/api/annotations', annotationsRouter)
 app.use('/api', photosRouter)
 
-app.listen(PORT, () => {
-  console.log(`Golden Gai API running on http://localhost:${PORT}`)
-})
+// Run migrations then start server
+runMigrations()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Golden Gai API running on http://localhost:${PORT}`)
+    })
+  })
+  .catch(err => {
+    console.error('Migration failed, aborting startup:', err.message)
+    process.exit(1)
+  })

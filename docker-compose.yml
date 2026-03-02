@@ -9,7 +9,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./sql:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U golden_gai -d golden_gai"]
       interval: 5s
@@ -17,8 +16,7 @@ services:
       retries: 10
 
   api:
-    build:
-      context: ./server
+    image: webutan/golden-guide:api
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://golden_gai:${DB_PASSWORD}@db:5432/golden_gai
@@ -30,8 +28,7 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: .
+    image: webutan/golden-guide:web
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:80"
