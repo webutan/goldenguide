@@ -1,0 +1,1 @@
+ALTER TABLE bars ADD COLUMN IF NOT EXISTS google_link TEXT;

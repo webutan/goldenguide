@@ -1,0 +1,25 @@
+{
+  "name": "golden-gai-map",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "convert": "node scripts/convert.js",
+    "seed": "node scripts/seed.js",
+    "dev": "vite",
+    "dev:server": "node server/index.js",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.4",
+    "open-location-code": "^1.0.3",
+    "panzoom": "^9.4.3",
+    "pg": "^8.18.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.0"
+  }
+}

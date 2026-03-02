@@ -1,0 +1,85 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--win-font, 'Tahoma', sans-serif);
+  font-size: var(--win-font-size, 11px);
+  background: var(--desktop-bg, #0a0810);
+  color: var(--win-text, #c8c0d0);
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Remove all border-radius globally */
+*, *::before, *::after {
+  border-radius: 0 !important;
+}
+
+/* Desktop area — content fills this */
+.desktop {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Map container — fills desktop */
+.map-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.map-container:active {
+  cursor: grabbing;
+}
+
+.map-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 5;
+}
+
+/* SVG bar styles */
+.bar-text {
+  font-family: var(--win-font, 'Tahoma', sans-serif);
+  pointer-events: none;
+  user-select: none;
+}
+
+.alley-label {
+  font-family: var(--win-font, 'Tahoma', sans-serif);
+  fill: #605878;
+  pointer-events: none;
+}
+
+/* Loading screen */
+.loading-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--desktop-bg);
+  color: var(--win-text);
+  font-size: 12px;
+  font-family: var(--win-font);
+}

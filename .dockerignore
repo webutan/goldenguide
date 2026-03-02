@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+server
+sql
+scripts
+media
+icons
+downloads
+*.csv
+*.ods
+*.pdf
+*.zip
+topoexport-*

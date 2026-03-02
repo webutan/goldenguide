@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build output
+dist/
+
+# Environment — contains real credentials, never commit
+.env
+
+# Runtime uploads — bar photos persisted via Docker volume in production
+server/uploads/
+
+# Working data files — not needed for deployment
+downloads/
+media/
+/icons/
+topoexport-*/
+
+# Large source data files
+*.csv
+*.ods
+*.odt
+*.pdf
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+*.swo

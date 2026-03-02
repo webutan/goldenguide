@@ -1,0 +1,2593 @@
+{
+  "groups": [
+    {
+      "index": 0,
+      "street": "G1",
+      "barIds": [
+        187,
+        188
+      ],
+      "names": [
+        "がまぐち",
+        "図書室"
+      ]
+    },
+    {
+      "index": 1,
+      "street": "G1",
+      "barIds": [
+        189,
+        190
+      ],
+      "names": [
+        "水の木",
+        "トレトレ"
+      ]
+    },
+    {
+      "index": 2,
+      "street": "G1",
+      "barIds": [
+        191,
+        192
+      ],
+      "names": [
+        "Diamond bar",
+        "Barブラン"
+      ]
+    },
+    {
+      "index": 3,
+      "street": "G1",
+      "barIds": [
+        193,
+        194
+      ],
+      "names": [
+        "三坪±",
+        "BARたまや"
+      ]
+    },
+    {
+      "index": 4,
+      "street": "G1",
+      "barIds": [
+        195,
+        196
+      ],
+      "names": [
+        "エクリプス",
+        "小鳥"
+      ]
+    },
+    {
+      "index": 5,
+      "street": "G1",
+      "barIds": [
+        197
+      ],
+      "names": [
+        "夢二"
+      ]
+    },
+    {
+      "index": 6,
+      "street": "G1",
+      "barIds": [
+        198
+      ],
+      "names": [
+        "TWIN"
+      ]
+    },
+    {
+      "index": 7,
+      "street": "G1",
+      "barIds": [
+        199,
+        200
+      ],
+      "names": [
+        "突風",
+        "4'Cs BAR ROSSO"
+      ]
+    },
+    {
+      "index": 8,
+      "street": "G1",
+      "barIds": [
+        201
+      ],
+      "names": [
+        "プッシーフット"
+      ]
+    },
+    {
+      "index": 9,
+      "street": "G1",
+      "barIds": [
+        202,
+        203
+      ],
+      "names": [
+        "SUZU BAR",
+        "しん亭こう路"
+      ]
+    },
+    {
+      "index": 10,
+      "street": "G1",
+      "barIds": [
+        204
+      ],
+      "names": [
+        "BAR UISCE"
+      ]
+    },
+    {
+      "index": 11,
+      "street": "G1",
+      "barIds": [
+        158
+      ],
+      "names": [
+        "久"
+      ]
+    },
+    {
+      "index": 12,
+      "street": "G1",
+      "barIds": [
+        205,
+        206
+      ],
+      "names": [
+        "花の園",
+        "Decoy"
+      ]
+    },
+    {
+      "index": 13,
+      "street": "G1",
+      "barIds": [
+        207,
+        208
+      ],
+      "names": [
+        "Hecate",
+        "パパズドリーム"
+      ]
+    },
+    {
+      "index": 14,
+      "street": "G1",
+      "barIds": [
+        209,
+        210
+      ],
+      "names": [
+        "zory",
+        "ROCKET"
+      ]
+    },
+    {
+      "index": 15,
+      "street": "G1",
+      "barIds": [
+        211,
+        212
+      ],
+      "names": [
+        "ポニー",
+        "Hungry"
+      ]
+    },
+    {
+      "index": 16,
+      "street": "G1",
+      "barIds": [
+        213,
+        214
+      ],
+      "names": [
+        "Bon's",
+        "Humphrey"
+      ]
+    },
+    {
+      "index": 17,
+      "street": "G2",
+      "barIds": [
+        215,
+        216
+      ],
+      "names": [
+        "チャンピオン",
+        "ANIME HOLIC"
+      ]
+    },
+    {
+      "index": 18,
+      "street": "G2",
+      "barIds": [
+        92,
+        217
+      ],
+      "names": [
+        "ami",
+        "猪鹿蝶"
+      ]
+    },
+    {
+      "index": 19,
+      "street": "G2",
+      "barIds": [
+        218,
+        219
+      ],
+      "names": [
+        "月に吠える",
+        "カルマ"
+      ]
+    },
+    {
+      "index": 20,
+      "street": "G2",
+      "barIds": [
+        220,
+        221
+      ],
+      "names": [
+        "Peg",
+        "シラムレン"
+      ]
+    },
+    {
+      "index": 21,
+      "street": "G2",
+      "barIds": [
+        222,
+        223
+      ],
+      "names": [
+        "小鉄",
+        "十月"
+      ]
+    },
+    {
+      "index": 22,
+      "street": "G2",
+      "barIds": [
+        224,
+        225
+      ],
+      "names": [
+        "anchor",
+        "酔２"
+      ]
+    },
+    {
+      "index": 23,
+      "street": "G2",
+      "barIds": [
+        226,
+        227
+      ],
+      "names": [
+        "UP OUT",
+        "RENO"
+      ]
+    },
+    {
+      "index": 24,
+      "street": "G2",
+      "barIds": [
+        228,
+        229
+      ],
+      "names": [
+        "BARCA",
+        "凪"
+      ]
+    },
+    {
+      "index": 25,
+      "street": "G2",
+      "barIds": [
+        230,
+        231
+      ],
+      "names": [
+        "451℉",
+        "PARAS OL"
+      ]
+    },
+    {
+      "index": 26,
+      "street": "G2",
+      "barIds": [
+        232,
+        232
+      ],
+      "names": [
+        "こもれび",
+        "こもれび"
+      ]
+    },
+    {
+      "index": 27,
+      "street": "G2",
+      "barIds": [
+        234
+      ],
+      "names": [
+        "フラッパー"
+      ]
+    },
+    {
+      "index": 28,
+      "street": "G2",
+      "barIds": [
+        235,
+        236
+      ],
+      "names": [
+        "吐夢",
+        "大吉"
+      ]
+    },
+    {
+      "index": 29,
+      "street": "G2",
+      "barIds": [
+        237,
+        238
+      ],
+      "names": [
+        "くればわかる",
+        "くればわかる２"
+      ]
+    },
+    {
+      "index": 30,
+      "street": "G2",
+      "barIds": [
+        239
+      ],
+      "names": [
+        "ナイチンゲール"
+      ]
+    },
+    {
+      "index": 31,
+      "street": "G2",
+      "barIds": [
+        240
+      ],
+      "names": [
+        "和三盆"
+      ]
+    },
+    {
+      "index": 32,
+      "street": "G2",
+      "barIds": [
+        241
+      ],
+      "names": [
+        "Halo"
+      ]
+    },
+    {
+      "index": 33,
+      "street": "G2",
+      "barIds": [
+        242
+      ],
+      "names": [
+        "のんちゃん"
+      ]
+    },
+    {
+      "index": 34,
+      "street": "G2",
+      "barIds": [
+        243
+      ],
+      "names": [
+        "石の花"
+      ]
+    },
+    {
+      "index": 35,
+      "street": "G2",
+      "barIds": [
+        244
+      ],
+      "names": [
+        "plasticmodel"
+      ]
+    },
+    {
+      "index": 36,
+      "street": "G2",
+      "barIds": [
+        169,
+        245
+      ],
+      "names": [
+        "誠美興業",
+        "HIDE"
+      ]
+    },
+    {
+      "index": 37,
+      "street": "hanazono-1",
+      "barIds": [
+        246,
+        247
+      ],
+      "names": [
+        "OIL",
+        "南海"
+      ]
+    },
+    {
+      "index": 38,
+      "street": "hanazono-1",
+      "barIds": [
+        248,
+        249
+      ],
+      "names": [
+        "気仙坂",
+        "Buzz"
+      ]
+    },
+    {
+      "index": 39,
+      "street": "hanazono-1",
+      "barIds": [
+        250,
+        251
+      ],
+      "names": [
+        "虎の穴",
+        "Alley nuts"
+      ]
+    },
+    {
+      "index": 40,
+      "street": "hanazono-1",
+      "barIds": [
+        252
+      ],
+      "names": [
+        "SLOW HAND",
+        "？"
+      ]
+    },
+    {
+      "index": 41,
+      "street": "hanazono-1",
+      "barIds": [
+        253,
+        254
+      ],
+      "names": [
+        "レスポワール純",
+        "ダンさん"
+      ]
+    },
+    {
+      "index": 42,
+      "street": "hanazono-1",
+      "barIds": [
+        255,
+        256
+      ],
+      "names": [
+        "うとうと",
+        "あるぱか"
+      ]
+    },
+    {
+      "index": 43,
+      "street": "hanazono-1",
+      "barIds": [
+        257,
+        106
+      ],
+      "names": [
+        "風の森",
+        "シネストークYOYO"
+      ]
+    },
+    {
+      "index": 44,
+      "street": "hanazono-1",
+      "barIds": [
+        258,
+        259
+      ],
+      "names": [
+        "アパッシュ",
+        "ボニータ"
+      ]
+    },
+    {
+      "index": 45,
+      "street": "hanazono-1",
+      "barIds": [
+        260,
+        261
+      ],
+      "names": [
+        "MISO SOUP",
+        "澤"
+      ]
+    },
+    {
+      "index": 46,
+      "street": "hanazono-1",
+      "barIds": [
+        262,
+        263
+      ],
+      "names": [
+        "エスパ",
+        "DESERT INN"
+      ]
+    },
+    {
+      "index": 47,
+      "street": "hanazono-1",
+      "barIds": [
+        264
+      ],
+      "names": [
+        "しの"
+      ]
+    },
+    {
+      "index": 48,
+      "street": "hanazono-1",
+      "barIds": [
+        265
+      ],
+      "names": [
+        "うるわし"
+      ]
+    },
+    {
+      "index": 49,
+      "street": "hanazono-1",
+      "barIds": [
+        266
+      ],
+      "names": [
+        "久絽"
+      ]
+    },
+    {
+      "index": 50,
+      "street": "hanazono-1",
+      "barIds": [
+        267
+      ],
+      "names": [
+        "こどじ"
+      ]
+    },
+    {
+      "index": 51,
+      "street": "hanazono-1",
+      "barIds": [
+        268
+      ],
+      "names": [
+        "双葉"
+      ]
+    },
+    {
+      "index": 52,
+      "street": "hanazono-1",
+      "barIds": [
+        269,
+        270
+      ],
+      "names": [
+        "チルドレン",
+        "エピローグ"
+      ]
+    },
+    {
+      "index": 53,
+      "street": "hanazono-1",
+      "barIds": [
+        271
+      ],
+      "names": [
+        "友"
+      ]
+    },
+    {
+      "index": 54,
+      "street": "hanazono-1",
+      "barIds": [
+        272
+      ],
+      "names": [
+        "パンピ"
+      ]
+    },
+    {
+      "index": 55,
+      "street": "hanazono-1",
+      "barIds": [
+        273
+      ],
+      "names": [
+        "BRIAN BAR"
+      ]
+    },
+    {
+      "index": 56,
+      "street": "hanazono-1",
+      "barIds": [
+        274
+      ],
+      "names": [
+        "くさんちっぺ"
+      ]
+    },
+    {
+      "index": 57,
+      "street": "hanazono-1",
+      "barIds": [
+        275,
+        276
+      ],
+      "names": [
+        "クラクラ",
+        "どんがらがっしゃん"
+      ]
+    },
+    {
+      "index": 58,
+      "street": "hanazono-1",
+      "barIds": [
+        277,
+        278
+      ],
+      "names": [
+        "青春",
+        "Ace's"
+      ]
+    },
+    {
+      "index": 59,
+      "street": "hanazono-1",
+      "barIds": [
+        279,
+        280
+      ],
+      "names": [
+        "夜間飛行",
+        "クラクラ2"
+      ]
+    },
+    {
+      "index": 60,
+      "street": "hanazono-1",
+      "barIds": [
+        281,
+        282
+      ],
+      "names": [
+        "ちゃこ",
+        "中村酒店"
+      ]
+    },
+    {
+      "index": 61,
+      "street": "hanazono-1",
+      "barIds": [
+        283,
+        284
+      ],
+      "names": [
+        "かぼちゃ",
+        "瑠璃"
+      ]
+    },
+    {
+      "index": 62,
+      "street": "hanazono-1",
+      "barIds": [
+        285,
+        286
+      ],
+      "names": [
+        "araku",
+        "ZUCCA"
+      ]
+    },
+    {
+      "index": 63,
+      "street": "hanazono-1",
+      "barIds": [
+        287
+      ],
+      "names": [
+        "ASTERISK"
+      ]
+    },
+    {
+      "index": 64,
+      "street": "hanazono-1",
+      "barIds": [
+        288
+      ],
+      "names": [
+        "Evi"
+      ]
+    },
+    {
+      "index": 65,
+      "street": "hanazono-1",
+      "barIds": [
+        289
+      ],
+      "names": [
+        "10cc"
+      ]
+    },
+    {
+      "index": 66,
+      "street": "hanazono-1",
+      "barIds": [
+        290
+      ],
+      "names": [
+        "出窓"
+      ]
+    },
+    {
+      "index": 67,
+      "street": "hanazono-1",
+      "barIds": [
+        291
+      ],
+      "names": [
+        "しんしら"
+      ]
+    },
+    {
+      "index": 68,
+      "street": "hanazono-1",
+      "barIds": [
+        292
+      ],
+      "names": [
+        "トロール"
+      ]
+    },
+    {
+      "index": 69,
+      "street": "hanazono-1",
+      "barIds": [
+        293
+      ],
+      "names": [
+        "bar sono"
+      ]
+    },
+    {
+      "index": 70,
+      "street": "hanazono-3",
+      "barIds": [
+        11,
+        15
+      ],
+      "names": [
+        "新宿櫻亭",
+        "ナナ"
+      ]
+    },
+    {
+      "index": 71,
+      "street": "hanazono-3",
+      "barIds": [
+        19
+      ],
+      "names": [
+        "BAR tomorrow"
+      ]
+    },
+    {
+      "index": 72,
+      "street": "hanazono-3",
+      "barIds": [
+        3
+      ],
+      "names": [
+        "HOD"
+      ]
+    },
+    {
+      "index": 73,
+      "street": "hanazono-3",
+      "barIds": [
+        6
+      ],
+      "names": [
+        "音吉"
+      ]
+    },
+    {
+      "index": 74,
+      "street": "hanazono-3",
+      "barIds": [
+        14
+      ],
+      "names": [
+        "ドラゴンナイト！！"
+      ]
+    },
+    {
+      "index": 75,
+      "street": "hanazono-3",
+      "barIds": [
+        17
+      ],
+      "names": [
+        "2×4＝8"
+      ]
+    },
+    {
+      "index": 76,
+      "street": "hanazono-3",
+      "barIds": [
+        20
+      ],
+      "names": [
+        "BILLY"
+      ]
+    },
+    {
+      "index": 77,
+      "street": "hanazono-3",
+      "barIds": [
+        9,
+        4
+      ],
+      "names": [
+        "申",
+        "遠足"
+      ]
+    },
+    {
+      "index": 78,
+      "street": "hanazono-3",
+      "barIds": [
+        22,
+        8
+      ],
+      "names": [
+        "ブルーローズ",
+        "GHETTO"
+      ]
+    },
+    {
+      "index": 79,
+      "street": "hanazono-3",
+      "barIds": [
+        5
+      ],
+      "names": [
+        "奥亭"
+      ]
+    },
+    {
+      "index": 80,
+      "street": "hanazono-3",
+      "barIds": [
+        52,
+        34
+      ],
+      "names": [
+        "洗濯船",
+        "BARキネマ倶楽部"
+      ]
+    },
+    {
+      "index": 81,
+      "street": "hanazono-3",
+      "barIds": [
+        73,
+        294
+      ],
+      "names": [
+        "5GALLONS",
+        "BAR滝"
+      ]
+    },
+    {
+      "index": 82,
+      "street": "hanazono-3",
+      "barIds": [
+        66,
+        45
+      ],
+      "names": [
+        "ばるぼら屋",
+        "ジュテ"
+      ]
+    },
+    {
+      "index": 83,
+      "street": "hanazono-3",
+      "barIds": [
+        36,
+        71
+      ],
+      "names": [
+        "原子心母",
+        "The PearL"
+      ]
+    },
+    {
+      "index": 84,
+      "street": "hanazono-3",
+      "barIds": [
+        51,
+        74
+      ],
+      "names": [
+        "zuma.",
+        "WHO"
+      ]
+    },
+    {
+      "index": 85,
+      "street": "hanazono-3",
+      "barIds": [
+        27,
+        56
+      ],
+      "names": [
+        "十六夜",
+        "たちばな診察室"
+      ]
+    },
+    {
+      "index": 86,
+      "street": "hanazono-3",
+      "barIds": [
+        38,
+        62
+      ],
+      "names": [
+        "ゴールデンダスト",
+        "Dume BAR"
+      ]
+    },
+    {
+      "index": 87,
+      "street": "hanazono-3",
+      "barIds": [
+        72,
+        61
+      ],
+      "names": [
+        "PIECE",
+        "toto BAR"
+      ]
+    },
+    {
+      "index": 88,
+      "street": "hanazono-3",
+      "barIds": [
+        25,
+        47
+      ],
+      "names": [
+        "赤花",
+        "zilch"
+      ]
+    },
+    {
+      "index": 89,
+      "street": "hanazono-3",
+      "barIds": [
+        39,
+        40
+      ],
+      "names": [
+        "シエロ",
+        "沙華"
+      ]
+    },
+    {
+      "index": 90,
+      "street": "hanazono-3",
+      "barIds": [
+        55,
+        26
+      ],
+      "names": [
+        "たくのみ１",
+        "Asyl"
+      ]
+    },
+    {
+      "index": 91,
+      "street": "hanazono-3",
+      "barIds": [
+        7
+      ],
+      "names": [
+        "ガルシア"
+      ]
+    },
+    {
+      "index": 92,
+      "street": "hanazono-3",
+      "barIds": [
+        2
+      ],
+      "names": [
+        "一歩"
+      ]
+    },
+    {
+      "index": 93,
+      "street": "hanazono-3",
+      "barIds": [
+        1,
+        23
+      ],
+      "names": [
+        "愛鷹",
+        "無銘喫茶"
+      ]
+    },
+    {
+      "index": 94,
+      "street": "hanazono-3",
+      "barIds": [
+        12
+      ],
+      "names": [
+        "深夜+1"
+      ]
+    },
+    {
+      "index": 95,
+      "street": "hanazono-3",
+      "barIds": [
+        55
+      ],
+      "names": [
+        "たくのみ２"
+      ]
+    },
+    {
+      "index": 96,
+      "street": "hanazono-3",
+      "barIds": [
+        16
+      ],
+      "names": [
+        "ナベサン"
+      ]
+    },
+    {
+      "index": 97,
+      "street": "hanazono-3",
+      "barIds": [
+        13
+      ],
+      "names": [
+        "どこ"
+      ]
+    },
+    {
+      "index": 98,
+      "street": "hanazono-3",
+      "barIds": [
+        18
+      ],
+      "names": [
+        "ねこ娘"
+      ]
+    },
+    {
+      "index": 99,
+      "street": "hanazono-3",
+      "barIds": [
+        46
+      ],
+      "names": [
+        "jun&co"
+      ]
+    },
+    {
+      "index": 100,
+      "street": "hanazono-3",
+      "barIds": [
+        21
+      ],
+      "names": [
+        "Buoy"
+      ]
+    },
+    {
+      "index": 101,
+      "street": "hanazono-3",
+      "barIds": [
+        174
+      ],
+      "names": [
+        "ハーメルン"
+      ]
+    },
+    {
+      "index": 102,
+      "street": "hanazono-3",
+      "barIds": [
+        59,
+        64
+      ],
+      "names": [
+        "DEATH MATCH！",
+        "Hamoon-d"
+      ]
+    },
+    {
+      "index": 103,
+      "street": "hanazono-3",
+      "barIds": [
+        295,
+        49
+      ],
+      "names": [
+        "BARるつぼ",
+        "スクエア"
+      ]
+    },
+    {
+      "index": 104,
+      "street": "hanazono-3",
+      "barIds": [
+        41,
+        58
+      ],
+      "names": [
+        "シャドウ",
+        "珍呑"
+      ]
+    },
+    {
+      "index": 105,
+      "street": "hanazono-3",
+      "barIds": [
+        10,
+        24
+      ],
+      "names": [
+        "サーヤ",
+        "ロンリー"
+      ]
+    },
+    {
+      "index": 106,
+      "street": "hanazono-3",
+      "barIds": [
+        67
+      ],
+      "names": [
+        "BAR COO"
+      ]
+    },
+    {
+      "index": 107,
+      "street": "hanazono-3",
+      "barIds": [
+        296
+      ],
+      "names": [
+        "新栄"
+      ]
+    },
+    {
+      "index": 108,
+      "street": "hanazono-3",
+      "barIds": [
+        170
+      ],
+      "names": [
+        "待夢"
+      ]
+    },
+    {
+      "index": 109,
+      "street": "maneki",
+      "barIds": [
+        177,
+        296
+      ],
+      "names": [
+        "Bar K",
+        "新栄"
+      ]
+    },
+    {
+      "index": 110,
+      "street": "maneki",
+      "barIds": [
+        160
+      ],
+      "names": [
+        "キャロット"
+      ]
+    },
+    {
+      "index": 111,
+      "street": "maneki",
+      "barIds": [
+        164
+      ],
+      "names": [
+        "ゴッサム"
+      ]
+    },
+    {
+      "index": 112,
+      "street": "maneki",
+      "barIds": [
+        70
+      ],
+      "names": [
+        "何となく"
+      ]
+    },
+    {
+      "index": 113,
+      "street": "maneki",
+      "barIds": [
+        186
+      ],
+      "names": [
+        "88p"
+      ]
+    },
+    {
+      "index": 114,
+      "street": "maneki",
+      "barIds": [
+        158
+      ],
+      "names": [
+        "紀久子"
+      ]
+    },
+    {
+      "index": 115,
+      "street": "maneki",
+      "barIds": [
+        183
+      ],
+      "names": [
+        "ひまわり"
+      ]
+    },
+    {
+      "index": 116,
+      "street": "maneki",
+      "barIds": [
+        171
+      ],
+      "names": [
+        "中ちゃん"
+      ]
+    },
+    {
+      "index": 117,
+      "street": "maneki",
+      "barIds": [
+        185
+      ],
+      "names": [
+        "美香"
+      ]
+    },
+    {
+      "index": 118,
+      "street": "hanazono-8",
+      "barIds": [
+        181
+      ],
+      "names": [
+        "バーバスター"
+      ]
+    },
+    {
+      "index": 119,
+      "street": "hanazono-8",
+      "barIds": [
+        176
+      ],
+      "names": [
+        "BAR WOODS"
+      ]
+    },
+    {
+      "index": 120,
+      "street": "hanazono-8",
+      "barIds": [
+        182
+      ],
+      "names": [
+        "BAR Pho"
+      ]
+    },
+    {
+      "index": 121,
+      "street": "hanazono-8",
+      "barIds": [
+        163
+      ],
+      "names": [
+        "こっこめ"
+      ]
+    },
+    {
+      "index": 122,
+      "street": "hanazono-8",
+      "barIds": [
+        298
+      ],
+      "names": [
+        "Bar ジュール"
+      ]
+    },
+    {
+      "index": 123,
+      "street": "hanazono-8",
+      "barIds": [
+        299
+      ],
+      "names": [
+        "Smile"
+      ]
+    },
+    {
+      "index": 124,
+      "street": "hanazono-8",
+      "barIds": [
+        184
+      ],
+      "names": [
+        "Pink Roro"
+      ]
+    },
+    {
+      "index": 125,
+      "street": "hanazono-8",
+      "barIds": [
+        173
+      ],
+      "names": [
+        "肉人"
+      ]
+    },
+    {
+      "index": 126,
+      "street": "hanazono-8",
+      "barIds": [
+        162
+      ],
+      "names": [
+        "グリゼット"
+      ]
+    },
+    {
+      "index": 127,
+      "street": "hanazono-8",
+      "barIds": [
+        156
+      ],
+      "names": [
+        "流民"
+      ]
+    },
+    {
+      "index": 128,
+      "street": "hanazono-8",
+      "barIds": [
+        147
+      ],
+      "names": [
+        "シーホース"
+      ]
+    },
+    {
+      "index": 129,
+      "street": "hanazono-8",
+      "barIds": [
+        151
+      ],
+      "names": [
+        "FUJISAN"
+      ]
+    },
+    {
+      "index": 130,
+      "street": "hanazono-8",
+      "barIds": [
+        142
+      ],
+      "names": [
+        "あび庵"
+      ]
+    },
+    {
+      "index": 131,
+      "street": "hanazono-8",
+      "barIds": [
+        161
+      ],
+      "names": [
+        "CREMASTER"
+      ]
+    },
+    {
+      "index": 132,
+      "street": "hanazono-8",
+      "barIds": [
+        300
+      ],
+      "names": [
+        "ダーリン"
+      ]
+    },
+    {
+      "index": 133,
+      "street": "hanazono-8",
+      "barIds": [
+        166
+      ],
+      "names": [
+        "ハニー"
+      ]
+    },
+    {
+      "index": 134,
+      "street": "hanazono-8",
+      "barIds": [
+        148
+      ],
+      "names": [
+        "DINER 5GALLONS"
+      ]
+    },
+    {
+      "index": 135,
+      "street": "hanazono-8",
+      "barIds": [
+        159
+      ],
+      "names": [
+        "如月"
+      ]
+    },
+    {
+      "index": 136,
+      "street": "hanazono-8",
+      "barIds": [
+        165
+      ],
+      "names": [
+        "SASUKE"
+      ]
+    },
+    {
+      "index": 137,
+      "street": "hanazono-8",
+      "barIds": [
+        168
+      ],
+      "names": [
+        "suzy-Q"
+      ]
+    },
+    {
+      "index": 138,
+      "street": "hanazono-8",
+      "barIds": [
+        157
+      ],
+      "names": [
+        "if"
+      ]
+    },
+    {
+      "index": 139,
+      "street": "hanazono-8",
+      "barIds": [
+        172
+      ],
+      "names": [
+        "nagune"
+      ]
+    },
+    {
+      "index": 140,
+      "street": "hanazono-8",
+      "barIds": [
+        105,
+        90
+      ],
+      "names": [
+        "琥珀",
+        "AZITO"
+      ]
+    },
+    {
+      "index": 141,
+      "street": "hanazono-8",
+      "barIds": [
+        123
+      ],
+      "names": [
+        "ビッグリバー"
+      ]
+    },
+    {
+      "index": 142,
+      "street": "hanazono-8",
+      "barIds": [
+        104,
+        126
+      ],
+      "names": [
+        "現在地",
+        "プラージュ"
+      ]
+    },
+    {
+      "index": 143,
+      "street": "hanazono-8",
+      "barIds": [
+        69,
+        301
+      ],
+      "names": [
+        "翁",
+        "ADIEU L'AMI"
+      ]
+    },
+    {
+      "index": 144,
+      "street": "hanazono-8",
+      "barIds": [
+        139,
+        140
+      ],
+      "names": [
+        "red.",
+        "れもんの木"
+      ]
+    },
+    {
+      "index": 145,
+      "street": "hanazono-8",
+      "barIds": [
+        302,
+        136
+      ],
+      "names": [
+        "紅孔雀",
+        "やどかり"
+      ]
+    },
+    {
+      "index": 146,
+      "street": "hanazono-8",
+      "barIds": [
+        134,
+        91
+      ],
+      "names": [
+        "百千鳥",
+        "add+"
+      ]
+    },
+    {
+      "index": 147,
+      "street": "hanazono-8",
+      "barIds": [
+        108,
+        125
+      ],
+      "names": [
+        "西瓜糖",
+        "Buti"
+      ]
+    },
+    {
+      "index": 148,
+      "street": "hanazono-8",
+      "barIds": [
+        101,
+        129
+      ],
+      "names": [
+        "92蜜",
+        "真湖"
+      ]
+    },
+    {
+      "index": 149,
+      "street": "hanazono-8",
+      "barIds": [
+        98,
+        130
+      ],
+      "names": [
+        "Calimero",
+        "マチュカバー"
+      ]
+    },
+    {
+      "index": 150,
+      "street": "hanazono-8",
+      "barIds": [
+        115,
+        138
+      ],
+      "names": [
+        "ぱいんつりー",
+        "レカン"
+      ]
+    },
+    {
+      "index": 151,
+      "street": "hanazono-8",
+      "barIds": [
+        99,
+        113
+      ],
+      "names": [
+        "カンガルーコート",
+        "夏の扉"
+      ]
+    },
+    {
+      "index": 152,
+      "street": "hanazono-8",
+      "barIds": [
+        114,
+        303
+      ],
+      "names": [
+        "二都物語",
+        "雨樋"
+      ]
+    },
+    {
+      "index": 153,
+      "street": "hanazono-8",
+      "barIds": [
+        121,
+        137
+      ],
+      "names": [
+        "HIP",
+        "ルマタン"
+      ]
+    },
+    {
+      "index": 154,
+      "street": "hanazono-8",
+      "barIds": [
+        96,
+        109
+      ],
+      "names": [
+        "The Open Book",
+        "SKAVLA"
+      ]
+    },
+    {
+      "index": 155,
+      "street": "hanazono-8",
+      "barIds": [
+        133
+      ],
+      "names": [
+        "ミロク倶楽部"
+      ]
+    },
+    {
+      "index": 156,
+      "street": "hanazono-8",
+      "barIds": [
+        304
+      ],
+      "names": [
+        "BARブラン別館"
+      ]
+    },
+    {
+      "index": 157,
+      "street": "hanazono-8",
+      "barIds": [
+        152
+      ],
+      "names": [
+        "ビストロ パボ"
+      ]
+    },
+    {
+      "index": 158,
+      "street": "hanazono-8",
+      "barIds": [
+        305
+      ],
+      "names": [
+        "HHHH"
+      ]
+    },
+    {
+      "index": 159,
+      "street": "hanazono-8",
+      "barIds": [
+        143
+      ],
+      "names": [
+        "QT"
+      ]
+    },
+    {
+      "index": 160,
+      "street": "hanazono-8",
+      "barIds": [
+        150
+      ],
+      "names": [
+        "SPADE"
+      ]
+    },
+    {
+      "index": 161,
+      "street": "hanazono-8",
+      "barIds": [
+        145
+      ],
+      "names": [
+        "クリシュナ"
+      ]
+    },
+    {
+      "index": 162,
+      "street": "hanazono-8",
+      "barIds": [
+        153,
+        146
+      ],
+      "names": [
+        "BtoB",
+        "3rd Room"
+      ]
+    },
+    {
+      "index": 163,
+      "street": "maneki",
+      "barIds": [
+        110,
+        111
+      ],
+      "names": [
+        "ところ処",
+        "トミー"
+      ]
+    },
+    {
+      "index": 164,
+      "street": "maneki",
+      "barIds": [
+        141
+      ],
+      "names": [
+        "ロベリヤ"
+      ]
+    },
+    {
+      "index": 165,
+      "street": "maneki",
+      "barIds": [
+        93
+      ],
+      "names": [
+        "居酒屋ぺぺ"
+      ]
+    },
+    {
+      "index": 166,
+      "street": "maneki",
+      "barIds": [
+        94
+      ],
+      "names": [
+        "UKA TSU"
+      ]
+    },
+    {
+      "index": 167,
+      "street": "maneki",
+      "barIds": [
+        132
+      ],
+      "names": [
+        "そんなかんじ"
+      ]
+    },
+    {
+      "index": 168,
+      "street": "maneki",
+      "barIds": [
+        103
+      ],
+      "names": [
+        "K-st."
+      ]
+    },
+    {
+      "index": 169,
+      "street": "maneki",
+      "barIds": [
+        120
+      ],
+      "names": [
+        "パノラマの夜"
+      ]
+    },
+    {
+      "index": 170,
+      "street": "maneki",
+      "barIds": [
+        54
+      ],
+      "names": [
+        "ソワレ"
+      ]
+    },
+    {
+      "index": 171,
+      "street": "maneki",
+      "barIds": [
+        75
+      ],
+      "names": [
+        "BLUE DRAGON"
+      ]
+    },
+    {
+      "index": 172,
+      "street": "maneki",
+      "barIds": [
+        43
+      ],
+      "names": [
+        "べるじゅらっく"
+      ]
+    },
+    {
+      "index": 173,
+      "street": "maneki",
+      "barIds": [
+        29
+      ],
+      "names": [
+        "オレンジ王子"
+      ]
+    },
+    {
+      "index": 174,
+      "street": "maneki",
+      "barIds": [
+        65
+      ],
+      "names": [
+        "Bali"
+      ]
+    },
+    {
+      "index": 175,
+      "street": "maneki",
+      "barIds": [
+        37
+      ],
+      "names": [
+        "強飲"
+      ]
+    },
+    {
+      "index": 176,
+      "street": "hanazono-3",
+      "barIds": [
+        112
+      ],
+      "names": [
+        "鳥立ち"
+      ]
+    },
+    {
+      "index": 177,
+      "street": "hanazono-3",
+      "barIds": [
+        116,
+        135
+      ],
+      "names": [
+        "BAR ALBATROSS",
+        "モンゴリアンドランク"
+      ]
+    },
+    {
+      "index": 178,
+      "street": "hanazono-3",
+      "barIds": [
+        107,
+        102
+      ],
+      "names": [
+        "Sea&Sun",
+        "Grey"
+      ]
+    },
+    {
+      "index": 179,
+      "street": "hanazono-3",
+      "barIds": [
+        127,
+        122
+      ],
+      "names": [
+        "ぺんぎん村",
+        "ビアンカ"
+      ]
+    },
+    {
+      "index": 180,
+      "street": "hanazono-3",
+      "barIds": [
+        124
+      ],
+      "names": [
+        "Pitou"
+      ]
+    },
+    {
+      "index": 181,
+      "street": "hanazono-3",
+      "barIds": [
+        306,
+        95
+      ],
+      "names": [
+        "BAR時",
+        "追い風"
+      ]
+    },
+    {
+      "index": 182,
+      "street": "hanazono-3",
+      "barIds": [
+        307,
+        106
+      ],
+      "names": [
+        "銀河系",
+        "シネストーク"
+      ]
+    },
+    {
+      "index": 183,
+      "street": "hanazono-3",
+      "barIds": [
+        100
+      ],
+      "names": [
+        "蛾王"
+      ]
+    },
+    {
+      "index": 184,
+      "street": "hanazono-3",
+      "barIds": [
+        85,
+        131
+      ],
+      "names": [
+        "Happy",
+        "松鐘亭"
+      ]
+    },
+    {
+      "index": 185,
+      "street": "hanazono-3",
+      "barIds": [
+        82,
+        87
+      ],
+      "names": [
+        "初回盤B",
+        "Heavy Gauge"
+      ]
+    },
+    {
+      "index": 186,
+      "street": "hanazono-3",
+      "barIds": [
+        80,
+        84
+      ],
+      "names": [
+        "URACUE",
+        "dragon-i"
+      ]
+    },
+    {
+      "index": 187,
+      "street": "hanazono-3",
+      "barIds": [
+        83
+      ],
+      "names": [
+        "Chilly chili nine"
+      ]
+    },
+    {
+      "index": 188,
+      "street": "hanazono-3",
+      "barIds": [
+        97
+      ],
+      "names": [
+        "かおり・・"
+      ]
+    },
+    {
+      "index": 189,
+      "street": "hanazono-3",
+      "barIds": [
+        30,
+        78
+      ],
+      "names": [
+        "O2",
+        "ラッキー"
+      ]
+    },
+    {
+      "index": 190,
+      "street": "hanazono-3",
+      "barIds": [
+        60
+      ],
+      "names": [
+        "東京BOOTH"
+      ]
+    },
+    {
+      "index": 191,
+      "street": "hanazono-3",
+      "barIds": [
+        35,
+        68
+      ],
+      "names": [
+        "KENZO'S BAR",
+        "bar 髙宗"
+      ]
+    },
+    {
+      "index": 192,
+      "street": "hanazono-3",
+      "barIds": [
+        42,
+        31
+      ],
+      "names": [
+        "Shampoo",
+        "Cabochard"
+      ]
+    },
+    {
+      "index": 193,
+      "street": "hanazono-3",
+      "barIds": [
+        77
+      ],
+      "names": [
+        "マワシゲリ"
+      ]
+    },
+    {
+      "index": 194,
+      "street": "hanazono-3",
+      "barIds": [
+        53
+      ],
+      "names": [
+        "祖界"
+      ]
+    },
+    {
+      "index": 195,
+      "street": "hanazono-3",
+      "barIds": [
+        48,
+        28
+      ],
+      "names": [
+        "スエズ",
+        "裏窓"
+      ]
+    },
+    {
+      "index": 196,
+      "street": "hanazono-3",
+      "barIds": [
+        50
+      ],
+      "names": [
+        "すず"
+      ]
+    },
+    {
+      "index": 197,
+      "street": "hanazono-3",
+      "barIds": [
+        44
+      ],
+      "names": [
+        "JAN JUNE"
+      ]
+    },
+    {
+      "index": 198,
+      "street": "hanazono-3",
+      "barIds": [
+        63
+      ],
+      "names": [
+        "生ハム＆バー エポカ"
+      ]
+    },
+    {
+      "index": 199,
+      "street": "hanazono-3",
+      "barIds": [
+        89
+      ],
+      "names": [
+        "YOURS"
+      ]
+    },
+    {
+      "index": 200,
+      "street": "hanazono-3",
+      "barIds": [
+        81
+      ],
+      "names": [
+        "clarisse"
+      ]
+    },
+    {
+      "index": 201,
+      "street": "hanazono-3",
+      "barIds": [
+        86
+      ],
+      "names": [
+        "BARウラメン"
+      ]
+    },
+    {
+      "index": 202,
+      "street": "hanazono-3",
+      "barIds": [
+        57,
+        33
+      ],
+      "names": [
+        "談SINGシネマ",
+        "ガルガンチュア"
+      ]
+    },
+    {
+      "index": 203,
+      "street": "hanazono-3",
+      "barIds": [
+        32
+      ],
+      "names": [
+        "Cambiare"
+      ]
+    },
+    {
+      "index": 204,
+      "street": "hanazono-3",
+      "barIds": [
+        79
+      ],
+      "names": [
+        "un LIMITED"
+      ]
+    },
+    {
+      "index": 205,
+      "street": "hanazono-3",
+      "barIds": [
+        308
+      ],
+      "names": [
+        "あの時の女"
+      ]
+    },
+    {
+      "index": 206,
+      "street": "hanazono-3",
+      "barIds": [
+        76
+      ],
+      "names": [
+        "Baltimore"
+      ]
+    },
+    {
+      "index": 207,
+      "street": "landmark",
+      "barIds": [
+        144
+      ],
+      "names": [
+        "百済"
+      ]
+    },
+    {
+      "index": 208,
+      "street": "landmark",
+      "barIds": [
+        149
+      ],
+      "names": [
+        "天然温泉テルマー湯"
+      ]
+    },
+    {
+      "index": 209,
+      "street": "landmark",
+      "barIds": [
+        155
+      ],
+      "names": [
+        "モンシリ"
+      ]
+    },
+    {
+      "index": 210,
+      "street": "landmark",
+      "barIds": [
+        154
+      ],
+      "names": [
+        "FamilyMart新宿ゴールデン街店"
+      ]
+    }
+  ],
+  "barToGroup": {
+    "1": 93,
+    "2": 92,
+    "3": 72,
+    "4": 77,
+    "5": 79,
+    "6": 73,
+    "7": 91,
+    "8": 78,
+    "9": 77,
+    "10": 105,
+    "11": 70,
+    "12": 94,
+    "13": 97,
+    "14": 74,
+    "15": 70,
+    "16": 96,
+    "17": 75,
+    "18": 98,
+    "19": 71,
+    "20": 76,
+    "21": 100,
+    "22": 78,
+    "23": 93,
+    "24": 105,
+    "25": 88,
+    "26": 90,
+    "27": 85,
+    "28": 195,
+    "29": 173,
+    "30": 189,
+    "31": 192,
+    "32": 203,
+    "33": 202,
+    "34": 80,
+    "35": 191,
+    "36": 83,
+    "37": 175,
+    "38": 86,
+    "39": 89,
+    "40": 89,
+    "41": 104,
+    "42": 192,
+    "43": 172,
+    "44": 197,
+    "45": 82,
+    "46": 99,
+    "47": 88,
+    "48": 195,
+    "49": 103,
+    "50": 196,
+    "51": 84,
+    "52": 80,
+    "53": 194,
+    "54": 170,
+    "55": 95,
+    "56": 85,
+    "57": 202,
+    "58": 104,
+    "59": 102,
+    "60": 190,
+    "61": 87,
+    "62": 86,
+    "63": 198,
+    "64": 102,
+    "65": 174,
+    "66": 82,
+    "67": 106,
+    "68": 191,
+    "69": 143,
+    "70": 112,
+    "71": 83,
+    "72": 87,
+    "73": 81,
+    "74": 84,
+    "75": 171,
+    "76": 206,
+    "77": 193,
+    "78": 189,
+    "79": 204,
+    "80": 186,
+    "81": 200,
+    "82": 185,
+    "83": 187,
+    "84": 186,
+    "85": 184,
+    "86": 201,
+    "87": 185,
+    "89": 199,
+    "90": 140,
+    "91": 146,
+    "92": 18,
+    "93": 165,
+    "94": 166,
+    "95": 181,
+    "96": 154,
+    "97": 188,
+    "98": 149,
+    "99": 151,
+    "100": 183,
+    "101": 148,
+    "102": 178,
+    "103": 168,
+    "104": 142,
+    "105": 140,
+    "106": 182,
+    "107": 178,
+    "108": 147,
+    "109": 154,
+    "110": 163,
+    "111": 163,
+    "112": 176,
+    "113": 151,
+    "114": 152,
+    "115": 150,
+    "116": 177,
+    "120": 169,
+    "121": 153,
+    "122": 179,
+    "123": 141,
+    "124": 180,
+    "125": 147,
+    "126": 142,
+    "127": 179,
+    "129": 148,
+    "130": 149,
+    "131": 184,
+    "132": 167,
+    "133": 155,
+    "134": 146,
+    "135": 177,
+    "136": 145,
+    "137": 153,
+    "138": 150,
+    "139": 144,
+    "140": 144,
+    "141": 164,
+    "142": 130,
+    "143": 159,
+    "144": 207,
+    "145": 161,
+    "146": 162,
+    "147": 128,
+    "148": 134,
+    "149": 208,
+    "150": 160,
+    "151": 129,
+    "152": 157,
+    "153": 162,
+    "154": 210,
+    "155": 209,
+    "156": 127,
+    "157": 138,
+    "158": 114,
+    "159": 135,
+    "160": 110,
+    "161": 131,
+    "162": 126,
+    "163": 121,
+    "164": 111,
+    "165": 136,
+    "166": 133,
+    "168": 137,
+    "169": 36,
+    "170": 108,
+    "171": 116,
+    "172": 139,
+    "173": 125,
+    "174": 101,
+    "176": 119,
+    "177": 109,
+    "181": 118,
+    "182": 120,
+    "183": 115,
+    "184": 124,
+    "185": 117,
+    "186": 113,
+    "187": 0,
+    "188": 0,
+    "189": 1,
+    "190": 1,
+    "191": 2,
+    "192": 2,
+    "193": 3,
+    "194": 3,
+    "195": 4,
+    "196": 4,
+    "197": 5,
+    "198": 6,
+    "199": 7,
+    "200": 7,
+    "201": 8,
+    "202": 9,
+    "203": 9,
+    "204": 10,
+    "205": 12,
+    "206": 12,
+    "207": 13,
+    "208": 13,
+    "209": 14,
+    "210": 14,
+    "211": 15,
+    "212": 15,
+    "213": 16,
+    "214": 16,
+    "215": 17,
+    "216": 17,
+    "217": 18,
+    "218": 19,
+    "219": 19,
+    "220": 20,
+    "221": 20,
+    "222": 21,
+    "223": 21,
+    "224": 22,
+    "225": 22,
+    "226": 23,
+    "227": 23,
+    "228": 24,
+    "229": 24,
+    "230": 25,
+    "231": 25,
+    "232": 26,
+    "234": 27,
+    "235": 28,
+    "236": 28,
+    "237": 29,
+    "238": 29,
+    "239": 30,
+    "240": 31,
+    "241": 32,
+    "242": 33,
+    "243": 34,
+    "244": 35,
+    "245": 36,
+    "246": 37,
+    "247": 37,
+    "248": 38,
+    "249": 38,
+    "250": 39,
+    "251": 39,
+    "252": 40,
+    "253": 41,
+    "254": 41,
+    "255": 42,
+    "256": 42,
+    "257": 43,
+    "258": 44,
+    "259": 44,
+    "260": 45,
+    "261": 45,
+    "262": 46,
+    "263": 46,
+    "264": 47,
+    "265": 48,
+    "266": 49,
+    "267": 50,
+    "268": 51,
+    "269": 52,
+    "270": 52,
+    "271": 53,
+    "272": 54,
+    "273": 55,
+    "274": 56,
+    "275": 57,
+    "276": 57,
+    "277": 58,
+    "278": 58,
+    "279": 59,
+    "280": 59,
+    "281": 60,
+    "282": 60,
+    "283": 61,
+    "284": 61,
+    "285": 62,
+    "286": 62,
+    "287": 63,
+    "288": 64,
+    "289": 65,
+    "290": 66,
+    "291": 67,
+    "292": 68,
+    "293": 69,
+    "294": 81,
+    "295": 103,
+    "296": 109,
+    "298": 122,
+    "299": 123,
+    "300": 132,
+    "301": 143,
+    "302": 145,
+    "303": 152,
+    "304": 156,
+    "305": 158,
+    "306": 181,
+    "307": 182,
+    "308": 205
+  }
+}

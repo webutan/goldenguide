@@ -1,0 +1,188 @@
+/* Windows 2000 Theme — VA-11 Hall-A Color Scheme */
+
+/* W95FA — pixel-accurate MS Sans Serif recreation (SIL OFL) */
+@font-face {
+  font-family: 'W95FA';
+  src: url('../fonts/w95fa.woff2') format('woff2'),
+       url('../fonts/w95fa.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* PixelMplus10 — pixel Japanese font with JIS kanji (M+ License) */
+@font-face {
+  font-family: 'PixelMplus10';
+  src: url('../fonts/PixelMplus10-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+3000-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
+:root {
+  /* Win2000 chrome colors — VA-11 Hall-A muted purple-grey */
+  --win-bg: #2a2535;
+  --win-bg-dark: #1a1625;
+  --win-bg-light: #3a3545;
+  --win-face: #2a2535;
+  --win-text: #c8c0d0;
+  --win-text-disabled: #605878;
+
+  /* Title bar — Golden Gai orange gradient */
+  --win-title-active: linear-gradient(to right, #c45c1a, #e8a040);
+  --win-title-inactive: linear-gradient(to right, #3a3040, #504558);
+  --win-title-text-active: #ffffff;
+  --win-title-text-inactive: #887898;
+
+  /* 3D border colors — purple-tinted */
+  --win-border-light: #4a4060;
+  --win-border-mid: #2a2535;
+  --win-border-dark: #1a1525;
+  --win-border-darkest: #0d0a15;
+
+  /* Selection */
+  --win-highlight: #c45c1a;
+  --win-highlight-text: #ffffff;
+
+  /* Desktop (dark cyberpunk map) */
+  --desktop-bg: #0a0810;
+
+  /* Accent colors */
+  --valhalla-pink: #e94560;
+  --valhalla-purple: #4a3065;
+  --valhalla-purple-light: #6a4885;
+  --valhalla-orange: #e8a040;
+
+  /* Taskbar */
+  --taskbar-height: 32px;
+
+  /* Fonts — pixelated MS Sans Serif + Japanese pixel fallback */
+  --win-font: 'W95FA', 'PixelMplus10', 'MS Sans Serif', 'Microsoft Sans Serif', sans-serif;
+  --win-font-size: 11px;
+}
+
+/* Disable font smoothing globally for pixel-crisp rendering */
+*, *::before, *::after {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
+}
+
+/* Win2000 3D raised border (outset) */
+.win-raised {
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest);
+}
+
+/* Win2000 3D sunken border (inset) */
+.win-sunken {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light),
+    inset 2px 2px 0 var(--win-border-darkest),
+    inset -2px -2px 0 var(--win-border-mid);
+}
+
+/* Group box */
+.win-groupbox {
+  border: 2px groove #4a4060;
+  padding: 8px;
+  margin: 4px 0;
+  position: relative;
+}
+
+.win-groupbox-label {
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  background: var(--win-bg);
+  padding: 0 4px;
+  font-size: var(--win-font-size);
+  font-family: var(--win-font);
+  color: var(--win-text);
+}
+
+/* Win2000 scrollbar overrides — dark purple */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1525;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--win-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  border: 1px solid #1a1525;
+}
+
+::-webkit-scrollbar-button {
+  background: var(--win-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  display: block;
+  height: 14px;
+  width: 14px;
+}
+
+/* Pixelated rendering for SVG elements */
+.pixelated {
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+}
+
+/* CRT monitor effect overlay */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Scanlines */
+.crt-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 1px,
+    rgba(0, 0, 0, 0.12) 1px,
+    rgba(0, 0, 0, 0.12) 2px
+  );
+  z-index: 1;
+}
+
+/* Vignette + slight curvature glow */
+.crt-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  z-index: 2;
+}
+
+/* Tag icon — supports both emoji text and image URLs */
+.tag-icon-img {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
