@@ -72,24 +72,29 @@ setInterval(updateTime, 30000)
       @click="switchView('desktop')"
       :title="t('desktop')"
     >
-      <span class="view-icon">&#128187;</span>
-      <span>{{ t('desktop') }}</span>
+      <svg class="view-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+        <rect x="1" y="1" width="14" height="10" fill="#c0c0c0" stroke="#808080" stroke-width="1"/>
+        <rect x="2" y="2" width="12" height="8" fill="#000080"/>
+        <rect x="5" y="11" width="6" height="2" fill="#c0c0c0" stroke="#808080" stroke-width="0.5"/>
+        <rect x="4" y="13" width="8" height="1.5" fill="#808080"/>
+      </svg>
+      <span class="view-label">{{ t('desktop') }}</span>
     </button>
     <button
       :class="['taskbar-view-btn', { active: activeView === 'directory' }]"
       @click="switchView('directory')"
       :title="t('directory')"
     >
-      <span class="view-icon">&#128194;</span>
-      <span>{{ t('directory') }}</span>
+      <img class="view-icon" src="/icons/desktop/directory.png" aria-hidden="true" />
+      <span class="view-label">{{ t('directory') }}</span>
     </button>
     <button
       :class="['taskbar-view-btn', { active: activeView === 'map' }]"
       @click="switchView('map')"
       :title="t('map')"
     >
-      <span class="view-icon">&#128506;</span>
-      <span>{{ t('map') }}</span>
+      <img class="view-icon" src="/icons/desktop/map.png" aria-hidden="true" />
+      <span class="view-label">{{ t('map') }}</span>
     </button>
 
     <!-- Divider -->
@@ -114,11 +119,27 @@ setInterval(updateTime, 30000)
     <button
       :class="['taskbar-lang-btn', { active: lang === 'en' }]"
       @click="emit('update:lang', 'en')"
-    >EN</button>
+      title="English"
+    >
+      <svg viewBox="0 0 60 30" width="24" height="14" aria-label="English">
+        <rect width="60" height="30" fill="#012169"/>
+        <path d="M0,0 L60,30 M0,30 L60,0" stroke="#fff" stroke-width="6"/>
+        <path d="M37,0 L60,15 M60,15 L37,30" stroke="#C8102E" stroke-width="4" stroke-dasharray="2.5,0"/>
+        <path d="M0,15 L23,0 M23,30 L0,15" stroke="#C8102E" stroke-width="4"/>
+        <path d="M30,0 V30 M0,15 H60" stroke="#fff" stroke-width="10"/>
+        <path d="M30,0 V30 M0,15 H60" stroke="#C8102E" stroke-width="6"/>
+      </svg>
+    </button>
     <button
       :class="['taskbar-lang-btn', { active: lang === 'jp' }]"
       @click="emit('update:lang', 'jp')"
-    >JP</button>
+      title="日本語"
+    >
+      <svg viewBox="0 0 30 20" width="24" height="16" aria-label="日本語">
+        <rect width="30" height="20" fill="#fff" stroke="#ddd" stroke-width="0.5"/>
+        <circle cx="15" cy="10" r="6" fill="#BC002D"/>
+      </svg>
+    </button>
 
     <!-- System tray -->
     <div class="taskbar-tray">
@@ -276,7 +297,11 @@ setInterval(updateTime, 30000)
 }
 
 .view-icon {
-  font-size: 12px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  display: block;
 }
 
 .taskbar-windows {
@@ -402,9 +427,10 @@ setInterval(updateTime, 30000)
 
   /* Larger icons, hide text labels */
   .view-icon {
-    font-size: 20px;
+    width: 24px;
+    height: 24px;
   }
-  .taskbar-view-btn > span:not(.view-icon) {
+  .view-label {
     display: none;
   }
 
@@ -423,7 +449,7 @@ setInterval(updateTime, 30000)
 
   /* Lang buttons */
   .taskbar-lang-btn {
-    font-size: 13px;
+    padding: 4px 8px;
     min-width: 44px;
   }
 
@@ -433,11 +459,9 @@ setInterval(updateTime, 30000)
     padding: 0 10px;
     gap: 8px;
   }
-  .tray-visited {
-    display: none;
-  }
+  .tray-visited,
   .tray-clock {
-    font-size: 12px;
+    display: none;
   }
 }
 </style>

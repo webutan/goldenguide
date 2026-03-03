@@ -133,3 +133,18 @@ export async function uploadPhoto(barId, file, type = 'general') {
   if (!res.ok) throw new Error('Failed to upload photo')
   return res.json()
 }
+
+export async function fetchBarPhotos(barId) {
+  const res = await fetch(`${BASE}/bars/${barId}/photos`)
+  if (!res.ok) throw new Error('Failed to fetch photos')
+  return res.json()
+}
+
+export async function deletePhoto(photoId) {
+  const res = await fetch(`${BASE}/photos/${photoId}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to delete photo')
+  return res.json()
+}

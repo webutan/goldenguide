@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { randomUUID } from 'crypto'
-import { mkdirSync } from 'fs'
+import { mkdirSync, unlink } from 'fs'
 import { extname, resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import multer from 'multer'
@@ -43,6 +43,9 @@ router.get('/bars/:bar_id/photos', async (req, res) => {
 // POST /api/bars/:bar_id/photos
 router.post('/bars/:bar_id/photos', admin, upload.single('photo'), async (req, res) => {
   try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file received. Ensure the field name is "photo".' })
+    }
     const barId = parseInt(req.params.bar_id)
     const photoType = req.body.type || 'general'
     const filename = `bars/${barId}/${req.file.filename}`
@@ -61,7 +64,11 @@ router.post('/bars/:bar_id/photos', admin, upload.single('photo'), async (req, r
 // DELETE /api/photos/:id
 router.delete('/photos/:id', admin, async (req, res) => {
   try {
-    await pool.query('DELETE FROM photos WHERE id = $1', [req.params.id])
+    const result = await pool.query('DELETE FROM photos WHERE id = $1 RETURNING filename', [req.params.id])
+    if (result.rows.length > 0) {
+      const filepath = resolve(UPLOADS_DIR, result.rows[0].filename)
+      unlink(filepath, () => {}) // delete file from disk, ignore errors if already gone
+    }
     res.json({ ok: true })
   } catch (err) {
     console.error('DELETE photo error:', err)

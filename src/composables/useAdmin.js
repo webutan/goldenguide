@@ -18,8 +18,8 @@ export function useAdmin() {
       headers: { 'X-Admin-Password': pwd },
     })
 
-    if (res.status === 401) {
-      window.alert('Incorrect password.')
+    if (!res.ok) {
+      window.alert(res.status === 401 ? 'Incorrect password.' : 'Server error — check ADMIN_PASSWORD is configured.')
       return
     }
 

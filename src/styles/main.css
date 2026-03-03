@@ -18,6 +18,54 @@ body {
   color: var(--win-text, #c8c0d0);
 }
 
+* {
+  cursor: url('/cursors/default.cur'), default;
+}
+
+/* Text editing */
+input[type="text"], input[type="time"], input[type="search"], textarea {
+  cursor: url('/cursors/text.cur'), text;
+}
+
+/* Clickable elements — pointer */
+a, button, [role="button"],
+select, input[type="checkbox"], input[type="radio"], input[type="file"],
+.bar-list-item, .icon-item, .quickbar-btn, .bar-tab,
+.closed-day-btn, .sub-tab, .bar-tab, .win-ctrl-btn,
+.photo-tab-back, .unplace-btn, .override-add-btn,
+.drag-handle, .tag-list-item {
+  cursor: url('/cursors/pointer.cur'), pointer;
+}
+
+/* Not allowed */
+[disabled], button:disabled {
+  cursor: url('/cursors/not-allowed.cur'), not-allowed;
+}
+
+/* Help */
+[title]:not(button):not(a) {
+  cursor: url('/cursors/help.cur'), help;
+}
+
+/* Resize handles */
+.resize-ew, [style*="ew-resize"] { cursor: url('/cursors/ew-resize.cur'), ew-resize; }
+.resize-ns, [style*="ns-resize"] { cursor: url('/cursors/ns-resize.cur'), ns-resize; }
+[style*="nwse-resize"]            { cursor: url('/cursors/nwse-resize.cur'), nwse-resize; }
+[style*="nesw-resize"]            { cursor: url('/cursors/nesw-resize.cur'), nesw-resize; }
+
+/* Precision / crosshair */
+.precision { cursor: url('/cursors/crosshair.cur'), crosshair; }
+
+/* Map drag */
+.map-container:active {
+  cursor: url('/cursors/move.cur'), move;
+}
+
+/* Busy / loading — GIF for Firefox/Chrome, ANI for Edge */
+.loading-screen {
+  cursor: url('/cursors/wait.gif'), url('/cursors/wait.ani'), wait;
+}
+
 #app {
   height: calc(100vh / 1.25);
   display: flex;
@@ -30,6 +78,10 @@ body {
   #app {
     height: 100dvh;
     zoom: 1;
+  }
+
+  .map-controls {
+    display: none;
   }
 }
 
@@ -50,11 +102,6 @@ body {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  cursor: grab;
-}
-
-.map-container:active {
-  cursor: grabbing;
 }
 
 .map-controls {

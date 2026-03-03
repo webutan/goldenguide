@@ -285,6 +285,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -587,4 +588,5 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
   color: var(--valhalla-orange);
   font-weight: bold;
 }
+
 </style>

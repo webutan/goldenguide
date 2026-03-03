@@ -4,7 +4,7 @@ import WinTabs from './win2000/WinTabs.vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
-import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto } from '../api/index.js'
+import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
 const props = defineProps({
   bars: Array,
@@ -20,6 +20,7 @@ const mainTab = ref('placement')
 const mainTabOptions = [
   { value: 'placement', label: 'Placement' },
   { value: 'edit-bar', label: 'Edit Bar' },
+  { value: 'photos', label: 'Photos' },
   { value: 'tags', label: 'Tags' },
   { value: 'buildings', label: 'Buildings' },
 ]
@@ -54,6 +55,9 @@ const editSaving = ref(false)
 const editBarTags = ref([])
 const photoFile = ref(null)
 const photoUploading = ref(false)
+const photoError = ref('')
+const barPhotos = ref([])
+const photoDeletingId = ref(null)
 
 // Schedule editing
 const DAY_ABBRS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -93,6 +97,8 @@ function startEditBar(bar) {
   }
   editBarTags.value = (bar.tags || []).map(t => typeof t === 'string' ? t : t.id)
   photoFile.value = null
+  barPhotos.value = []
+  fetchBarPhotos(bar.id).then(photos => { barPhotos.value = photos }).catch(() => {})
 
   // Populate schedule fields
   const sched = bar.schedule || {}
@@ -110,14 +116,99 @@ function onPhotoSelect(e) {
 async function uploadBarPhoto() {
   if (!editingBar.value || !photoFile.value) return
   photoUploading.value = true
+  photoError.value = ''
   try {
-    await uploadPhoto(editingBar.value.id, photoFile.value)
+    const newPhoto = await uploadPhoto(editingBar.value.id, photoFile.value)
     photoFile.value = null
+    barPhotos.value = await fetchBarPhotos(editingBar.value.id)
+    // Update the preview immediately
+    if (!editingBar.value.photo) editingBar.value.photo = newPhoto.filename
     emit('reload')
   } catch (err) {
+    photoError.value = err.message || 'Upload failed'
     console.error('Failed to upload photo:', err)
   } finally {
     photoUploading.value = false
+  }
+}
+
+async function deleteBarPhoto(photo) {
+  photoDeletingId.value = photo.id
+  try {
+    await deletePhoto(photo.id)
+    barPhotos.value = barPhotos.value.filter(p => p.id !== photo.id)
+    // Clear preview if it was the primary photo
+    if (editingBar.value.photo === photo.filename) {
+      editingBar.value.photo = barPhotos.value.length > 0 ? barPhotos.value[0].filename : null
+    }
+    emit('reload')
+  } catch (err) {
+    console.error('Failed to delete photo:', err)
+  } finally {
+    photoDeletingId.value = null
+  }
+}
+
+// === Photos tab ===
+const photoTabSearch = ref('')
+const photoTabBar = ref(null)
+const photoTabPhotos = ref([])
+const photoTabFile = ref(null)
+const photoTabFileInput = ref(null)
+const photoTabUploading = ref(false)
+const photoTabDeletingId = ref(null)
+const photoTabError = ref('')
+
+const filteredPhotoTabBars = computed(() => {
+  if (!photoTabSearch.value) return props.bars
+  const q = photoTabSearch.value.toLowerCase()
+  return props.bars.filter(b =>
+    (b.name_jp && b.name_jp.toLowerCase().includes(q)) ||
+    (b.name_en && b.name_en.toLowerCase().includes(q))
+  )
+})
+
+async function selectPhotoTabBar(bar) {
+  photoTabBar.value = bar
+  photoTabPhotos.value = []
+  photoTabFile.value = null
+  try {
+    photoTabPhotos.value = await fetchBarPhotos(bar.id)
+  } catch {}
+}
+
+function onPhotoTabFileSelect(e) {
+  photoTabFile.value = e.target.files[0] || null
+}
+
+async function uploadPhotoTabPhoto() {
+  if (!photoTabBar.value || !photoTabFile.value) return
+  photoTabUploading.value = true
+  photoTabError.value = ''
+  try {
+    await uploadPhoto(photoTabBar.value.id, photoTabFile.value)
+    photoTabFile.value = null
+    if (photoTabFileInput.value) photoTabFileInput.value.value = ''
+    photoTabPhotos.value = await fetchBarPhotos(photoTabBar.value.id)
+    emit('reload')
+  } catch (err) {
+    photoTabError.value = err.message || 'Upload failed'
+    console.error('Failed to upload photo:', err)
+  } finally {
+    photoTabUploading.value = false
+  }
+}
+
+async function deletePhotoTabPhoto(photo) {
+  photoTabDeletingId.value = photo.id
+  try {
+    await deletePhoto(photo.id)
+    photoTabPhotos.value = photoTabPhotos.value.filter(p => p.id !== photo.id)
+    emit('reload')
+  } catch (err) {
+    console.error('Failed to delete photo:', err)
+  } finally {
+    photoTabDeletingId.value = null
   }
 }
 
@@ -564,9 +655,18 @@ function setPartitionWeight(index, weight) {
                 <textarea v-model="editForm.description" class="edit-textarea"></textarea>
               </div>
               <div class="edit-field">
-                <label>Photo</label>
-                <div v-if="editingBar.photo" class="edit-photo-preview">
-                  <img :src="`/uploads/${editingBar.photo}`" alt="Current photo" />
+                <label>Photos</label>
+                <div class="edit-photos-list">
+                  <div v-for="photo in barPhotos" :key="photo.id" class="edit-photo-item">
+                    <img :src="`/uploads/${photo.filename}`" alt="" class="edit-photo-thumb" />
+                    <WinButton
+                      small
+                      :disabled="photoDeletingId === photo.id"
+                      @click="deleteBarPhoto(photo)"
+                      style="color: #c0392b"
+                    >✕</WinButton>
+                  </div>
+                  <div v-if="barPhotos.length === 0" class="edit-photo-empty">No photos yet</div>
                 </div>
                 <div class="edit-photo-row">
                   <input type="file" accept="image/*" @change="onPhotoSelect" class="edit-file-input" />
@@ -579,6 +679,7 @@ function setPartitionWeight(index, weight) {
                     {{ photoUploading ? 'Uploading...' : 'Upload' }}
                   </WinButton>
                 </div>
+                <div v-if="photoError" class="upload-error">{{ photoError }}</div>
               </div>
               <div class="edit-field">
                 <label>Tags</label>
@@ -616,6 +717,76 @@ function setPartitionWeight(index, weight) {
                   @click.stop="deleteBarEntry(bar)"
                 >&#128465;</button>
               </div>
+            </div>
+          </template>
+        </template>
+
+        <!-- Photos tab -->
+        <template v-if="mainTab === 'photos'">
+          <template v-if="!photoTabBar">
+            <WinTextInput v-model="photoTabSearch" placeholder="Search bars..." style="margin-bottom: 4px" />
+            <div class="bar-list">
+              <div
+                v-for="bar in filteredPhotoTabBars"
+                :key="bar.id"
+                class="bar-list-item"
+                @click="selectPhotoTabBar(bar)"
+              >
+                <div class="bar-list-content">
+                  <div class="bar-list-name">{{ bar.name_jp }}</div>
+                  <div v-if="bar.name_en" class="bar-list-sub">{{ bar.name_en }}</div>
+                  <div class="bar-list-meta">
+                    {{ bar.floor >= 0 ? bar.floor + 'F' : 'B' + Math.abs(bar.floor) + 'F' }}
+                    <span v-if="bar.photo" style="color: var(--valhalla-orange); margin-left: 4px;">&#128247;</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="filteredPhotoTabBars.length === 0" class="bar-list-empty">No bars found</div>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="photo-tab-header">
+              <button class="photo-tab-back" @click="photoTabBar = null">&#8592; Back</button>
+              <div class="photo-tab-title">
+                <div class="photo-tab-name">{{ photoTabBar.name_jp }}</div>
+                <div v-if="photoTabBar.name_en" class="photo-tab-sub">{{ photoTabBar.name_en }}</div>
+              </div>
+            </div>
+
+            <div class="photo-tab-grid">
+              <div v-for="photo in photoTabPhotos" :key="photo.id" class="photo-tab-item">
+                <img :src="`/uploads/${photo.filename}`" alt="" class="photo-tab-thumb" />
+                <div class="photo-tab-meta">
+                  <span class="photo-tab-type">{{ photo.photo_type || 'general' }}</span>
+                  <button
+                    class="unplace-btn"
+                    :disabled="photoTabDeletingId === photo.id"
+                    @click="deletePhotoTabPhoto(photo)"
+                    title="Delete photo"
+                  >&#10005;</button>
+                </div>
+              </div>
+              <div v-if="photoTabPhotos.length === 0" class="bar-list-empty">No photos yet</div>
+            </div>
+
+            <div class="photo-tab-upload">
+              <div class="edit-field">
+                <label>Upload Photo</label>
+                <input
+                  ref="photoTabFileInput"
+                  type="file"
+                  accept="image/*"
+                  @change="onPhotoTabFileSelect"
+                  class="edit-file-input"
+                />
+              </div>
+              <WinButton
+                :disabled="!photoTabFile || photoTabUploading"
+                @click="uploadPhotoTabPhoto"
+                style="margin-top: 4px"
+              >{{ photoTabUploading ? 'Uploading...' : 'Upload' }}</WinButton>
+              <div v-if="photoTabError" class="upload-error">{{ photoTabError }}</div>
             </div>
           </template>
         </template>
@@ -1016,17 +1187,36 @@ function setPartitionWeight(index, weight) {
 }
 
 /* Photo upload */
-.edit-photo-preview {
+.edit-photos-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-bottom: 4px;
+  min-height: 20px;
 }
 
-.edit-photo-preview img {
-  width: 100%;
-  height: 60px;
+.edit-photo-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.edit-photo-thumb {
+  width: 72px;
+  height: 54px;
   object-fit: cover;
+  display: block;
   box-shadow:
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
+}
+
+.edit-photo-empty {
+  font-size: 10px;
+  color: var(--win-text-disabled);
+  padding: 4px 0;
 }
 
 .edit-photo-row {
@@ -1227,5 +1417,113 @@ function setPartitionWeight(index, weight) {
 
 .override-row {
   align-items: center;
+}
+
+/* Photos tab */
+.photo-tab-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--win-border-dark);
+}
+
+.photo-tab-back {
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  padding: 2px 6px;
+  cursor: pointer;
+  font-family: var(--win-font);
+  font-size: 10px;
+  color: var(--win-text);
+  flex-shrink: 0;
+}
+
+.photo-tab-back:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.photo-tab-title {
+  min-width: 0;
+  flex: 1;
+}
+
+.photo-tab-name {
+  font-weight: 700;
+  color: var(--valhalla-orange);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-tab-sub {
+  font-size: 9px;
+  color: var(--win-text-disabled);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-tab-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 2px;
+  margin-bottom: 8px;
+}
+
+.photo-tab-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 80px;
+}
+
+.photo-tab-thumb {
+  width: 80px;
+  height: 60px;
+  object-fit: cover;
+  display: block;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.photo-tab-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+}
+
+.photo-tab-type {
+  font-size: 9px;
+  color: var(--win-text-disabled);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.photo-tab-upload {
+  border-top: 1px solid var(--win-border-dark);
+  padding-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.upload-error {
+  font-size: 10px;
+  color: #c0392b;
+  padding: 2px 0;
 }
 </style>

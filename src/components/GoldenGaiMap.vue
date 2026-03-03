@@ -218,10 +218,13 @@ function showTooltip(buildingId, mouseEvent) {
   if (barsToShow.length === 0) return
 
   const rect = containerRef.value.getBoundingClientRect()
+  // getBoundingClientRect returns viewport coords; CSS positioning uses local (pre-zoom) coords.
+  // Divide by the effective zoom so the tooltip tracks the cursor correctly.
+  const zoom = rect.width / containerRef.value.offsetWidth || 1
   tooltip.value = {
     visible: true,
-    x: mouseEvent.clientX - rect.left + 12,
-    y: mouseEvent.clientY - rect.top - 8,
+    x: (mouseEvent.clientX - rect.left) / zoom + 12,
+    y: (mouseEvent.clientY - rect.top) / zoom - 8,
     bars: barsToShow,
   }
 }

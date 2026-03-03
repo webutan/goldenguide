@@ -1,20 +1,26 @@
 import { ref, computed } from 'vue'
 
-const STORAGE_KEY = 'golden-gai-visited'
+const VISITED_KEY = 'golden-gai-visited'
+const FAVORITES_KEY = 'golden-gai-favorites'
 
-function loadVisited() {
+function loadIds(key) {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(key)
     return stored ? JSON.parse(stored) : []
   } catch {
     return []
   }
 }
 
-const visitedIds = ref(loadVisited())
+const visitedIds = ref(loadIds(VISITED_KEY))
+const favoritedIds = ref(loadIds(FAVORITES_KEY))
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(visitedIds.value))
+function saveVisited() {
+  localStorage.setItem(VISITED_KEY, JSON.stringify(visitedIds.value))
+}
+
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoritedIds.value))
 }
 
 export function useVisited() {
@@ -29,10 +35,24 @@ export function useVisited() {
     } else {
       visitedIds.value.splice(idx, 1)
     }
-    save()
+    saveVisited()
+  }
+
+  function isFavorited(barId) {
+    return favoritedIds.value.includes(barId)
+  }
+
+  function toggleFavorited(barId) {
+    const idx = favoritedIds.value.indexOf(barId)
+    if (idx === -1) {
+      favoritedIds.value.push(barId)
+    } else {
+      favoritedIds.value.splice(idx, 1)
+    }
+    saveFavorites()
   }
 
   const visitedCount = computed(() => visitedIds.value.length)
 
-  return { visitedIds, isVisited, toggleVisited, visitedCount }
+  return { visitedIds, isVisited, toggleVisited, visitedCount, favoritedIds, isFavorited, toggleFavorited }
 }

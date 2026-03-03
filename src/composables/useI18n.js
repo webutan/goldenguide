@@ -26,6 +26,9 @@ const translations = {
   'googleMaps': { en: 'Google Maps', jp: 'Google Maps' },
   'markVisited': { en: 'Mark as Visited', jp: '訪問済みにする' },
   'visited': { en: 'Visited', jp: '訪問済み' },
+  'markFavorite': { en: 'Mark as Favorite', jp: 'お気に入りに追加' },
+  'favorited': { en: 'Favorited', jp: 'お気に入り済み' },
+  'favorites': { en: 'Favorites', jp: 'お気に入り' },
   'close': { en: 'Close', jp: '閉じる' },
 
   // Search

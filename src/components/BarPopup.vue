@@ -16,7 +16,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const { isVisited, toggleVisited } = useVisited()
+const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
 
 // Which bar is selected within the building
@@ -32,6 +32,7 @@ const bar = computed(() => {
 })
 
 const visited = computed(() => bar.value && isVisited(bar.value.id))
+const favorited = computed(() => bar.value && isFavorited(bar.value.id))
 
 const barTags = computed(() => {
   if (!bar.value) return []
@@ -191,12 +192,23 @@ function openGoogleMaps() {
               </div>
 
               <div class="dialog-actions">
-                <WinButton
+                <button
                   v-if="googleMapsUrl"
+                  class="maps-icon-btn"
+                  :title="t('googleMaps')"
                   @click="openGoogleMaps"
                 >
-                  <img src="/icons/googlemaps.png" alt="" class="btn-icon" />
-                  {{ t('googleMaps') }}
+                  <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                </button>
+                <WinButton
+                  :pressed="favorited"
+                  @click="toggleFavorited(bar.id)"
+                >
+                  <svg viewBox="0 0 10 10" width="10" height="10" style="margin-right:3px;vertical-align:middle">
+                    <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" :fill="favorited ? '#e87898' : 'none'" :stroke="favorited ? '#e87898' : 'currentColor'" stroke-width="0.8"/>
+                  </svg>
+                  <template v-if="favorited">{{ t('favorited') }}</template>
+                  <template v-else>{{ t('markFavorite') }}</template>
                 </WinButton>
                 <WinButton
                   :pressed="visited"
@@ -440,11 +452,30 @@ function openGoogleMaps() {
   border-top: 1px solid var(--win-border-dark);
 }
 
-.btn-icon {
-  width: 14px;
-  height: 14px;
-  vertical-align: middle;
-  margin-right: 3px;
+.maps-icon-btn {
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.maps-icon-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.maps-icon-img {
+  width: 80px;
+  height: 15px;
+  display: block;
   image-rendering: pixelated;
 }
 

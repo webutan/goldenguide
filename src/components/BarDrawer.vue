@@ -22,7 +22,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
-const { isVisited, toggleVisited } = useVisited()
+const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
 
 const FLOOR_COLORS = {
@@ -148,7 +148,15 @@ function getOpenStatus(bar) {
               <img :src="`/uploads/${bar.photo}`" :alt="getDisplayName(bar)" />
             </div>
             <div class="drawer-bar-header">
-              <div class="drawer-bar-name-en">{{ getDisplayName(bar) }}</div>
+              <div class="drawer-bar-name-en" :class="{ 'name-favorited': isFavorited(bar.id) }">
+                <svg v-if="isVisited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10" fill="none">
+                  <polyline points="1,5 3.5,8.5 9,1.5" stroke="#4caf50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg v-if="isFavorited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10">
+                  <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" fill="#e87898"/>
+                </svg>
+                {{ getDisplayName(bar) }}
+              </div>
               <div v-if="getSubName(bar)" class="drawer-bar-name-jp">{{ getSubName(bar) }}</div>
             </div>
             <div v-if="getBarTags(bar).length" class="drawer-bar-tags">
@@ -188,13 +196,16 @@ function getOpenStatus(bar) {
               <div v-if="bar.description" class="info-description">{{ bar.description }}</div>
             </div>
             <div class="drawer-bar-actions">
-              <WinButton v-if="getGoogleMapsUrl(bar)" small @click="openGoogleMaps(bar)">
-                <img src="/icons/googlemaps.png" alt="" class="btn-icon" />
-                {{ t('googleMaps') }}
-              </WinButton>
+              <button v-if="getGoogleMapsUrl(bar)" class="maps-icon-btn" :title="t('googleMaps')" @click="openGoogleMaps(bar)">
+                <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+              </button>
               <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id)">
                 <template v-if="isVisited(bar.id)">&#10003; {{ t('visited') }}</template>
                 <template v-else>{{ t('markVisited') }}</template>
+              </WinButton>
+              <WinButton small :pressed="isFavorited(bar.id)" @click="toggleFavorited(bar.id)">
+                <template v-if="isFavorited(bar.id)">&#9829; {{ t('favorited') }}</template>
+                <template v-else>{{ t('markFavorite') }}</template>
               </WinButton>
             </div>
           </div>
@@ -344,6 +355,17 @@ function getOpenStatus(bar) {
   font-size: 12px;
   font-weight: 700;
   color: var(--valhalla-orange);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.drawer-bar-name-en.name-favorited {
+  color: #e87898;
+}
+
+.bar-status-icon {
+  flex-shrink: 0;
 }
 
 .drawer-bar-name-jp {
@@ -421,11 +443,30 @@ function getOpenStatus(bar) {
   flex-wrap: wrap;
 }
 
-.btn-icon {
-  width: 12px;
-  height: 12px;
-  vertical-align: middle;
-  margin-right: 2px;
+.maps-icon-btn {
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.maps-icon-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.maps-icon-img {
+  width: 80px;
+  height: 15px;
+  display: block;
   image-rendering: pixelated;
 }
 

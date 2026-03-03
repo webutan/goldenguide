@@ -17,6 +17,7 @@ services:
       retries: 10
 
   api:
+    build: ./server
     image: webutan/golden-guide:api
     restart: unless-stopped
     environment:
@@ -30,6 +31,7 @@ services:
         condition: service_healthy
 
   web:
+    build: .
     image: webutan/golden-guide:web
     restart: unless-stopped
     ports:

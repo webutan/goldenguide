@@ -15,7 +15,7 @@ const props = defineProps({
 
 const { t } = useI18n(computed(() => props.lang))
 const emit = defineEmits(['selectBar'])
-const { isVisited } = useVisited()
+const { isVisited, isFavorited } = useVisited()
 
 // Internal filter state
 const dirActiveTags = ref([])
@@ -25,6 +25,8 @@ const dirDrinkMin = ref(null)
 const dirDrinkMax = ref(null)
 const dirFloorFilter = ref(null)
 const dirOpenNowFilter = ref(false)
+const dirFavoritesFilter = ref(false)
+const dirVisitedFilter = ref(false)
 
 const barsRef = computed(() => props.bars || [])
 const { openBarIds } = useOpenNow(barsRef)
@@ -32,6 +34,8 @@ const { openBarIds } = useOpenNow(barsRef)
 const search = ref('')
 
 function barPassesFilters(bar) {
+  if (dirFavoritesFilter.value && !isFavorited(bar.id)) return false
+  if (dirVisitedFilter.value && !isVisited(bar.id)) return false
   if (dirOpenNowFilter.value && !openBarIds.value.has(String(bar.id))) return false
   if (dirFloorFilter.value != null && (bar.floor ?? 1) !== dirFloorFilter.value) return false
   if (dirActiveTags.value.length > 0) {
@@ -116,6 +120,29 @@ function floorLabel(floor) {
         />
       </div>
 
+      <div class="dir-quickbar">
+        <button
+          :class="['quickbar-btn', { active: dirFavoritesFilter }]"
+          @click="dirFavoritesFilter = !dirFavoritesFilter"
+        >
+          <svg class="quickbar-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+            <polygon points="8,1.5 9.9,6 14.5,6.4 11.2,9.3 12.3,14 8,11.4 3.7,14 4.8,9.3 1.5,6.4 6.1,6" fill="#FFD700" stroke="#B8860B" stroke-width="0.8"/>
+          </svg>
+          {{ t('favorites') }}
+        </button>
+        <button
+          :class="['quickbar-btn', { active: dirVisitedFilter }]"
+          @click="dirVisitedFilter = !dirVisitedFilter"
+        >
+          <svg class="quickbar-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+            <rect x="1" y="1" width="14" height="14" fill="#c0c0c0" stroke="#808080" stroke-width="1"/>
+            <rect x="2" y="2" width="12" height="12" fill="#ffffff"/>
+            <polyline points="3.5,8.5 6.5,12 12.5,4" stroke="#008000" stroke-width="2" fill="none" stroke-linecap="square" stroke-linejoin="miter"/>
+          </svg>
+          {{ t('visited') }}
+        </button>
+      </div>
+
       <div class="dir-status">
         <span>{{ filteredBars.length }} / {{ (bars || []).length }} bar(s)</span>
       </div>
@@ -156,7 +183,15 @@ function floorLabel(floor) {
                   </div>
                 </div>
                 <div class="icon-label">
-                  <div class="icon-name">{{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}</div>
+                  <div class="icon-name" :class="{ 'name-favorited': isFavorited(bar.id) }">
+                    <svg v-if="isVisited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="9" height="9" fill="none">
+                      <polyline points="1,5 3.5,8.5 9,1.5" stroke="#4caf50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg v-if="isFavorited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="9" height="9">
+                      <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" fill="#e87898"/>
+                    </svg>
+                    <span>{{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}</span>
+                  </div>
                   <div class="icon-floor">{{ floorLabel(bar.floor) }}</div>
                 </div>
               </div>
@@ -201,6 +236,48 @@ function floorLabel(floor) {
   background: var(--win-bg);
   box-shadow: inset 0 -1px 0 var(--win-border-dark);
   flex-shrink: 0;
+}
+
+.dir-quickbar {
+  display: flex;
+  gap: 0;
+  padding: 2px 4px;
+  background: var(--win-bg);
+  border-bottom: 1px solid var(--win-border-dark);
+  flex-shrink: 0;
+}
+
+.quickbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 22px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: var(--win-font);
+  font-size: var(--win-font-size);
+  color: var(--win-text);
+  user-select: none;
+}
+
+.quickbar-btn:hover {
+  border-color: var(--win-border-dark);
+  background: var(--win-bg);
+}
+
+.quickbar-btn.active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  background: var(--win-bg-dark);
+  border-color: transparent;
+}
+
+.quickbar-icon {
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .dir-status {
@@ -388,8 +465,26 @@ function floorLabel(floor) {
   color: var(--win-text);
   line-height: 1.2;
   overflow: hidden;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.icon-name span {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.icon-name.name-favorited,
+.icon-name.name-favorited span {
+  color: #e87898;
+}
+
+.bar-status-icon {
+  flex-shrink: 0;
 }
 
 .icon-floor {
