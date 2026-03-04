@@ -472,10 +472,90 @@ function getOpenStatus(bar) {
 
 .drawer-enter-active,
 .drawer-leave-active {
-  transition: transform 0.2s ease;
+  transition: transform 0.25s ease;
 }
 .drawer-enter-from,
 .drawer-leave-to {
   transform: translateX(100%);
+}
+
+@media (max-width: 768px) {
+  .bar-drawer {
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100%;
+    height: 45dvh;
+    bottom: var(--taskbar-height, 32px);
+    box-shadow:
+      inset 1px 1px 0 var(--win-border-light),
+      inset -1px -1px 0 var(--win-border-dark),
+      0 -4px 12px rgba(0, 0, 0, 0.6);
+  }
+
+  .drawer-enter-from,
+  .drawer-leave-to {
+    transform: translateY(100%);
+  }
+
+  .bar-drawer-titlebar {
+    height: 32px;
+    font-size: 14px;
+    padding: 0 8px;
+  }
+
+  .win-ctrl-btn {
+    width: 26px;
+    height: 24px;
+  }
+
+  .win-ctrl-icon {
+    font-size: 12px;
+  }
+
+  .drawer-floor-header {
+    font-size: 13px;
+    padding: 5px 8px;
+    margin: 8px 0 3px;
+  }
+
+  .drawer-bar-card {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+  }
+
+  .drawer-bar-name-en {
+    font-size: 16px;
+  }
+
+  .drawer-bar-name-jp {
+    font-size: 13px;
+  }
+
+  .drawer-tag {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+
+  .info-row {
+    font-size: 13px;
+  }
+
+  .info-label {
+    min-width: 90px;
+  }
+
+  .info-description {
+    font-size: 12px;
+  }
+
+  .drawer-bar-photo img {
+    height: 120px;
+  }
+
+  .maps-icon-img {
+    width: 100px;
+    height: 19px;
+  }
 }
 </style>

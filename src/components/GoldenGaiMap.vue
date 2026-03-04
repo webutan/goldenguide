@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
+import { useVisited } from '../composables/useVisited.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
 import {
@@ -28,6 +29,8 @@ const props = defineProps({
   searchHighlightedBars: { type: Set, default: () => new Set() },
   openNowFilter: { type: Boolean, default: false },
   openBarIds: { type: Set, default: () => new Set() },
+  favoritesFilter: { type: Boolean, default: false },
+  visitedFilter: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar'])
@@ -36,6 +39,16 @@ const containerRef = ref(null)
 const svgRef = ref(null)
 const mapContent = ref('')
 let panzoomInstance = null
+
+const { isFavorited, isVisited } = useVisited()
+
+const isMobile = ref(window.innerWidth <= 768)
+function onResize() {
+  isMobile.value = window.innerWidth <= 768
+  fitToContainer()
+}
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
 
 const MAP_W = 3614.12
 const MAP_H = 4096
@@ -119,6 +132,8 @@ function barPassesFilters(bar) {
   if (props.drinkMin != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice < props.drinkMin) return false
   if (props.drinkMax != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice > props.drinkMax) return false
   if (props.openNowFilter && !props.openBarIds.has(String(bar.id))) return false
+  if (props.favoritesFilter && !isFavorited(bar.id)) return false
+  if (props.visitedFilter && !isVisited(bar.id)) return false
   return true
 }
 
@@ -334,12 +349,12 @@ function updateBuildingColors() {
 }
 
 // Panzoom
-function fitToContainer() {
+function fitToContainer(zoomMultiplier = 1) {
   if (!containerRef.value || !svgRef.value) return
   const rect = containerRef.value.getBoundingClientRect()
   const scaleX = rect.width / VB_W
   const scaleY = rect.height / VB_H
-  const scale = Math.min(scaleX, scaleY)
+  const scale = Math.min(scaleX, scaleY) * zoomMultiplier
   const offsetX = (rect.width - VB_W * scale) / 2
   const offsetY = (rect.height - VB_H * scale) / 2
   if (panzoomInstance) {
@@ -364,16 +379,34 @@ function zoomOut() {
   panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 0.67)
 }
 
+function clampToBounds() {
+  if (!panzoomInstance || !containerRef.value) return
+  const { x: tx, y: ty, scale: s } = panzoomInstance.getTransform()
+  const W = containerRef.value.clientWidth
+  const H = containerRef.value.clientHeight
+  const mapW = VB_W * s
+  const mapH = VB_H * s
+  const nx = mapW >= W ? Math.min(0, Math.max(tx, W - mapW)) : (W - mapW) / 2
+  const ny = mapH >= H ? Math.min(0, Math.max(ty, H - mapH)) : (H - mapH) / 2
+  if (Math.abs(nx - tx) > 0.5 || Math.abs(ny - ty) > 0.5) {
+    panzoomInstance.moveTo(nx, ny)
+  }
+}
+
 function initPanzoom() {
   if (panzoomInstance) panzoomInstance.dispose()
-  if (!svgRef.value) return
+  if (!svgRef.value || !containerRef.value) return
+  const rect = containerRef.value.getBoundingClientRect()
+  const fitScale = Math.min(rect.width / VB_W, rect.height / VB_H)
   panzoomInstance = panzoom(svgRef.value, {
     maxZoom: 8,
-    minZoom: 0.05,
+    minZoom: fitScale,
     smoothScroll: false,
     zoomDoubleClickSpeed: 1.5,
   })
-  fitToContainer()
+  panzoomInstance.on('panend', clampToBounds)
+  panzoomInstance.on('zoom', clampToBounds)
+  fitToContainer(1.5)
   // Delay color update to ensure SVG is rendered
   setTimeout(updateBuildingColors, 100)
 }
@@ -856,7 +889,7 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
       </template>
     </div>
 
-    <div class="map-controls">
+    <div v-if="!isMobile" class="map-controls">
       <WinButton class="zoom-btn" title="Zoom in" @click="zoomIn">+</WinButton>
       <WinButton class="zoom-btn" title="Zoom out" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" title="Fit to view" @click="resetZoom">&#x27F3;</WinButton>

@@ -55,20 +55,24 @@ function isBarOpen(schedule, now) {
 }
 
 export function useOpenNow(bars) {
-  const openBarIds = ref(new Set())
+  const openBarIds = ref(new Set())        // open or unknown (used by filter)
+  const definitivelyOpenIds = ref(new Set()) // confirmed open
+  const closedBarIds = ref(new Set())      // confirmed closed
 
   function refresh() {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }))
     const ids = new Set()
+    const openIds = new Set()
+    const closedIds = new Set()
     for (const bar of bars.value) {
-      const schedule = bar.schedule
-      const result = isBarOpen(schedule, now)
-      if (result === true || result === null) {
-        // Open or unknown → include
-        ids.add(String(bar.id))
-      }
+      const result = isBarOpen(bar.schedule, now)
+      if (result === true || result === null) ids.add(String(bar.id))
+      if (result === true) openIds.add(String(bar.id))
+      if (result === false) closedIds.add(String(bar.id))
     }
     openBarIds.value = ids
+    definitivelyOpenIds.value = openIds
+    closedBarIds.value = closedIds
   }
 
   watch(bars, refresh, { immediate: true, deep: false })
@@ -76,5 +80,5 @@ export function useOpenNow(bars) {
   const interval = setInterval(refresh, 60000)
   onUnmounted(() => clearInterval(interval))
 
-  return { openBarIds }
+  return { openBarIds, definitivelyOpenIds, closedBarIds }
 }

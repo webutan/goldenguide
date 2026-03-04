@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagFilter from './TagFilter.vue'
@@ -29,7 +29,30 @@ const dirFavoritesFilter = ref(false)
 const dirVisitedFilter = ref(false)
 
 const barsRef = computed(() => props.bars || [])
-const { openBarIds } = useOpenNow(barsRef)
+const { openBarIds, definitivelyOpenIds, closedBarIds } = useOpenNow(barsRef)
+
+const isMobile = ref(window.innerWidth <= 768)
+const mobileFiltersOpen = ref(false)
+function onResize() { isMobile.value = window.innerWidth <= 768 }
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
+
+const hasActiveFilters = computed(() =>
+  dirActiveTags.value.length > 0 ||
+  dirChargeMin.value != null || dirChargeMax.value != null ||
+  dirDrinkMin.value != null || dirDrinkMax.value != null ||
+  dirFloorFilter.value != null || dirOpenNowFilter.value
+)
+
+function clearFilters() {
+  dirActiveTags.value = []
+  dirChargeMin.value = null
+  dirChargeMax.value = null
+  dirDrinkMin.value = null
+  dirDrinkMax.value = null
+  dirFloorFilter.value = null
+  dirOpenNowFilter.value = false
+}
 
 const search = ref('')
 
@@ -90,8 +113,8 @@ function floorLabel(floor) {
 <template>
   <div class="directory">
 
-    <!-- Left-side filter panel -->
-    <div class="dir-filter-panel">
+    <!-- Left-side filter panel (desktop only) -->
+    <div v-if="!isMobile" class="dir-filter-panel">
       <div class="dir-filter-body">
         <WinScrollContainer>
           <TagFilter
@@ -125,22 +148,50 @@ function floorLabel(floor) {
           :class="['quickbar-btn', { active: dirFavoritesFilter }]"
           @click="dirFavoritesFilter = !dirFavoritesFilter"
         >
-          <svg class="quickbar-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-            <polygon points="8,1.5 9.9,6 14.5,6.4 11.2,9.3 12.3,14 8,11.4 3.7,14 4.8,9.3 1.5,6.4 6.1,6" fill="#FFD700" stroke="#B8860B" stroke-width="0.8"/>
-          </svg>
+          <img src="/icons/heart.ico" class="quickbar-icon" aria-hidden="true" />
           {{ t('favorites') }}
         </button>
         <button
           :class="['quickbar-btn', { active: dirVisitedFilter }]"
           @click="dirVisitedFilter = !dirVisitedFilter"
         >
-          <svg class="quickbar-icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-            <rect x="1" y="1" width="14" height="14" fill="#c0c0c0" stroke="#808080" stroke-width="1"/>
-            <rect x="2" y="2" width="12" height="12" fill="#ffffff"/>
-            <polyline points="3.5,8.5 6.5,12 12.5,4" stroke="#008000" stroke-width="2" fill="none" stroke-linecap="square" stroke-linejoin="miter"/>
-          </svg>
+          <img src="/icons/desktop/trust0.png" class="quickbar-icon" aria-hidden="true" />
           {{ t('visited') }}
         </button>
+        <!-- Mobile filter toggle -->
+        <button
+          v-if="isMobile"
+          :class="['quickbar-btn', 'mobile-filter-btn', { active: mobileFiltersOpen, 'has-filters': hasActiveFilters }]"
+          @click="mobileFiltersOpen = !mobileFiltersOpen"
+        >
+          <img src="/icons/desktop/magnifying_glass.png" class="quickbar-icon" aria-hidden="true" />
+          {{ t('filters') }}
+          <span v-if="hasActiveFilters" class="filter-active-badge"></span>
+        </button>
+        <button
+          v-if="isMobile && hasActiveFilters"
+          class="quickbar-btn mobile-clear-btn"
+          @click="clearFilters"
+        >
+          &#10005; Clear
+        </button>
+      </div>
+
+      <!-- Mobile inline filter panel -->
+      <div v-if="isMobile && mobileFiltersOpen" class="mobile-filter-panel">
+        <TagFilter
+          v-model="dirActiveTags"
+          :tags="tags"
+          :bars="bars"
+          :lang="lang"
+          :collapse-by-default="true"
+          v-model:charge-min="dirChargeMin"
+          v-model:charge-max="dirChargeMax"
+          v-model:drink-min="dirDrinkMin"
+          v-model:drink-max="dirDrinkMax"
+          v-model:floor-filter="dirFloorFilter"
+          v-model:open-now-filter="dirOpenNowFilter"
+        />
       </div>
 
       <div class="dir-status">
@@ -151,7 +202,7 @@ function floorLabel(floor) {
         <WinScrollContainer><div class="dir-content-inner">
           <div v-for="[street, streetBars] in barsByStreet" :key="street" class="street-section">
             <div class="street-header">
-              <span class="street-icon">&#128193;</span>
+              <img src="/icons/desktop/directory_open_cabinet.png" class="street-icon" alt="" />
               <span class="street-name">{{ street }}</span>
               <span class="street-count">({{ streetBars.length }})</span>
             </div>
@@ -170,7 +221,7 @@ function floorLabel(floor) {
                     class="icon-img"
                   />
                   <div v-else class="icon-placeholder">
-                    <span class="icon-file-glyph">&#128196;</span>
+                    <img src="/icons/desktop/wia_img_gray.png" class="icon-file-glyph" alt="" />
                   </div>
                   <span v-if="isVisited(bar.id)" class="icon-visited">&#10003;</span>
                   <div v-if="bar.tags && bar.tags.length" class="icon-tags">
@@ -191,6 +242,15 @@ function floorLabel(floor) {
                       <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" fill="#e87898"/>
                     </svg>
                     <span>{{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}</span>
+                    <svg
+                      v-if="definitivelyOpenIds.has(String(bar.id)) || closedBarIds.has(String(bar.id))"
+                      class="bar-status-icon open-dot"
+                      viewBox="0 0 7 7" width="7" height="7"
+                    >
+                      <circle cx="3.5" cy="3.5" r="3"
+                        :fill="definitivelyOpenIds.has(String(bar.id)) ? '#3db93d' : '#d93030'"
+                      />
+                    </svg>
                   </div>
                   <div class="icon-floor">{{ floorLabel(bar.floor) }}</div>
                 </div>
@@ -278,6 +338,10 @@ function floorLabel(floor) {
 .quickbar-icon {
   flex-shrink: 0;
   image-rendering: pixelated;
+  width: 15px;
+  height: 15px;
+  display: block;
+  object-fit: contain;
 }
 
 .dir-status {
@@ -344,8 +408,12 @@ function floorLabel(floor) {
 }
 
 .street-icon {
-  font-size: 14px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
+  image-rendering: pixelated;
+  object-fit: contain;
+  display: block;
 }
 
 .street-name {
@@ -422,8 +490,11 @@ function floorLabel(floor) {
 }
 
 .icon-file-glyph {
-  font-size: 32px;
-  opacity: 0.5;
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  opacity: 0.7;
 }
 
 .icon-visited {
@@ -496,5 +567,104 @@ function floorLabel(floor) {
   padding: 20px;
   text-align: center;
   color: var(--win-text-disabled);
+}
+
+/* ── Mobile ── */
+.mobile-filter-btn {
+  margin-left: auto;
+}
+
+.mobile-clear-btn {
+  color: var(--valhalla-orange, #c86400);
+}
+
+.filter-active-badge {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--valhalla-orange, #c86400);
+  margin-left: 4px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.mobile-filter-panel {
+  background: var(--win-bg);
+  border-bottom: 1px solid var(--win-border-dark);
+  box-shadow: inset 1px 1px 0 var(--win-border-light), inset -1px -1px 0 var(--win-border-dark);
+  flex-shrink: 0;
+  padding: 4px 8px;
+}
+
+@media (max-width: 768px) {
+  .dir-toolbar {
+    padding: 6px 8px;
+  }
+
+  .dir-toolbar :deep(input) {
+    height: 30px !important;
+    font-size: 14px !important;
+  }
+
+  .dir-quickbar {
+    padding: 2px 4px;
+    gap: 2px;
+  }
+
+  .quickbar-btn {
+    height: 38px;
+    font-size: 12px;
+    padding: 4px 12px;
+    background: var(--win-bg);
+    border: none;
+    box-shadow:
+      inset 1px 1px 0 var(--win-border-light),
+      inset -1px -1px 0 var(--win-border-dark);
+  }
+
+  .quickbar-btn.active {
+    box-shadow:
+      inset 1px 1px 0 var(--win-border-dark),
+      inset -1px -1px 0 var(--win-border-light);
+    background: var(--win-bg-dark);
+    color: var(--valhalla-orange);
+    font-weight: bold;
+    border-color: transparent;
+  }
+
+  .quickbar-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .mobile-clear-btn {
+    color: var(--valhalla-orange);
+  }
+
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 6px;
+  }
+
+  .icon-item {
+    width: 100%;
+  }
+
+  .icon-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .icon-name {
+    font-size: 13px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .icon-floor {
+    font-size: 11px;
+  }
 }
 </style>

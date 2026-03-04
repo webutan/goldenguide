@@ -18,6 +18,7 @@ const props = defineProps({
   floorFilter: { type: [Number, null], default: null },
   openNowFilter: { type: Boolean, default: false },
   lang: { type: String, default: 'en' },
+  collapseByDefault: { type: Boolean, default: false },
 })
 
 const { t } = useI18n(computed(() => props.lang))
@@ -41,8 +42,8 @@ const availableFloors = computed(() => {
   return [...floors].sort((a, b) => a - b)
 })
 
-const tagsExpanded = ref(true)
-const priceExpanded = ref(true)
+const tagsExpanded = ref(!props.collapseByDefault)
+const priceExpanded = ref(!props.collapseByDefault)
 
 function toggle(tagId, currentValue) {
   const next = currentValue.includes(tagId)
@@ -97,7 +98,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
   <div class="explorer-tree">
     <!-- Root node -->
     <div class="tree-root">
-      <span class="tree-icon">&#128193;</span>
+      <img src="/icons/desktop/directory_explorer.png" class="tree-icon" alt="" />
       <span class="tree-label">{{ t('filters') }}</span>
     </div>
 
@@ -108,7 +109,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
         <span class="tree-hline"></span>
       </div>
       <div class="tree-node">
-        <span class="tree-icon" style="font-size: 11px">&#128336;</span>
+        <img src="/icons/desktop/tune-up.ico" class="tree-icon" alt="" />
         <span class="tree-label">{{ t('status') }}</span>
       </div>
       <div class="tree-children">
@@ -138,7 +139,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
         <span class="tree-hline"></span>
       </div>
       <div class="tree-node">
-        <span class="tree-icon" style="font-size: 11px">&#127970;</span>
+        <img src="/icons/desktop/address_book_home.png" class="tree-icon" alt="" />
         <span class="tree-label">{{ t('floor') }}</span>
       </div>
       <div class="tree-children">
@@ -173,7 +174,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
         <button class="tree-toggle" @click="priceExpanded = !priceExpanded">
           <span class="tree-expand-icon">{{ priceExpanded ? '&#9660;' : '&#9654;' }}</span>
         </button>
-        <span class="tree-icon">&#128176;</span>
+        <img src="/icons/desktop/chart1.ico" class="tree-icon" alt="" />
         <span class="tree-label">{{ t('priceRange') }}</span>
       </div>
       <div v-if="priceExpanded" class="tree-children">
@@ -261,7 +262,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
         <button class="tree-toggle" @click="tagsExpanded = !tagsExpanded">
           <span class="tree-expand-icon">{{ tagsExpanded ? '&#9660;' : '&#9654;' }}</span>
         </button>
-        <span class="tree-icon">&#127991;</span>
+        <img src="/icons/desktop/message_tack.png" class="tree-icon" alt="" />
         <span class="tree-label">{{ t('tags') }}</span>
         <span v-if="modelValue.length > 0" class="tree-count">({{ modelValue.length }})</span>
       </div>
@@ -308,10 +309,12 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
 }
 
 .tree-icon {
-  font-size: 12px;
   flex-shrink: 0;
   width: 16px;
-  text-align: center;
+  height: 16px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  display: block;
 }
 
 .tree-label {

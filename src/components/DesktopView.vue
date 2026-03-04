@@ -13,10 +13,10 @@ const { t } = useI18n(computed(() => props.lang))
 const selected = ref(null)
 
 const icons = [
-  { id: 'map', icon: '/icons/desktop/map.png', labelKey: 'iconMap' },
-  { id: 'directory', icon: '/icons/desktop/directory.png', labelKey: 'iconDirectory' },
-  { id: 'feed', icon: '/icons/desktop/feed.png', labelKey: 'iconFeed' },
-  { id: 'chatroom', icon: '/icons/desktop/chatroom.png', labelKey: 'iconChatroom' },
+  { id: 'map', icon: '/icons/desktop/search_web.png', labelKey: 'iconMap' },
+  { id: 'directory', icon: '/icons/desktop/directory_open_cool.png', labelKey: 'iconDirectory' },
+  { id: 'feed', icon: '/icons/desktop/goldengaisprite.ico', labelKey: 'iconFeed' },
+  { id: 'chatroom', icon: '/icons/desktop/network_internet_pcs.png', labelKey: 'iconChatroom' },
   { id: 'about', icon: '/icons/desktop/about.png', labelKey: 'iconAbout' },
   { id: 'contact', icon: '/icons/desktop/contact.png', labelKey: 'iconContact' },
 ]
@@ -42,6 +42,7 @@ function handleDesktopClick() {
 
 <template>
   <div class="desktop-view" @click.self="handleDesktopClick">
+    <img src="/signs/sign.png" class="desktop-sign-banner" alt="Golden Gai" @click="handleDesktopClick" />
     <div class="desktop-icons">
       <div
         v-for="icon in icons"
@@ -63,7 +64,7 @@ function handleDesktopClick() {
 .desktop-view {
   position: absolute;
   inset: 0;
-  background: url('/wallpaper.jpg') center / cover no-repeat;
+  background: url('/static-off.png') center / cover no-repeat;
   overflow: hidden;
 }
 
@@ -122,5 +123,45 @@ function handleDesktopClick() {
 
 .desktop-icon.selected .desktop-icon-label {
   text-shadow: none;
+}
+
+/* Sign banner — hidden on desktop, shown on mobile */
+.desktop-sign-banner {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-y: auto;
+  }
+
+  .desktop-sign-banner {
+    display: block;
+    width: 100%;
+    height: auto;
+    flex-shrink: 0;
+  }
+
+  .desktop-icons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px;
+    width: 100%;
+    justify-items: center;
+  }
+
+  .desktop-icon {
+    width: 80px;
+  }
+
+  .desktop-icon-img-wrap,
+  .desktop-icon-img {
+    width: 56px;
+    height: 56px;
+  }
 }
 </style>

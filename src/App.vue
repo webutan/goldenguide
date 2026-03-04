@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import GoldenGaiMap from './components/GoldenGaiMap.vue'
 import BarDirectory from './components/BarDirectory.vue'
 import TagFilter from './components/TagFilter.vue'
@@ -178,7 +178,7 @@ function handleSearchMatches(matches) {
 
 // Register windows
 onMounted(() => {
-  wm.register('search', t('search'), '&#128269;')
+  wm.register('search', t('search'), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
   wm.register('explorer', 'Explorer', '&#128193;')
 })
 
@@ -193,6 +193,33 @@ const adminWin = computed(() => wm.getWindow('admin'))
 const dbWin = computed(() => wm.getWindow('database'))
 const dbWinWidth  = typeof window !== 'undefined' ? Math.max(900, window.innerWidth  - 60) : 1200
 const dbWinHeight = typeof window !== 'undefined' ? Math.max(500, window.innerHeight - 80) : 650
+
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 768)
+function onWindowResize() { isMobile.value = window.innerWidth <= 768 }
+onMounted(() => window.addEventListener('resize', onWindowResize))
+onUnmounted(() => window.removeEventListener('resize', onWindowResize))
+
+const mobileMapFiltersOpen = ref(false)
+const mapFavoritesFilter = ref(false)
+const mapVisitedFilter = ref(false)
+const hasActiveMapFilters = computed(() =>
+  activeTags.value.length > 0 ||
+  chargeMin.value != null || chargeMax.value != null ||
+  drinkMin.value != null || drinkMax.value != null ||
+  floorFilter.value != null || openNowFilter.value ||
+  mapFavoritesFilter.value || mapVisitedFilter.value
+)
+function clearMapFilters() {
+  activeTags.value = []
+  chargeMin.value = null
+  chargeMax.value = null
+  drinkMin.value = null
+  drinkMax.value = null
+  floorFilter.value = null
+  openNowFilter.value = false
+  mapFavoritesFilter.value = false
+  mapVisitedFilter.value = false
+}
 
 // Position explorer window center-left of screen
 const explorerInitialX = 8
@@ -241,7 +268,7 @@ function handleOpenApp(app) {
   } else {
     // Placeholder windows for feed, chatroom, about
     const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About' }
-    const icons = { feed: '&#127760;', chatroom: '&#128172;', about: '&#8505;' }
+    const icons = { feed: '<img src="/icons/desktop/goldengaisprite.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', about: '&#8505;' }
     if (!wm.getWindow(app)) {
       wm.register(app, titles[app] || app, icons[app] || '')
     }
@@ -381,6 +408,8 @@ async function handleUnplaceBar(bar) {
           :partitions="partitions"
           :open-now-filter="openNowFilter"
           :open-bar-ids="openBarIds"
+          :favorites-filter="mapFavoritesFilter"
+          :visited-filter="mapVisitedFilter"
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           @select-building="handleSelectBuilding"
@@ -388,9 +417,67 @@ async function handleUnplaceBar(bar) {
           @select-building-for-edit="handleSelectBuildingForEdit"
         />
 
-        <!-- Search window -->
+        <!-- Mobile controls: search + filter bar -->
+        <div v-if="isMobile && !isAdmin" class="mobile-map-controls">
+          <div class="mobile-search-bar">
+            <MapSearch
+              :bars="bars"
+              :lang="effectiveLang"
+              @select-bar="handleSearchSelect"
+              @search-matches="handleSearchMatches"
+            />
+          </div>
+          <div class="mobile-map-filterbar">
+            <button
+              :class="['mobile-map-filter-btn', { active: mapFavoritesFilter }]"
+              @click="mapFavoritesFilter = !mapFavoritesFilter"
+            >
+              <img src="/icons/heart.ico" class="mobile-map-filter-icon" alt="" />
+              {{ t('favorites') }}
+            </button>
+            <button
+              :class="['mobile-map-filter-btn', { active: mapVisitedFilter }]"
+              @click="mapVisitedFilter = !mapVisitedFilter"
+            >
+              <img src="/icons/desktop/trust0.png" class="mobile-map-filter-icon" alt="" />
+              {{ t('visited') }}
+            </button>
+            <button
+              :class="['mobile-map-filter-btn', { active: mobileMapFiltersOpen }, 'ml-auto']"
+              @click="mobileMapFiltersOpen = !mobileMapFiltersOpen"
+            >
+              <img src="/icons/desktop/magnifying_glass.png" class="mobile-map-filter-icon" alt="" />
+              {{ t('filters') }}
+              <span v-if="hasActiveMapFilters" class="mobile-map-filter-badge"></span>
+            </button>
+            <button
+              v-if="hasActiveMapFilters"
+              class="mobile-map-clear-btn"
+              @click="clearMapFilters"
+            >
+              &#10005; Clear
+            </button>
+          </div>
+          <div v-if="mobileMapFiltersOpen" class="mobile-map-filter-panel">
+            <TagFilter
+              v-model="activeTags"
+              :tags="sortedTags"
+              :bars="bars"
+              :lang="effectiveLang"
+              :collapse-by-default="true"
+              v-model:charge-min="chargeMin"
+              v-model:charge-max="chargeMax"
+              v-model:drink-min="drinkMin"
+              v-model:drink-max="drinkMax"
+              v-model:floor-filter="floorFilter"
+              v-model:open-now-filter="openNowFilter"
+            />
+          </div>
+        </div>
+
+        <!-- Search window (desktop only) -->
         <WinWindow
-          v-if="searchWin && !isAdmin"
+          v-if="searchWin && !isAdmin && !isMobile"
           :title="t('search')"
           icon="&#128269;"
           :width="200"
@@ -411,9 +498,9 @@ async function handleUnplaceBar(bar) {
           />
         </WinWindow>
 
-        <!-- Explorer window (filters) — bottom left -->
+        <!-- Explorer window (filters) — desktop only -->
         <WinWindow
-          v-if="explorerWin && !isAdmin"
+          v-if="explorerWin && !isAdmin && !isMobile"
           title="Explorer"
           icon="&#128193;"
           :width="200"
@@ -571,4 +658,113 @@ async function handleUnplaceBar(bar) {
   flex-direction: column;
 }
 
+.mobile-map-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-search-bar {
+  padding: 6px 8px;
+  background: var(--win-bg);
+  box-shadow: inset -1px -1px 0 var(--win-border-dark);
+}
+
+.mobile-search-bar .map-search {
+  width: 100%;
+}
+
+.mobile-search-bar input {
+  height: 30px !important;
+  font-size: 14px !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mobile-map-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: var(--win-bg);
+  border-bottom: 1px solid var(--win-border-dark);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.ml-auto {
+  margin-left: auto;
+}
+
+.mobile-map-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 38px;
+  padding: 4px 12px;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  font-family: var(--win-font);
+  font-size: 12px;
+  color: var(--win-text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-map-filter-btn.active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  background: var(--win-bg-dark);
+  color: var(--valhalla-orange);
+  font-weight: bold;
+}
+
+.mobile-map-filter-icon {
+  width: 18px;
+  height: 18px;
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.mobile-map-filter-badge {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--valhalla-orange, #c86400);
+  flex-shrink: 0;
+}
+
+.mobile-map-clear-btn {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 4px 12px;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  font-family: var(--win-font);
+  font-size: 12px;
+  color: var(--valhalla-orange, #c86400);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-map-filter-panel {
+  background: var(--win-bg);
+  border-bottom: 1px solid var(--win-border-dark);
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  max-height: 50dvh;
+  overflow-y: auto;
+}
 </style>

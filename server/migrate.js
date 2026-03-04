@@ -109,6 +109,21 @@ const MIGRATIONS = [
     name: '006-add-schedule',
     sql: `ALTER TABLE bars ADD COLUMN IF NOT EXISTS schedule JSONB DEFAULT '{}';`,
   },
+  {
+    name: '007-annotations',
+    sql: `
+      CREATE TABLE IF NOT EXISTS annotations (
+        id        TEXT PRIMARY KEY,
+        text_en   TEXT NOT NULL DEFAULT '',
+        text_jp   TEXT NOT NULL DEFAULT '',
+        x         REAL NOT NULL DEFAULT 0,
+        y         REAL NOT NULL DEFAULT 0,
+        font_size REAL NOT NULL DEFAULT 50,
+        color     TEXT NOT NULL DEFAULT '#8a6540',
+        rotation  REAL NOT NULL DEFAULT 0
+      );
+    `,
+  },
 ]
 
 export async function runMigrations() {
