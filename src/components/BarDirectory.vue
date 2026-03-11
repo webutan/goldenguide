@@ -11,6 +11,7 @@ const props = defineProps({
   bars: Array,
   tags: Array,
   lang: { type: String, default: 'en' },
+  tourHighlight: { type: String, default: null },
 })
 
 const { t } = useI18n(computed(() => props.lang))
@@ -114,7 +115,7 @@ function floorLabel(floor) {
   <div class="directory">
 
     <!-- Left-side filter panel (desktop only) -->
-    <div v-if="!isMobile" class="dir-filter-panel">
+    <div v-if="!isMobile" class="dir-filter-panel" :class="{ 'tour-highlight': tourHighlight === 'directory-filter' }">
       <div class="dir-filter-body">
         <WinScrollContainer>
           <TagFilter
@@ -161,7 +162,7 @@ function floorLabel(floor) {
         <!-- Mobile filter toggle -->
         <button
           v-if="isMobile"
-          :class="['quickbar-btn', 'mobile-filter-btn', { active: mobileFiltersOpen, 'has-filters': hasActiveFilters }]"
+          :class="['quickbar-btn', 'mobile-filter-btn', { active: mobileFiltersOpen, 'has-filters': hasActiveFilters, 'tour-highlight': tourHighlight === 'directory-filter' }]"
           @click="mobileFiltersOpen = !mobileFiltersOpen"
         >
           <img src="/icons/desktop/magnifying_glass.png" class="quickbar-icon" aria-hidden="true" />
@@ -666,5 +667,16 @@ function floorLabel(floor) {
   .icon-floor {
     font-size: 11px;
   }
+}
+
+/* Tour highlight pulse */
+.tour-highlight {
+  box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
+  animation: tour-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
 }
 </style>

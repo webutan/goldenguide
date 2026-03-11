@@ -1,11 +1,12 @@
 <script setup>
-import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
+import { ref, computed, reactive, watch, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
   rulesAccepted: { type: Boolean, default: false },
+  bars: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['accepted'])
+const emit = defineEmits(['accepted', 'tour-navigate', 'tour-highlight', 'tour-mode', 'open-bar'])
 
 // ── Script ──────────────────────────────────────────────────────────────────
 const SCRIPT = [
@@ -112,6 +113,182 @@ const SCRIPT = [
   },
 ]
 
+// ── Interactive dialogue nodes ───────────────────────────────────────────────
+const INTERACTIVE_DIALOGUE = {
+  'menu': {
+    text_en: "How can I GAI-de you today?",
+    text_jp: "今日はどんなことをお手伝いしましょうか？",
+    choices: [
+      { id: 'tour-1', label_en: 'Give me a tour!', label_jp: 'ツアーして！' },
+      { id: 'recommend-1', label_en: 'Recommend a bar', label_jp: 'バーを紹介して' },
+      { id: 'cute-1', label_en: "You're so cute!", label_jp: 'かわいい！' },
+    ],
+  },
+
+  // ── TOUR TREE ──────────────────────────────────────────────────────────────
+  'tour-1': {
+    text_en: "You got it! First, let's take a look at the taskbar.",
+    text_jp: "わかった！まずはタスクバーを見てみましょう！",
+    next: 'tour-2',
+    action: { type: 'highlight', target: 'taskbar' },
+  },
+  'tour-2': {
+    text_en: "This is the map button! Here you can see an interactive map of Golden Gai and explore all the bars.",
+    text_jp: "これがマップボタンよ！ゴールデン街のインタラクティブマップで、全部のバーを探索できるわ。",
+    next: 'tour-3',
+    action: { type: 'navigate+highlight', view: 'map', target: 'taskbar-map' },
+  },
+  'tour-3': {
+    text_en: "Using this filter section, you can narrow down bars by tags, price range, and more!",
+    text_jp: "このフィルターセクションを使うと、タグや価格帯でバーを絞り込めるわ！",
+    next: 'tour-4',
+    action: { type: 'highlight', target: 'map-filter' },
+  },
+  'tour-4': {
+    text_en: "This button here shows your location in Golden Gai!",
+    text_jp: "このボタンでゴールデン街内の自分の位置を確認できるの！",
+    next: 'tour-5',
+    action: { type: 'highlight', target: 'map-location' },
+  },
+  'tour-5': {
+    text_en: "When you click on a bar, all the information you need is written there!",
+    text_jp: "バーをクリックすると、必要な情報が全部表示されるわよ！",
+    next: 'tour-6',
+    action: { type: 'highlight', target: null },
+  },
+  'tour-6': {
+    text_en: "This is the bar directory, for those who prefer a list view.",
+    text_jp: "これはバーのディレクトリよ。リスト形式で見たい人向けね。",
+    next: 'tour-7',
+    action: { type: 'navigate+highlight', view: 'directory', target: 'taskbar-directory' },
+  },
+  'tour-7': {
+    text_en: "You can also filter bars here and view their social media feeds.",
+    text_jp: "ここでもバーを絞り込んだり、SNSのフィードを見ることができるわ。",
+    next: 'tour-8',
+    action: { type: 'highlight', target: 'directory-filter' },
+  },
+  'tour-8': {
+    text_en: "The desktop is my favorite, because… I live here! Ahaha!!",
+    text_jp: "デスクトップはアタシのお気に入り…だって、ここに住んでるんだもん！アハハ！！",
+    next: 'tour-9',
+    action: { type: 'navigate+highlight', view: 'desktop', target: 'taskbar-desktop' },
+  },
+  'tour-9': {
+    text_en: "Here you can access all the other applications, as well as a few more!",
+    text_jp: "ここから他のアプリにもアクセスできるし、もう少し機能もあるの！",
+    next: 'tour-10',
+    action: { type: 'highlight', target: null },
+  },
+  'tour-10': {
+    text_en: "Here you can see the Twitter feeds of all the bars in Golden Gai!",
+    text_jp: "ここでゴールデン街の全バーのTwitterフィードが見られるわ！",
+    next: 'tour-11',
+    action: { type: 'highlight', target: 'btn-feed' },
+  },
+  'tour-11': {
+    text_en: "Use the contact form if something is wrong or if you have suggestions.",
+    text_jp: "何か問題があったり、提案があればコンタクトフォームを使ってね。",
+    next: 'tour-12',
+    action: { type: 'highlight', target: 'btn-contact' },
+  },
+  'tour-12': {
+    text_en: "If you want some helpful links or want to know more about Golden Gai, click here!",
+    text_jp: "役立つリンクやゴールデン街について詳しく知りたいなら、ここをクリックして！",
+    next: 'tour-13',
+    action: { type: 'highlight', target: 'btn-about' },
+  },
+  'tour-13': {
+    text_en: "If you want to chat with other people in Golden Gai, use this one!",
+    text_jp: "ゴールデン街の人たちとチャットしたいなら、これを使ってね！",
+    next: 'tour-14',
+    action: { type: 'highlight', target: 'btn-chatroom' },
+  },
+  'tour-14': {
+    text_en: "That's about everything! Now repeat it all back… just kidding. Enjoy!",
+    text_jp: "以上で全部よ！じゃあ全部繰り返して…冗談よ。楽しんでね！",
+    next: 'menu',
+    isLast: true,
+    action: { type: 'highlight', target: null },
+  },
+
+  // ── RECOMMEND TREE ─────────────────────────────────────────────────────────
+  'recommend-1': {
+    text_en: "You got it! Should I pick a random one or tailor it to your liking?",
+    text_jp: "わかった！ランダムに選ぶ？それともあなた好みに絞る？",
+    choices: [
+      { id: 'recommend-random', label_en: "I'm feeling lucky!", label_jp: 'お任せで！' },
+      { id: 'recommend-filter-1', label_en: 'Filter for me', label_jp: '絞り込んで' },
+    ],
+  },
+  'recommend-random': {
+    text_en: '', // filled dynamically
+    text_jp: '',
+    next: 'menu',
+    isLast: true,
+  },
+  'recommend-filter-1': {
+    text_en: "Do you smoke, or are you okay with smoking bars?",
+    text_jp: "喫煙しますか？または喫煙可能なバーでも大丈夫？",
+    choices: [
+      { id: 'rf-smoke-yes', label_en: "Yes / that's fine", label_jp: 'はい／大丈夫' },
+      { id: 'rf-smoke-no', label_en: "No smoking please", label_jp: '禁煙希望' },
+    ],
+  },
+  'rf-smoke-yes': {
+    text_en: "Got it! Is a cash-only bar okay?",
+    text_jp: "わかった！現金のみのバーでも大丈夫？",
+    choices: [
+      { id: 'rf-cash-yes', label_en: 'Cash is fine', label_jp: '現金でいい' },
+      { id: 'rf-cash-no', label_en: 'I need card payment', label_jp: 'カードが使いたい' },
+    ],
+  },
+  'rf-smoke-no': {
+    text_en: "Got it! Is a cash-only bar okay?",
+    text_jp: "わかった！現金のみのバーでも大丈夫？",
+    choices: [
+      { id: 'rf-cash-yes', label_en: 'Cash is fine', label_jp: '現金でいい' },
+      { id: 'rf-cash-no', label_en: 'I need card payment', label_jp: 'カードが使いたい' },
+    ],
+  },
+  'rf-cash-yes': {
+    text_en: "Do you speak Japanese?",
+    text_jp: "日本語は話せますか？",
+    choices: [
+      { id: 'rf-jp-yes', label_en: 'Yes, I speak Japanese', label_jp: 'はい、話せます' },
+      { id: 'rf-jp-no', label_en: 'No, English please', label_jp: 'いいえ、英語希望' },
+    ],
+  },
+  'rf-cash-no': {
+    text_en: "Do you speak Japanese?",
+    text_jp: "日本語は話せますか？",
+    choices: [
+      { id: 'rf-jp-yes', label_en: 'Yes, I speak Japanese', label_jp: 'はい、話せます' },
+      { id: 'rf-jp-no', label_en: 'No, English please', label_jp: 'いいえ、英語希望' },
+    ],
+  },
+  'rf-jp-yes': {
+    text_en: '', // filled dynamically
+    text_jp: '',
+    next: 'menu',
+    isLast: true,
+  },
+  'rf-jp-no': {
+    text_en: '', // filled dynamically
+    text_jp: '',
+    next: 'menu',
+    isLast: true,
+  },
+
+  // ── CUTE TREE ───────────────────────────────────────────────────────────────
+  'cute-1': {
+    text_en: "Wh-wha! You can't just say things like that so suddenly!! You've only just met me...",
+    text_jp: "ちょ、ちょっと！そんなこといきなり言わないでよ！！出会ったばかりじゃない...",
+    next: 'menu',
+    isLast: true,
+  },
+}
+
 // ── Mobile detection ──────────────────────────────────────────────────────────
 const mq = window.matchMedia('(max-width: 768px)')
 const isMobile = ref(mq.matches)
@@ -139,6 +316,13 @@ const terminalImageVisible = ref(false)
 const terminalImageKey = ref(0)
 let terminalTimer = null
 
+// ── Interactive state ─────────────────────────────────────────────────────────
+const interactiveMode = ref(false)
+const interactiveNodeId = ref('menu')
+const filterState = reactive({ smoking: null, cash: null, japanese: null })
+const tourHighlightTarget = ref(null)
+const recommendedBars = ref([])
+
 // ── Computed ──────────────────────────────────────────────────────────────────
 const currentStep = computed(() => SCRIPT[stepIndex.value])
 const isLastStep = computed(() => !!currentStep.value.isLast)
@@ -157,19 +341,15 @@ const SPRITE_SETS = {
   regular:  { closed: '/gaichan/gaichanmouthclosed.png',        open: '/gaichan/gaichanmouthopen.png' },
   thinking: { closed: '/gaichan/gaichanthinking.png',            open: '/gaichan/gaichanthinkingmouthopen.png' },
   surprised:{ closed: '/gaichan/gaichansurprised.png',           open: '/gaichan/gaichansurprisedmouthopen.png' },
+  embarrassed: { closed: '/gaichan/gaichanembarassed.png',       open: '/gaichan/gaichanembarassedmouthopen.png' },
 }
 
-// Step → sprite set mapping:
-//  0        regular   (welcome)
-//  1–3      thinking  (private streets, cameras, smoking)
-//  4        regular   (table charge)
-//  5        surprised (luggage thieves)
-//  6        regular   (big list intro)
-//  7–12     thinking  (no smoking repeat … no graffiti)
-//  13       surprised (drugs)
-//  14–17    thinking  (vomiting … climbing)
-//  18+      regular   (one last thing, farewell)
 const spriteSet = computed(() => {
+  // Interactive mode sprite selection
+  if (interactiveMode.value) {
+    if (interactiveNodeId.value === 'cute-1') return SPRITE_SETS.embarrassed
+    return SPRITE_SETS.regular
+  }
   const i = stepIndex.value
   if (i >= 1 && i <= 3)   return SPRITE_SETS.thinking
   if (i === 5)             return SPRITE_SETS.surprised
@@ -182,6 +362,18 @@ const spriteSet = computed(() => {
 const spriteImg = computed(() =>
   mouthOpen.value ? spriteSet.value.open : spriteSet.value.closed
 )
+
+const currentNode = computed(() => INTERACTIVE_DIALOGUE[interactiveNodeId.value])
+const showChoices = computed(() =>
+  interactiveMode.value && !!currentNode.value?.choices && typingDone.value
+)
+const showNextBtn = computed(() =>
+  interactiveMode.value && typingDone.value && !currentNode.value?.choices
+)
+const isLastNode = computed(() => !!currentNode.value?.isLast)
+
+// True when we're in the tour tree (node IDs start with 'tour-')
+const isTourNode = computed(() => interactiveNodeId.value.startsWith('tour-'))
 
 // ── Mouth animation ───────────────────────────────────────────────────────────
 function startMouthAnim() {
@@ -213,13 +405,20 @@ function startTypewriter(text) {
       typingDone.value = true
       stopMouthAnim()
     }
-  }, 28)
+  }, 15)
 }
 
 function skipTypewriter() {
   clearInterval(typingTimer)
   typingTimer = null
-  displayedText.value = currentText.value
+  if (interactiveMode.value) {
+    const node = currentNode.value
+    if (node) {
+      displayedText.value = props.lang === 'jp' ? (node.text_jp || node.text_en) : node.text_en
+    }
+  } else {
+    displayedText.value = currentText.value
+  }
   typingDone.value = true
   stopMouthAnim()
 }
@@ -246,7 +445,7 @@ function typeTerminalLines(step) {
           terminalImageSrc.value = step.image
           terminalImageKey.value++
           terminalImageVisible.value = true
-          terminalTimer = setTimeout(() => startTypewriter(currentText.value), 450)
+          startTypewriter(currentText.value)
         }, 100)
       } else {
         startTypewriter(currentText.value)
@@ -290,23 +489,19 @@ function loadStep(idx) {
   const step = SCRIPT[idx]
   nextTick(() => {
     if (isMobile.value) {
-      // Mobile: terminal is always open (no CRT text lines)
       const isFirstOpen = !terminalEverOpened.value
       if (isFirstOpen) {
         terminalVisible.value = true
         terminalEverOpened.value = true
       }
-      // Brief delay on first open to let slide-in complete, then load step content
       terminalTimer = setTimeout(() => {
         if (step.image) {
-          // Switch image directly without going through gai-chan — prevents flicker
           terminalLines.value = []
           terminalImageSrc.value = step.image
           terminalImageKey.value++
           terminalImageVisible.value = true
-          terminalTimer = setTimeout(() => startTypewriter(currentText.value), 300)
+          startTypewriter(currentText.value)
         } else {
-          // No image: reveal gai-chan background, start typewriter
           terminalLines.value = []
           terminalImageVisible.value = false
           terminalImageSrc.value = null
@@ -314,7 +509,6 @@ function loadStep(idx) {
         }
       }, isFirstOpen ? 270 : 0)
     } else {
-      // Desktop: existing behaviour
       if (terminalEverOpened.value || step.image) {
         openOrUpdateTerminal(step)
       } else {
@@ -355,15 +549,187 @@ function handleSkip() {
   isTucked.value = true
 }
 
+// ── Interactive dialogue functions ────────────────────────────────────────────
+function getRecommendedBars(count = 3) {
+  let filtered = [...props.bars]
+  if (filterState.smoking === false)  filtered = filtered.filter(b => !b.tags?.includes('smoking'))
+  if (filterState.cash === false)     filtered = filtered.filter(b => !b.tags?.includes('cash-only'))
+  if (filterState.japanese === false) filtered = filtered.filter(b => b.tags?.includes('english-ok'))
+  // Shuffle and take count
+  return filtered.sort(() => Math.random() - 0.5).slice(0, count)
+}
+
+function buildRecommendText(bars) {
+  if (!bars || bars.length === 0) {
+    return props.lang === 'jp'
+      ? 'あなたの条件に合うバーが見つからなかったわ…もう少しゆるめてみて？'
+      : "I couldn't find any bars matching your criteria… try loosening the filters?"
+  }
+  const names = bars.map(b => b.name_en || b.name_jp || '?').join(', ')
+  return props.lang === 'jp'
+    ? `私のおすすめは：${names}！`
+    : `I would check out: ${names}!`
+}
+
+function executeAction(action) {
+  if (!action) return
+  if (action.type === 'navigate' || action.type === 'navigate+highlight') {
+    emit('tour-navigate', action.view)
+  }
+  if (action.type === 'highlight' || action.type === 'navigate+highlight') {
+    const target = action.target ?? null
+    tourHighlightTarget.value = target
+    emit('tour-highlight', target)
+  }
+}
+
+// Determine if we're in the recommendation result phase
+function isRecommendResultNode(nodeId) {
+  return nodeId === 'recommend-random' || nodeId === 'rf-jp-yes' || nodeId === 'rf-jp-no'
+}
+
+function interactiveSkip() {
+  // At menu: close/tuck the whole dialogue. Elsewhere: return to menu.
+  if (interactiveNodeId.value === 'menu') {
+    closeInteractiveDialogue()
+  } else {
+    tourHighlightTarget.value = null
+    emit('tour-highlight', null)
+    recommendedBars.value = []
+    filterState.smoking = null
+    filterState.cash = null
+    filterState.japanese = null
+    loadInteractiveNode('menu')
+  }
+}
+
+function loadInteractiveNode(nodeId) {
+  const wasInTour = isTourNode.value  // capture before nodeId changes
+  interactiveNodeId.value = nodeId
+  const node = INTERACTIVE_DIALOGUE[nodeId]
+  if (!node) return
+
+  // On mobile: handle transitions between tour and non-tour interactive modes
+  if (isMobile.value && interactiveMode.value) {
+    const nowInTour = nodeId.startsWith('tour-')
+    if (!wasInTour && nowInTour) {
+      // Entering tour: close CRT terminal (main dialogue text will show tour content)
+      terminalVisible.value = false
+    } else if (wasInTour && !nowInTour) {
+      // Leaving tour: re-open CRT terminal for interactive panel
+      terminalLines.value = []
+      terminalImageVisible.value = false
+      terminalImageSrc.value = null
+      terminalVisible.value = true
+    }
+  }
+
+  // Clear recommended bars when leaving recommend result nodes
+  if (!isRecommendResultNode(nodeId)) {
+    recommendedBars.value = []
+  }
+
+  if (node.action) executeAction(node.action)
+
+  // Handle dynamic text nodes
+  if (nodeId === 'recommend-random') {
+    const bar = props.bars.length > 0
+      ? props.bars[Math.floor(Math.random() * props.bars.length)]
+      : null
+    const name = bar ? (bar.name_en || bar.name_jp || '?') : '...'
+    node.text_en = `How about ${name}?`
+    node.text_jp = `${name}なんてどうかしら？`
+    recommendedBars.value = bar ? [bar] : []
+  }
+
+  if (nodeId === 'rf-jp-yes' || nodeId === 'rf-jp-no') {
+    filterState.japanese = nodeId === 'rf-jp-yes'
+    const bars = getRecommendedBars(3)
+    recommendedBars.value = bars
+    const text = buildRecommendText(bars)
+    node.text_en = text
+    node.text_jp = text
+  }
+
+  const text = props.lang === 'jp' ? (node.text_jp || node.text_en) : node.text_en
+  startTypewriter(text)
+}
+
+function openInteractiveDialogue() {
+  isTucked.value = false
+  interactiveMode.value = true
+  if (isMobile.value) {
+    // On mobile: open CRT terminal for the interactive panel
+    terminalLines.value = []
+    terminalImageVisible.value = false
+    terminalImageSrc.value = null
+    terminalVisible.value = true
+  } else {
+    // Desktop: close CRT terminal if it was open from rules
+    terminalVisible.value = false
+  }
+  emit('tour-mode', true)
+  loadInteractiveNode('menu')
+}
+
+function selectChoice(choiceId) {
+  if (choiceId.startsWith('rf-smoke-')) filterState.smoking = choiceId === 'rf-smoke-yes'
+  if (choiceId.startsWith('rf-cash-'))  filterState.cash    = choiceId === 'rf-cash-yes'
+  // rf-jp handled in loadInteractiveNode
+  loadInteractiveNode(choiceId)
+}
+
+function advanceInteractive() {
+  if (!typingDone.value) { skipTypewriter(); return }
+  const next = currentNode.value?.next ?? 'menu'
+  if (next === 'menu') {
+    tourHighlightTarget.value = null
+    emit('tour-highlight', null)
+    recommendedBars.value = []
+    filterState.smoking = null
+    filterState.cash = null
+    filterState.japanese = null
+    loadInteractiveNode('menu')
+  } else {
+    loadInteractiveNode(next)
+  }
+}
+
+function closeInteractiveDialogue() {
+  interactiveMode.value = false
+  isTucked.value = true
+  if (isMobile.value) {
+    terminalVisible.value = false
+  }
+  tourHighlightTarget.value = null
+  emit('tour-highlight', null)
+  emit('tour-mode', false)
+}
+
 // Click anywhere on panel (not a button) to advance — VN style
-// Debounce prevents a rapid double-click from skipping AND advancing in one gesture
 let lastAdvanceTime = 0
 function handleDialogueClick(e) {
+  if (isTucked.value) {
+    openInteractiveDialogue()
+    return
+  }
+  if (interactiveMode.value) {
+    if (e.target.closest('button')) return
+    if (!typingDone.value) { skipTypewriter(); return }
+    return
+  }
   if (e.target.closest('button')) return
   const now = Date.now()
   if (now - lastAdvanceTime < 300) return
   lastAdvanceTime = now
   handleAdvance()
+}
+
+// Click on CRT terminal body (not buttons): skip typewriter in interactive mode
+function handleTerminalClick(e) {
+  if (!interactiveMode.value) return
+  if (e.target.closest('button')) return
+  if (!typingDone.value) { skipTypewriter() }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -379,7 +745,16 @@ onUnmounted(() => {
 })
 
 watch(() => props.lang, () => {
-  skipTypewriter()
+  if (interactiveMode.value) {
+    // Re-type current interactive node text in new language
+    const node = currentNode.value
+    if (node) {
+      const text = props.lang === 'jp' ? (node.text_jp || node.text_en) : node.text_en
+      startTypewriter(text)
+    }
+  } else {
+    skipTypewriter()
+  }
 })
 </script>
 
@@ -387,18 +762,8 @@ watch(() => props.lang, () => {
   <Teleport to="body">
     <!-- Terminal window (slides down from top) -->
     <Transition name="crt">
-      <div v-if="terminalVisible" class="crt-terminal">
-        <!--
-          Layer stack:
-          1. crt-screen  — CRT content clipped to the screen opening in terminal.png
-          2. crt-window  — terminal.png masked by terminaltp.png (hides frame area's dark fill,
-                           shows only the decorative frame, screen area is transparent/cut out)
-        -->
+      <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick">
         <div class="crt-screen" :class="{ 'crt-screen--gaichan': !terminalImageVisible }">
-          <!--
-            Mobile only: gai-chan sprite fills the terminal screen.
-            Fades out when a rule image appears, fades back in when done.
-          -->
           <img
             :src="spriteImg"
             class="crt-gaichan-sprite"
@@ -413,6 +778,10 @@ watch(() => props.lang, () => {
             <img :key="terminalImageKey" :src="terminalImageSrc" class="crt-image" alt="" />
           </div>
           <div class="crt-scanlines" aria-hidden="true"></div>
+          <!-- Dialogue text overlay: bottom 25% of terminal screen (mobile non-tour mode) -->
+          <div v-if="interactiveMode && isMobile" class="crt-dialogue-overlay">
+            {{ displayedText }}<span v-if="!typingDone" class="dialogue-cursor">▋</span>
+          </div>
         </div>
         <img src="/gaichan/terminal.png" class="crt-window" alt="" draggable="false" />
       </div>
@@ -425,14 +794,6 @@ watch(() => props.lang, () => {
       @click="handleDialogueClick"
     >
       <div class="dialogue-body">
-
-        <!--
-          Layer stack (bottom → top):
-          1. screen-content  — background + sprite, clipped to monitor screen bounds
-          2. layer--window   — gaichanwindow.png masked by gaichanwindowtp.png
-                               (mask hides the dark screen area, shows only the frame)
-          3. text-panel      — dialogue text + buttons in the right panel area
-        -->
 
         <!-- 1. Screen content: background scene + gai-chan sprite + scanlines -->
         <div class="screen-content" :class="{ 'screen-content--tucked': isTucked }">
@@ -457,15 +818,10 @@ watch(() => props.lang, () => {
             alt="Gai-chan"
             draggable="false"
           />
-          <!-- Scanlines overlay: above sprite, below window frame -->
           <div class="screen-scanlines" aria-hidden="true"></div>
         </div>
 
-        <!--
-          2. gaichanwindow.png — the full panel image.
-             CSS mask-image uses gaichanwindowtp.png (transparent screen hole) so
-             gaichanwindow is invisible in the screen area, revealing layers below.
-        -->
+        <!-- 2. gaichanwindow.png masked by gaichanwindowtp.png -->
         <img
           src="/gaichan/gaichanwindow.png"
           class="layer--window"
@@ -473,24 +829,72 @@ watch(() => props.lang, () => {
           draggable="false"
         />
 
-        <!-- Speaker name — in the small top label window (cols 50%–79.7%, rows 0–3.7%) -->
+        <!-- Speaker name -->
         <div v-if="!isTucked" class="speaker-name">{{ lang === 'jp' ? '街ちゃん' : 'Gai-chan' }}</div>
 
-        <!-- 3. Text panel — in the large right window (left 33.7%, top 20.2%, right 7.7%, bottom 20.6%) -->
+        <!-- 3. Text panel -->
         <div v-if="!isTucked" class="text-panel">
-          <!-- Skip: top-right corner -->
-          <button class="skip-btn" @click.stop="handleSkip">
-            {{ lang === 'jp' ? 'スキップ' : 'Skip' }} ▶▶
-          </button>
-
-          <div class="dialogue-text">
+          <!-- Hide dialogue text on mobile in non-tour interactive mode (it's shown in the terminal overlay instead) -->
+          <div v-if="!(interactiveMode && isMobile && !isTourNode)" class="dialogue-text">
             {{ displayedText }}<span v-if="!typingDone" class="dialogue-cursor">▋</span>
           </div>
 
-          <div class="text-footer">
-            <span class="step-counter">{{ stepIndex + 1 }} / {{ SCRIPT.length }}</span>
+          <!-- Recommended bars (clickable) — only shown in recommend result nodes -->
+          <div v-if="interactiveMode && typingDone && recommendedBars.length > 0 && isRecommendResultNode(interactiveNodeId)" class="bar-links">
+            <span
+              v-for="bar in recommendedBars"
+              :key="bar.id"
+              class="bar-link"
+              @click.stop="emit('open-bar', bar.id)"
+            >{{ bar.name_en || bar.name_jp }}</span>
+          </div>
+
+          <!-- Interactive close/skip — always shown in interactive mode (positioned absolute) -->
+          <button
+            v-if="interactiveMode"
+            class="skip-btn interactive-close"
+            @click.stop="interactiveSkip()"
+          >
+            {{ interactiveNodeId === 'menu'
+              ? (lang === 'jp' ? '閉じる' : 'Close')
+              : (lang === 'jp' ? 'スキップ' : 'Skip') }}
+          </button>
+
+          <!-- Choice buttons (shown when showChoices) -->
+          <div v-if="showChoices" class="choice-list">
+            <button
+              v-for="choice in currentNode.choices"
+              :key="choice.id"
+              class="choice-btn"
+              @click.stop="selectChoice(choice.id)"
+            >{{ lang === 'jp' ? choice.label_jp : choice.label_en }}</button>
+          </div>
+
+          <!-- Footer (shown when NOT showing choices) -->
+          <div v-else class="text-footer">
+            <span class="step-counter">
+              <template v-if="!interactiveMode">{{ stepIndex + 1 }} / {{ SCRIPT.length }}</template>
+            </span>
+
+            <!-- Rules mode: skip button -->
+            <button v-if="!interactiveMode" class="skip-btn" @click.stop="handleSkip">
+              {{ lang === 'jp' ? 'スキップ' : 'Skip' }} ▶▶
+            </button>
+
+            <!-- Interactive: Close/Next button -->
             <Transition name="fade">
-              <button v-if="typingDone" class="next-btn" @click.stop="handleAdvance">
+              <button
+                v-if="interactiveMode && showNextBtn"
+                class="next-btn"
+                @click.stop="advanceInteractive()"
+              >
+                {{ isLastNode ? (lang === 'jp' ? '閉じる' : 'Close') : (lang === 'jp' ? '次へ ▶' : 'Next ▶') }}
+              </button>
+            </Transition>
+
+            <!-- Original rules next button (non-interactive) -->
+            <Transition name="fade">
+              <button v-if="!interactiveMode && typingDone" class="next-btn" @click.stop="handleAdvance">
                 {{ nextLabel }}
               </button>
             </Transition>
@@ -499,6 +903,18 @@ watch(() => props.lang, () => {
 
       </div><!-- /.dialogue-body -->
     </div><!-- /.gaichan-dialogue -->
+
+    <!-- Mobile small terminal — shown ONLY during site tour (not recommend/cute/menu) -->
+    <div
+      v-if="interactiveMode && isMobile && isTourNode"
+      class="small-terminal"
+    >
+      <div class="small-terminal-screen">
+        <img :src="spriteImg" class="small-terminal-sprite" alt="" draggable="false" />
+        <div class="small-terminal-scanlines" aria-hidden="true"></div>
+      </div>
+      <img src="/gaichan/smallterminaltp.png" class="small-terminal-mask" alt="" draggable="false" />
+    </div>
   </Teleport>
 </template>
 
@@ -559,6 +975,7 @@ watch(() => props.lang, () => {
   height: var(--screen-h);
   overflow: hidden;
   z-index: 1;
+  background: #000;
 }
 
 .screen-bg {
@@ -626,14 +1043,6 @@ watch(() => props.lang, () => {
 }
 
 /* ── Layer 2: gaichanwindow.png masked by gaichanwindowtp.png ─────────────── */
-/*
-   gaichanwindowtp.png has:
-     - TRANSPARENT pixels in the screen area (α ≈ 0)
-     - OPAQUE pixels in the frame/panel area (α = 255)
-   CSS mask: opaque = show content, transparent = hide content
-   → gaichanwindow.png is HIDDEN in the screen area (reveals layers below)
-   → gaichanwindow.png is SHOWN in the frame/panel area
-*/
 .layer--window {
   position: absolute;
   inset: 0;
@@ -651,18 +1060,14 @@ watch(() => props.lang, () => {
 }
 
 /* ── Speaker name — in the small top label window ─────────────────────────── */
-/*
-  Top label window in gaichanwindowtp.png (updated):
-    cols 1078–1717 / 2155 = 50.0%–79.7% from left
-    rows 0–22 / 693      = 0%–3.2% from top
-*/
 .speaker-name {
   position: absolute;
-  top: 0;
-  left: 50%;
-  right: 20.3%;
-  height: 3.7%;
-  z-index: 4;
+  left: 33.2%;
+  top: 3.3%;
+  width: 15.8%;
+  height: 10.8%;
+  background: #000;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -676,24 +1081,21 @@ watch(() => props.lang, () => {
 }
 
 /* ── Layer 3: Text panel ─────────────────────────────────────────────────── */
-/*
-  Large right window in gaichanwindowtp.png (updated):
-    left 33.7%, top 20.2%, right 7.7%, bottom 20.6%
-*/
 .text-panel {
   position: absolute;
-  left: 33.7%;
-  top: 20.2%;
-  right: 7.7%;
-  bottom: 20.6%;
-  z-index: 3;
+  left: 33.0%;
+  top: 19.5%;
+  right: 6.9%;
+  bottom: 19.3%;
+  background: #000;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  padding: 30px 12px 10px 12px;
+  padding: 8px 12px 10px 12px;
   box-sizing: border-box;
 }
 
-/* Skip: top-right corner of text panel */
+/* Skip: top-right corner of text panel on desktop; in footer on mobile */
 .skip-btn {
   position: absolute;
   top: 8px;
@@ -768,12 +1170,58 @@ watch(() => props.lang, () => {
   opacity: 0.75;
 }
 
+/* ── Choice buttons ────────────────────────────────────────────────────────── */
+.choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.choice-btn {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #ffe4a0;
+  background: transparent;
+  border: 1px solid rgba(255, 220, 140, 0.3);
+  padding: 4px 10px;
+  cursor: pointer;
+  text-align: left;
+  letter-spacing: 0.03em;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.choice-btn:hover {
+  color: #fff5cc;
+  border-color: rgba(255, 220, 140, 0.7);
+  background: rgba(255, 200, 80, 0.08);
+}
+.choice-btn:active {
+  opacity: 0.75;
+}
+
+/* ── Bar links ────────────────────────────────────────────────────────────── */
+.bar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.bar-link {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #ffcc44;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.bar-link:hover {
+  color: #fff5cc;
+}
+
 /* ── CRT Terminal ──────────────────────────────────────────────────────────── */
-/*
-  terminal.png / terminaltp.png: 1268×706
-  Screen opening (transparent in terminaltp.png):
-    left: 24.61%, top: 15.86%, width: 49.45%, height: 65.72%
-*/
 .crt-terminal {
   position: fixed;
   bottom: calc(var(--taskbar-height, 32px) + 282px);
@@ -914,54 +1362,84 @@ watch(() => props.lang, () => {
   display: none;
 }
 
+/* ── Dialogue text overlay in terminal screen (hidden on desktop) ──────────── */
+.crt-dialogue-overlay {
+  display: none;
+}
+
+/* ── Mobile small terminal ─────────────────────────────────────────────────── */
+.small-terminal {
+  display: none;
+}
+
 /* ════════════════════════════════════════════════════════════════════════════
    MOBILE  (≤ 768px)
    ════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /*
-    Panel = viewport + 270px (monitor offset).
-    translateX(-270px) hides the monitor off-screen left.
-    Text section (left:33% → ~218px at 660px) is overridden below to
-    start exactly at the left viewport edge.
-    Right edge lands ~30px past the viewport right — "a tiny bit" off.
-  */
   .gaichan-dialogue {
-    width: calc(100vw + 270px);
+    width: calc(100vw * 2155 / 1434);
     left: 0;
-    transform: translateX(-270px);
-    transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(calc(-100vw * 642 / 1434));
+    transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  /* Tuck: desktop rule handles it (left:100%; translateX(-30%)) — no override needed */
 
-  /* Text panel: pinned to viewport edges in fixed pixels */
+  /* Tucked: same as desktop — show leftmost --pw (30%) of panel from right viewport edge */
+  .gaichan-dialogue.tucked {
+    left: 100%;
+    transform: translateX(calc(-1 * var(--pw)));
+  }
+
+  /* Bug fix: hide screen-content on mobile only when NOT tucked */
+  .screen-content:not(.screen-content--tucked) {
+    display: none;
+  }
+
+  /* Remove pixel overrides — percentage-based desktop values handle positioning */
   .text-panel {
-    left: 270px;  /* = monitor offset → viewport x = 0 after -270px shift */
-    right: 15px;
-    top: 20.2%;
-    bottom: 20.6%;
+    left: 33.0%;
+    right: 6.9%;
+    top: 19.5%;
+    bottom: 19.3%;
   }
 
-  /* Speaker name: repositioned into the text panel top area on mobile
-     (the top label window is only ~8px tall when rendered, too small to read) */
+  /* Speaker name: same percentage positioning as desktop */
   .speaker-name {
-    left: 320px;
-    right: 15px;
-    top: 5%;
-    height: auto;
-    font-size: 14px;
-    justify-content: flex-start;
+    font-size: 9px;
   }
 
-  /* ── Terminal: full viewport width, no side gaps ─────────────────────── */
-  .crt-terminal {
-    width: 100vw;
-    left: 0;
-    transform: none;  /* no translateX(-50%) centering */
+  /* Skip button in rules mode: static in footer flex row */
+  .skip-btn:not(.interactive-close) {
+    position: static;
+    top: auto;
+    right: auto;
+    font-size: 9px;
   }
-  /* Override slide animation (no translateX needed when left:0) */
-  .crt-enter-from { transform: translateY(-160%); }
-  .crt-leave-to   { transform: translateY(-160%); }
+
+  /* Interactive close button: stays absolute top-right even on mobile */
+  .interactive-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 9px;
+  }
+
+  /* Choice buttons: slightly smaller on mobile */
+  .choice-btn {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  /* ── Terminal: anchored symmetrically around screen content ──────────── */
+  .crt-terminal {
+    width: calc(100vw * 1268 / 701);
+    left: 0;
+    transform: translateX(calc(-100vw * 275 / 701));
+  }
+  /* Slide animation: preserve horizontal offset during enter/leave */
+  .crt-enter-from { transform: translateX(calc(-100vw * 275 / 701)) translateY(-160%); }
+  .crt-leave-to   { transform: translateX(calc(-100vw * 275 / 701)) translateY(-160%); }
 
   /* ── Terminal screen: no side padding; background only when gai-chan shows ── */
   .crt-screen {
@@ -983,7 +1461,7 @@ watch(() => props.lang, () => {
     left: 50%;
     transform: translateX(-50%);
     width: auto;
-    height: 104%;    /* 130% → –20% = 104% */
+    height: 104%;
     object-fit: cover;
     object-position: 50% 15%;
     image-rendering: pixelated;
@@ -996,5 +1474,114 @@ watch(() => props.lang, () => {
     opacity: 0;
   }
 
+  /* ── Mobile small terminal — fixed at top-left, shown during site tour only ─ */
+  /*
+    smallterminaltp.png: 189x186
+    Screen (transparent) area: left 11%, top 11%, width 77%, height 76%
+  */
+  .small-terminal {
+    display: block;
+    position: fixed;
+    width: 175px;
+    aspect-ratio: 189 / 186;
+    left: 0;
+    bottom: calc(var(--taskbar-height, 42px) + 50vw);
+    z-index: 1200;
+    pointer-events: none;
+    isolation: isolate;
+  }
+
+  /* Screen area — clipped, black background */
+  .small-terminal-screen {
+    position: absolute;
+    left: 11%;
+    top: 11%;
+    width: 77%;
+    height: 76%;
+    overflow: hidden;
+    background: #000;
+    z-index: 0;
+  }
+
+  .small-terminal-sprite {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 15%;
+    image-rendering: pixelated;
+  }
+
+  .small-terminal-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.35) 2px,
+      rgba(0, 0, 0, 0.35) 4px
+    );
+    background-size: 100% 4px;
+    animation: screen-scanroll 0.5s linear infinite;
+  }
+
+  .small-terminal-mask {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    z-index: 1;
+  }
+
+  /* ── Dialogue text overlay: black bar at bottom of CRT screen ───────────── */
+  .crt-dialogue-overlay {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 25%;
+    background: rgba(0, 0, 0, 0.92);
+    z-index: 4;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #ffe4a0;
+    padding: 5px 7px;
+    overflow: hidden;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    box-sizing: border-box;
+  }
+
+  /* ── Choice buttons: 2/3 width to leave room for the close button ────────── */
+  .choice-btn {
+    font-size: 10px;
+    padding: 5px 8px;
+    width: 66%;
+  }
+
+  /* ── Footer: push to bottom so Close/Next doesn't overlap the Skip button ── */
+  /* When dialogue-text (flex:1) is hidden, footer would otherwise be at the top */
+  .text-footer {
+    margin-top: auto;
+  }
+
+}
+
+/* ── Tour highlight pulse (for WinTaskbar / DesktopView) ────────────────── */
+:global(.tour-highlight) {
+  box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
+  animation: tour-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
 }
 </style>

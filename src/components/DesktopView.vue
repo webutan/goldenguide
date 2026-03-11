@@ -4,6 +4,7 @@ import { useI18n } from '../composables/useI18n.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
+  tourHighlight: { type: String, default: null },
 })
 
 const emit = defineEmits(['openApp'])
@@ -47,7 +48,7 @@ function handleDesktopClick() {
       <div
         v-for="icon in icons"
         :key="icon.id"
-        :class="['desktop-icon', { selected: selected === icon.id }]"
+        :class="['desktop-icon', { selected: selected === icon.id, 'tour-highlight': tourHighlight === `btn-${icon.id}` }]"
         @click.stop="handleClick(icon.id)"
         @dblclick.stop="handleDblClick(icon.id)"
       >
@@ -123,6 +124,17 @@ function handleDesktopClick() {
 
 .desktop-icon.selected .desktop-icon-label {
   text-shadow: none;
+}
+
+/* Tour highlight pulse */
+.tour-highlight {
+  outline: 2px solid #ffcc44;
+  animation: tour-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { outline-color: #ffcc44; filter: drop-shadow(0 0 6px rgba(255, 204, 68, 0.7)); }
+  50%       { outline-color: #ffdd88; filter: drop-shadow(0 0 12px rgba(255, 204, 68, 0.9)); }
 }
 
 /* Sign banner — hidden on desktop, shown on mobile */

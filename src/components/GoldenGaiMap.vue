@@ -34,6 +34,7 @@ const props = defineProps({
   openBarIds: { type: Set, default: () => new Set() },
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
+  tourHighlight: { type: String, default: null },
 })
 
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar'])
@@ -1238,8 +1239,18 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
       <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
       <WinButton
         class="zoom-btn"
-        :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError }"
+        :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError, 'tour-highlight': tourHighlight === 'map-location' }"
         :title="geoError ? geoError : (geoWatching ? `Stop location tracking (${gpsTransform?.calibrationCount} bars calibrated)` : (gpsTransform ? `Show my location (${gpsTransform.calibrationCount} bars calibrated)` : 'Show my location (need 3+ bars with plus codes or lat/lng set on the map)') )"
+        @click="toggleGeoTracking"
+      >&#x2316;</WinButton>
+    </div>
+
+    <!-- Location button always visible on mobile, below filter bar -->
+    <div v-if="isMobile" class="map-controls map-controls--mobile-location">
+      <WinButton
+        class="zoom-btn zoom-btn--location-mobile"
+        :class="{ 'tour-highlight': tourHighlight === 'map-location', 'geo-btn-active': geoWatching, 'geo-btn-error': geoError }"
+        :title="geoError ? geoError : (geoWatching ? 'Stop location tracking' : 'Show my location')"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
     </div>
@@ -1655,6 +1666,35 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
   min-height: 32px !important;
   padding: 4px 8px !important;
   font-size: 16px !important;
+}
+
+/* Mobile location button — always visible, below the search + filter bar */
+.map-controls--mobile-location {
+  position: fixed;
+  top: 90px;  /* below search bar (~44px) + filter bar (~44px) + 2px */
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 250;
+}
+
+:deep(.zoom-btn--location-mobile) {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  font-size: 20px !important;
+  padding: 8px !important;
+}
+
+/* Tour highlight on map buttons */
+:deep(.tour-highlight) {
+  box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
+  animation: tour-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
 }
 
 /* GPS locate button states */

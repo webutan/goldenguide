@@ -49,6 +49,23 @@ const firstVisit = ref(savedFirstTime === null ? null : savedFirstTime === 'yes'
 const rulesAccepted = ref(!DEV && !!localStorage.getItem('golden-gai-rules-accepted'))
 const showContact = ref(false)
 
+// Tour mode state
+const tourMode = ref(false)
+const tourHighlight = ref(null)
+
+function handleTourMode(active) { tourMode.value = active }
+function handleTourNavigate(view) { handleSwitchView(view) }
+function handleTourHighlight(target) { tourHighlight.value = target }
+
+function handleOpenBarFromTour(barId) {
+  const bar = bars.value.find(b => String(b.id) === String(barId))
+  if (!bar) return
+  // Switch to directory and show bar popup
+  activeView.value = 'directory'
+  popupBuildingBars.value = [bar]
+  popupBuildingId.value = bar.building_id || 'Directory'
+}
+
 // Which bubble Gai-chan should show: null | 'lang' | 'first-time'
 const gaichanBubbleType = computed(() => {
   if (lang.value === null) return 'lang'
@@ -368,9 +385,9 @@ async function handleUnplaceBar(bar) {
   <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
 
   <template v-else>
-    <!-- Gai-chan character helper -->
+    <!-- Gai-chan character helper — only while questions are still pending -->
     <GaiChan
-      v-if="activeView === 'desktop' && !wm.getWindow('feed')"
+      v-if="activeView === 'desktop' && !wm.getWindow('feed') && firstVisit === null"
       :bubble-type="gaichanBubbleType"
       :lang="effectiveLang"
       :hidden="showRules || firstVisit === true"
@@ -378,12 +395,20 @@ async function handleUnplaceBar(bar) {
       @first-time-answer="handleFirstTimeAnswer"
     />
 
-    <!-- VN-style rules walkthrough (shown to first-time visitors) -->
+    <!-- Dialogue panel:
+         - firstVisit === true: show rules walkthrough, then tuck
+         - firstVisit === false: start tucked (skip rules), ready for interactive help
+         - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
-      v-if="activeView === 'desktop' && firstVisit === true"
+      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null"
       :lang="effectiveLang"
-      :rules-accepted="rulesAccepted"
+      :rules-accepted="rulesAccepted || firstVisit === false"
+      :bars="bars"
       @accepted="handleRulesAccepted"
+      @tour-mode="handleTourMode"
+      @tour-navigate="handleTourNavigate"
+      @tour-highlight="handleTourHighlight"
+      @open-bar="handleOpenBarFromTour"
     />
 
     <!-- Contact window -->
@@ -400,6 +425,7 @@ async function handleUnplaceBar(bar) {
       <DesktopView
         v-if="activeView === 'desktop'"
         :lang="effectiveLang"
+        :tour-highlight="tourHighlight"
         @open-app="handleOpenApp"
       />
 
@@ -409,6 +435,7 @@ async function handleUnplaceBar(bar) {
           :bars="bars"
           :tags="sortedTags"
           :lang="effectiveLang"
+          :tour-highlight="tourHighlight"
           @select-bar="handleSelectBarFromDirectory"
         />
       </div>
@@ -435,6 +462,7 @@ async function handleUnplaceBar(bar) {
           :visited-filter="mapVisitedFilter"
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
+          :tour-highlight="tourHighlight"
           @select-building="handleSelectBuilding"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"
@@ -466,7 +494,7 @@ async function handleUnplaceBar(bar) {
               {{ t('visited') }}
             </button>
             <button
-              :class="['mobile-map-filter-btn', { active: mobileMapFiltersOpen }, 'ml-auto']"
+              :class="['mobile-map-filter-btn', { active: mobileMapFiltersOpen, 'tour-highlight': tourHighlight === 'map-filter' }, 'ml-auto']"
               @click="mobileMapFiltersOpen = !mobileMapFiltersOpen"
             >
               <img src="/icons/desktop/magnifying_glass.png" class="mobile-map-filter-icon" alt="" />
@@ -525,6 +553,7 @@ async function handleUnplaceBar(bar) {
         <WinWindow
           ref="explorerWinRef"
           v-if="explorerWin && !isAdmin && !isMobile"
+          :class="{ 'tour-highlight': tourHighlight === 'map-filter' }"
           title="Explorer"
           icon="&#128193;"
           :width="200"
@@ -712,6 +741,7 @@ async function handleUnplaceBar(bar) {
       :is-admin="isAdmin"
       :active-view="activeView"
       :lang="effectiveLang"
+      :tour-highlight="tourHighlight"
       @toggle-admin="handleToggleAdmin"
       @switch-view="handleSwitchView"
       @update:lang="handleLangSelect"
@@ -720,6 +750,19 @@ async function handleUnplaceBar(bar) {
 </template>
 
 <style>
+/* Tour highlight pulse — shared class used by App, WinTaskbar, DesktopView, BarDirectory */
+.tour-highlight {
+  box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
+  animation: tour-pulse 1s ease-in-out infinite;
+  position: relative;
+  z-index: 5;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
+}
+
 .directory-container {
   position: absolute;
   inset: 0;

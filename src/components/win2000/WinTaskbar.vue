@@ -9,6 +9,7 @@ const props = defineProps({
   isAdmin: { type: Boolean, default: false },
   activeView: { type: String, default: 'desktop' },
   lang: { type: String, default: 'en' },
+  tourHighlight: { type: String, default: null },
 })
 
 const { t } = useI18n(computed(() => props.lang))
@@ -67,7 +68,7 @@ setInterval(updateTime, 30000)
 
     <!-- View buttons -->
     <button
-      :class="['taskbar-view-btn', { active: activeView === 'desktop' }]"
+      :class="['taskbar-view-btn', { active: activeView === 'desktop', 'tour-highlight': tourHighlight === 'taskbar-desktop' || tourHighlight === 'taskbar' }]"
       @click="switchView('desktop')"
       :title="t('desktop')"
     >
@@ -75,7 +76,7 @@ setInterval(updateTime, 30000)
       <span class="view-label">{{ t('desktop') }}</span>
     </button>
     <button
-      :class="['taskbar-view-btn', { active: activeView === 'directory' }]"
+      :class="['taskbar-view-btn', { active: activeView === 'directory', 'tour-highlight': tourHighlight === 'taskbar-directory' || tourHighlight === 'taskbar' }]"
       @click="switchView('directory')"
       :title="t('directory')"
     >
@@ -83,7 +84,7 @@ setInterval(updateTime, 30000)
       <span class="view-label">{{ t('directory') }}</span>
     </button>
     <button
-      :class="['taskbar-view-btn', { active: activeView === 'map' }]"
+      :class="['taskbar-view-btn', { active: activeView === 'map', 'tour-highlight': tourHighlight === 'taskbar-map' || tourHighlight === 'taskbar' }]"
       @click="switchView('map')"
       :title="t('map')"
     >
@@ -408,6 +409,17 @@ setInterval(updateTime, 30000)
 
 .tray-clock {
   color: var(--win-text-disabled);
+}
+
+/* Tour highlight pulse */
+.tour-highlight {
+  box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
+  animation: tour-pulse 1s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
+  50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
 }
 
 @media (max-width: 768px) {
