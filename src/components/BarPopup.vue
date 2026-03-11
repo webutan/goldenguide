@@ -12,9 +12,11 @@ const props = defineProps({
   tags: Array,
   lang: { type: String, default: 'en' },
   openBarIds: { type: Set, default: () => new Set() },
+  twitterOpen: { type: Boolean, default: false },
+  autoTwitter: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'select-bar'])
 
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
@@ -30,6 +32,13 @@ const bar = computed(() => {
   if (!props.buildingBars || props.buildingBars.length === 0) return null
   return props.buildingBars[selectedIndex.value] || props.buildingBars[0]
 })
+
+// On desktop (autoTwitter=true): auto-open Twitter panel immediately when bar loads/changes.
+// On mobile: only update the panel if it's already open.
+watch(bar, (newBar) => {
+  if (!newBar) return
+  if (props.autoTwitter || props.twitterOpen) emit('select-bar', newBar)
+}, { immediate: props.autoTwitter })
 
 const visited = computed(() => bar.value && isVisited(bar.value.id))
 const favorited = computed(() => bar.value && isFavorited(bar.value.id))
@@ -82,6 +91,17 @@ const openStatus = computed(() => {
   return props.openBarIds.has(String(bar.value.id)) ? 'open' : 'closed'
 })
 
+function parseTwitterHandle(url) {
+  if (!url) return null
+  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/i)
+  if (!match) return null
+  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
+  if (skip.includes(match[1].toLowerCase())) return null
+  return match[1]
+}
+
+const twitterHandle = computed(() => parseTwitterHandle(bar.value?.sns))
+
 function openGoogleMaps() {
   if (googleMapsUrl.value) window.open(googleMapsUrl.value, '_blank')
 }
@@ -122,8 +142,28 @@ function openGoogleMaps() {
               </div>
 
               <div class="dialog-header">
-                <div class="bar-name-en">{{ displayName }}</div>
-                <div v-if="subName" class="bar-name-jp">{{ subName }}</div>
+                <div class="dialog-header-names">
+                  <div class="bar-name-en">{{ displayName }}</div>
+                  <div v-if="subName" class="bar-name-jp">{{ subName }}</div>
+                </div>
+                <div class="dialog-header-btns">
+                  <button
+                    v-if="twitterHandle"
+                    class="icon-action-btn"
+                    title="Twitter/X"
+                    @click="emit('select-bar', bar)"
+                  >
+                    <img src="/icons/twitter.png" alt="Twitter/X" class="icon-action-img" />
+                  </button>
+                  <button
+                    v-if="googleMapsUrl"
+                    class="maps-icon-btn"
+                    :title="t('googleMaps')"
+                    @click="openGoogleMaps"
+                  >
+                    <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                  </button>
+                </div>
               </div>
 
               <div v-if="barTags.length" class="dialog-tags">
@@ -133,7 +173,7 @@ function openGoogleMaps() {
                   class="dialog-tag"
                   :style="{ borderLeft: `3px solid ${tag.color}` }"
                 >
-                  <TagIcon :icon="tag.icon" :size="10" /> {{ tag.label }}
+                  <TagIcon :icon="tag.icon" :size="10" /> {{ lang === 'jp' && tag.label_jp ? tag.label_jp : tag.label }}
                 </span>
               </div>
 
@@ -187,19 +227,16 @@ function openGoogleMaps() {
                 {{ bar.description }}
               </p>
 
-              <div v-if="bar.sns" class="dialog-sns">
+              <div v-if="bar.sns && !twitterHandle" class="dialog-sns">
+                <img src="/icons/tags/url1.ico" class="sns-link-icon" />
                 <a :href="bar.sns" target="_blank" rel="noopener">{{ bar.sns.length > 40 ? bar.sns.slice(0, 40) + '...' : bar.sns }}</a>
+              </div>
+              <div v-for="link in (bar.other_links || [])" :key="link" class="dialog-sns">
+                <img src="/icons/tags/url1.ico" class="sns-link-icon" />
+                <a :href="link" target="_blank" rel="noopener">{{ link.length > 40 ? link.slice(0, 40) + '...' : link }}</a>
               </div>
 
               <div class="dialog-actions">
-                <button
-                  v-if="googleMapsUrl"
-                  class="maps-icon-btn"
-                  :title="t('googleMaps')"
-                  @click="openGoogleMaps"
-                >
-                  <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
-                </button>
                 <WinButton
                   :pressed="favorited"
                   @click="toggleFavorited(bar.id)"
@@ -370,9 +407,25 @@ function openGoogleMaps() {
 }
 
 .dialog-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-bottom: 8px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--win-border-dark);
+}
+
+.dialog-header-names {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-top: 2px;
 }
 
 .bar-name-en {
@@ -384,6 +437,33 @@ function openGoogleMaps() {
 .bar-name-jp {
   font-size: 11px;
   color: var(--win-text-disabled);
+}
+
+.icon-action-btn {
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.icon-action-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.icon-action-img {
+  width: 80px;
+  height: 15px;
+  display: block;
+  image-rendering: pixelated;
 }
 
 .dialog-tags {
@@ -435,12 +515,22 @@ function openGoogleMaps() {
 
 .dialog-sns {
   margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .dialog-sns a {
   color: var(--valhalla-orange);
   font-size: 10px;
   text-decoration: underline;
+}
+
+.sns-link-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
 }
 
 .dialog-actions {

@@ -9,7 +9,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['select-lang', 'first-time-answer'])
 
-const BUBBLE_TEXTS = {
+const DIALOG_TEXTS = {
   'lang':       'Do you speak English or Japanese?\n英語と日本語、どちらがわかりますか？',
   'first-time': 'Is it your first time in Golden Gai?\n初めてゴールデン街に来ましたか？',
 }
@@ -25,7 +25,7 @@ const typingDone = ref(false)
 let typingTimer = null
 
 function startTypewriter() {
-  const fullText = BUBBLE_TEXTS[props.bubbleType] || ''
+  const fullText = DIALOG_TEXTS[props.bubbleType] || ''
   displayedText.value = ''
   typingDone.value = false
   let i = 0
@@ -53,75 +53,151 @@ onUnmounted(() => clearInterval(typingTimer))
 
 <template>
   <Teleport to="body">
-    <div class="gaichan-root">
-      <Transition name="bubble">
-        <div v-if="bubbleType" class="gaichan-bubble">
-          <div class="gaichan-bubble-text">
-            {{ displayedText }}<span v-if="!typingDone" class="gaichan-cursor">▋</span>
+    <!-- Win2000 dialog modal -->
+    <Transition name="dialog">
+      <div v-if="bubbleType" class="gaichan-overlay">
+        <div class="gaichan-dialog">
+          <!-- Title bar -->
+          <div class="gaichan-dialog-titlebar">
+            <img src="/icons/gaios.ico" class="gaichan-dialog-title-icon" alt="" />
+            <span>街ちゃん / Gai-chan</span>
           </div>
-          <Transition name="fade">
-            <div v-if="typingDone" class="gaichan-bubble-actions">
-              <!-- Lang selection -->
-              <template v-if="bubbleType === 'lang'">
-                <WinButton @click="emit('select-lang', 'en')">English</WinButton>
-                <WinButton @click="emit('select-lang', 'jp')">日本語</WinButton>
-              </template>
-              <!-- First-time question -->
-              <template v-else-if="bubbleType === 'first-time'">
-                <WinButton @click="emit('first-time-answer', false)">No / いいえ</WinButton>
-                <WinButton @click="emit('first-time-answer', true)">Yes / はい</WinButton>
-              </template>
-            </div>
-          </Transition>
-          <div class="gaichan-bubble-tail"></div>
-        </div>
-      </Transition>
 
-      <div class="gaichan-window" :class="{ 'gaichan-window--hidden': hidden }">
-        <div class="gaichan-titlebar">街ちゃん / Gai-chan</div>
-        <div class="gaichan-imgwrap">
-          <img class="gaichan-bg" src="/gaichan/gaichanwindow.png" alt="" />
-          <img class="gaichan-sprite" :src="currentSprite" alt="Gai-chan" />
-          <div class="gaichan-scanlines" aria-hidden="true"></div>
+          <!-- Body: sprite + text -->
+          <div class="gaichan-dialog-body">
+            <div class="gaichan-dialog-sprite-box">
+              <img :src="currentSprite" class="gaichan-dialog-sprite" alt="Gai-chan" />
+            </div>
+            <div class="gaichan-dialog-text">
+              {{ displayedText }}<span v-if="!typingDone" class="gaichan-cursor">▋</span>
+            </div>
+          </div>
+
+          <!-- Separator -->
+          <div class="gaichan-dialog-sep"></div>
+
+          <!-- Buttons -->
+          <div class="gaichan-dialog-actions">
+            <Transition name="fade">
+              <div v-if="typingDone" class="gaichan-dialog-buttons">
+                <template v-if="bubbleType === 'lang'">
+                  <button class="gaichan-lang-btn" @click="emit('select-lang', 'en')">
+                    <img src="/icons/uk.ico" class="gaichan-lang-flag" alt="" />
+                    <span>English</span>
+                  </button>
+                  <button class="gaichan-lang-btn" @click="emit('select-lang', 'jp')">
+                    <img src="/icons/japan.ico" class="gaichan-lang-flag" alt="" />
+                    <span>日本語</span>
+                  </button>
+                </template>
+                <template v-else-if="bubbleType === 'first-time'">
+                  <WinButton @click="emit('first-time-answer', false)">No / いいえ</WinButton>
+                  <WinButton @click="emit('first-time-answer', true)">Yes / はい</WinButton>
+                </template>
+              </div>
+            </Transition>
+          </div>
         </div>
+      </div>
+    </Transition>
+
+    <!-- Gai-chan character window (bottom-right corner) -->
+    <div class="gaichan-window" :class="{ 'gaichan-window--hidden': hidden || bubbleType }">
+      <div class="gaichan-titlebar">街ちゃん / Gai-chan</div>
+      <div class="gaichan-imgwrap">
+        <img class="gaichan-bg" src="/gaichan/gaichanwindow.png" alt="" />
+        <img class="gaichan-sprite" :src="currentSprite" alt="Gai-chan" />
+        <div class="gaichan-scanlines" aria-hidden="true"></div>
       </div>
     </div>
   </Teleport>
 </template>
 
 <style scoped>
-.gaichan-root {
+/* ── Dialog overlay ── */
+.gaichan-overlay {
   position: fixed;
-  bottom: calc(var(--taskbar-height) + 8px);
-  right: 8px;
-  z-index: 1050;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1200;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  align-items: center;
+  justify-content: center;
 }
 
-/* --- Bubble --- */
-.gaichan-bubble {
-  position: relative;
-  width: 220px;
+.gaichan-dialog {
+  width: 400px;
+  max-width: calc(100vw - 32px);
   background: var(--win-bg);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark),
     inset 2px 2px 0 var(--win-border-mid),
     inset -2px -2px 0 var(--win-border-darkest),
-    4px 4px 10px rgba(0, 0, 0, 0.5);
-  padding: 8px 10px 10px;
+    8px 8px 24px rgba(0, 0, 0, 0.8);
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
 }
 
-.gaichan-bubble-text {
+.gaichan-dialog-titlebar {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  background: var(--win-title-active);
+  color: var(--win-title-text-active);
   font-family: var(--win-font);
-  font-size: var(--win-font-size);
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.gaichan-dialog-title-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.gaichan-dialog-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+}
+
+.gaichan-dialog-sprite-box {
+  flex-shrink: 0;
+  background: var(--win-bg-dark);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gaichan-dialog-sprite {
+  height: 110px;
+  width: auto;
+  image-rendering: pixelated;
+  display: block;
+  transform: scaleX(-1);
+}
+
+.gaichan-dialog-text {
+  flex: 1;
+  font-family: var(--win-font);
+  font-size: 15px;
   color: var(--win-text);
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-wrap;
-  min-height: 2.5em;
+  padding-top: 4px;
+  min-height: 60px;
 }
 
 .gaichan-cursor {
@@ -129,26 +205,65 @@ onUnmounted(() => clearInterval(typingTimer))
   animation: gaichan-blink 0.7s step-end infinite;
 }
 
-.gaichan-bubble-actions {
+.gaichan-dialog-sep {
+  height: 1px;
+  background: var(--win-border-dark);
+  box-shadow: 0 1px 0 var(--win-border-light);
+  margin: 0 2px;
+}
+
+.gaichan-dialog-actions {
+  padding: 8px 8px 6px;
+  min-height: 34px;
+}
+
+.gaichan-dialog-buttons {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  margin-top: 8px;
 }
 
-.gaichan-bubble-tail {
-  position: absolute;
-  bottom: -10px;
-  right: 18px;
-  width: 0;
-  height: 0;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 10px solid var(--win-bg);
+.gaichan-lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 6px;
+  height: 26px;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest);
+  cursor: pointer;
+  font-family: var(--win-font);
+  font-size: 12px;
+  color: var(--win-text);
 }
 
-/* --- Window chrome --- */
+.gaichan-lang-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light),
+    inset 2px 2px 0 var(--win-border-darkest),
+    inset -2px -2px 0 var(--win-border-mid);
+}
+
+.gaichan-lang-flag {
+  width: 24px;
+  height: 16px;
+  display: block;
+  image-rendering: pixelated;
+  object-fit: cover;
+}
+
+/* ── Gai-chan corner window ── */
 .gaichan-window {
+  position: fixed;
+  bottom: calc(var(--taskbar-height) + 8px);
+  right: 8px;
+  z-index: 1050;
   width: 200px;
   background: var(--win-bg);
   box-shadow:
@@ -219,7 +334,7 @@ onUnmounted(() => clearInterval(typingTimer))
   animation: gaichan-scanroll 3s linear infinite;
 }
 
-/* --- Animations --- */
+/* ── Animations ── */
 @keyframes gaichan-scanroll {
   from { background-position-y: 0px; }
   to   { background-position-y: 4px; }
@@ -235,15 +350,24 @@ onUnmounted(() => clearInterval(typingTimer))
   to   { transform: translateY(-1px); }
 }
 
-/* Bubble transition */
-.bubble-enter-active { transition: opacity 150ms ease, transform 150ms ease; }
-.bubble-leave-active { transition: opacity 150ms ease, transform 150ms ease; }
-.bubble-enter-from  { opacity: 0; transform: translateY(4px); }
-.bubble-leave-to    { opacity: 0; transform: translateY(4px); }
+/* Dialog transition */
+.dialog-enter-active { transition: opacity 150ms ease, transform 150ms ease; }
+.dialog-leave-active { transition: opacity 150ms ease, transform 150ms ease; }
+.dialog-enter-from  { opacity: 0; transform: scale(0.97); }
+.dialog-leave-to    { opacity: 0; transform: scale(0.97); }
 
-/* Fade transition for action buttons */
+/* Fade for buttons */
 .fade-enter-active { transition: opacity 200ms ease; }
 .fade-leave-active { transition: opacity 200ms ease; }
 .fade-enter-from   { opacity: 0; }
 .fade-leave-to     { opacity: 0; }
+
+/* ── Mobile: enlarged corner window ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .gaichan-window {
+    width: min(260px, 55vw);
+    bottom: calc(var(--taskbar-height) + 8px);
+    right: 0;
+  }
+}
 </style>

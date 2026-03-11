@@ -15,7 +15,7 @@ const selected = ref(null)
 const icons = [
   { id: 'map', icon: '/icons/desktop/search_web.png', labelKey: 'iconMap' },
   { id: 'directory', icon: '/icons/desktop/directory_open_cool.png', labelKey: 'iconDirectory' },
-  { id: 'feed', icon: '/icons/desktop/goldengaisprite.ico', labelKey: 'iconFeed' },
+  { id: 'feed', icon: '/icons/twitterblue.ico', labelKey: 'iconFeed' },
   { id: 'chatroom', icon: '/icons/desktop/network_internet_pcs.png', labelKey: 'iconChatroom' },
   { id: 'about', icon: '/icons/desktop/about.png', labelKey: 'iconAbout' },
   { id: 'contact', icon: '/icons/desktop/contact.png', labelKey: 'iconContact' },

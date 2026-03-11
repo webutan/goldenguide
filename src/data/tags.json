@@ -1,10 +1,12 @@
 [
-  { "id": "smoking", "label": "Smoking OK", "icon": "🚬", "color": "#888" },
-  { "id": "no-smoking", "label": "No Smoking", "icon": "🚭", "color": "#4CAF50" },
-  { "id": "english-ok", "label": "English OK", "icon": "🇬🇧", "color": "#2196F3" },
-  { "id": "japanese-only", "label": "Japanese Only", "icon": "🇯🇵", "color": "#F44336" },
-  { "id": "members-only", "label": "Members Only", "icon": "🔒", "color": "#9E9E9E" },
-  { "id": "walk-in-ok", "label": "Walk-in OK", "icon": "🚪", "color": "#8BC34A" },
-  { "id": "otoshi", "label": "Otoshi Included", "icon": "🍱", "color": "#795548" },
-  { "id": "bottle-keep", "label": "Bottle Keep", "icon": "🍾", "color": "#FF9800" }
+  { "id": "smoking", "label": "Smoking OK", "icon": "/icons/tags/smoking.ico", "color": "#888" },
+  { "id": "no-smoking", "label": "No Smoking", "icon": "/icons/tags/nosmoking.ico", "color": "#4CAF50" },
+  { "id": "english-ok", "label": "English OK", "icon": "/icons/tags/uk.ico", "color": "#2196F3" },
+  { "id": "japanese-only", "label": "Japanese Only", "icon": "/icons/tags/japan.ico", "color": "#F44336" },
+  { "id": "members-only", "label": "Members Only", "icon": "/icons/tags/key_padlock.ico", "color": "#9E9E9E" },
+  { "id": "otoshi", "label": "Otoshi Included", "icon": "/icons/tags/otoshi.ico", "color": "#795548" },
+  { "id": "bottle-keep", "label": "Bottle Keep", "icon": "/icons/tags/bottle.ico", "color": "#FF9800" },
+  { "id": "card", "label": "Credit Card OK", "icon": "/icons/tags/card.ico", "color": "#9141ac" },
+  { "id": "karaoke", "label": "Karaoke", "icon": "/icons/tags/microphone.ico", "color": "#9C27B0" },
+  { "id": "cash-only", "label": "Cash Only", "icon": "/icons/tags/money.ico", "color": "#F44336" }
 ]

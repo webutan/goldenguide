@@ -86,6 +86,18 @@ export async function deleteBar(id) {
   return res.json()
 }
 
+export async function fetchFeed() {
+  const res = await fetch(`${BASE}/feed`)
+  if (!res.ok) throw new Error('Failed to fetch feed')
+  return res.json()
+}
+
+export async function fetchBarFeed(handle) {
+  const res = await fetch(`${BASE}/feed/account/${encodeURIComponent(handle)}`)
+  if (!res.ok) throw new Error('Failed to fetch bar feed')
+  return res.json()
+}
+
 export async function fetchAnnotations() {
   const res = await fetch(`${BASE}/annotations`)
   if (!res.ok) throw new Error('Failed to fetch annotations')

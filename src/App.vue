@@ -11,8 +11,10 @@ import WinWindow from './components/win2000/WinWindow.vue'
 import WinTaskbar from './components/win2000/WinTaskbar.vue'
 import DesktopView from './components/DesktopView.vue'
 import GaiChan from './components/GaiChan.vue'
-import RulesWindow from './components/RulesWindow.vue'
+import GaiChanDialogue from './components/GaiChanDialogue.vue'
 import ContactWindow from './components/ContactWindow.vue'
+import FeedWindow from './components/FeedWindow.vue'
+import BarTwitterPanel from './components/BarTwitterPanel.vue'
 import DatabaseTable from './components/DatabaseTable.vue'
 import { useI18n } from './composables/useI18n.js'
 import { useVisited } from './composables/useVisited.js'
@@ -79,6 +81,7 @@ const placingBar = ref(null)
 // Building popup state (directory / search single-bar view)
 const popupBuildingBars = ref(null)
 const popupBuildingId = ref(null)
+const twitterBar = ref(null)   // bar whose Twitter feed is currently shown
 
 // Drawer state (map building click)
 const drawerBuildingBars = ref(null)
@@ -193,6 +196,7 @@ const adminWin = computed(() => wm.getWindow('admin'))
 const dbWin = computed(() => wm.getWindow('database'))
 const dbWinWidth  = typeof window !== 'undefined' ? Math.max(900, window.innerWidth  - 60) : 1200
 const dbWinHeight = typeof window !== 'undefined' ? Math.max(500, window.innerHeight - 80) : 650
+const feedWinIcon = '<img src="/icons/twitterwhite.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">'
 
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth <= 768)
 function onWindowResize() { isMobile.value = window.innerWidth <= 768 }
@@ -221,9 +225,20 @@ function clearMapFilters() {
   mapVisitedFilter.value = false
 }
 
-// Position explorer window center-left of screen
+// Explorer window: left edge, centered vertically after mount
 const explorerInitialX = 8
-const explorerInitialY = typeof window !== 'undefined' ? Math.max(8, Math.floor(window.innerHeight / 2 - 200)) : 200
+const explorerInitialY = 8
+const explorerWinRef = ref(null)
+
+watch(explorerWinRef, (el) => {
+  if (!el) return
+  nextTick(() => {
+    const h = el.$el?.offsetHeight ?? 0
+    const desktopH = window.innerHeight - 32
+    const y = Math.max(8, Math.floor((desktopH - h) / 2))
+    el.setPosition(8, y)
+  })
+})
 
 const tagMap = computed(() => {
   const map = {}
@@ -268,7 +283,7 @@ function handleOpenApp(app) {
   } else {
     // Placeholder windows for feed, chatroom, about
     const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About' }
-    const icons = { feed: '<img src="/icons/desktop/goldengaisprite.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', about: '&#8505;' }
+    const icons = { feed: '<img src="/icons/twitterblue.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', about: '&#8505;' }
     if (!wm.getWindow(app)) {
       wm.register(app, titles[app] || app, icons[app] || '')
     }
@@ -285,6 +300,8 @@ function handleSelectBuilding({ buildingId, bars: barsInBuilding }) {
 function closeDrawer() {
   drawerBuildingBars.value = null
   drawerBuildingId.value = null
+  twitterBar.value = null
+  if (mapRef.value) mapRef.value.clearSelection()
 }
 
 function handleSelectBarFromDirectory(bar) {
@@ -296,6 +313,11 @@ function handleSelectBarFromDirectory(bar) {
 function closePopup() {
   popupBuildingBars.value = null
   popupBuildingId.value = null
+  twitterBar.value = null
+}
+
+function openTwitterPanel(bar) {
+  twitterBar.value = bar
 }
 
 async function handleSearchSelect({ bar, buildingId }) {
@@ -348,18 +370,19 @@ async function handleUnplaceBar(bar) {
   <template v-else>
     <!-- Gai-chan character helper -->
     <GaiChan
-      v-if="activeView === 'desktop'"
+      v-if="activeView === 'desktop' && !wm.getWindow('feed')"
       :bubble-type="gaichanBubbleType"
       :lang="effectiveLang"
-      :hidden="showRules"
+      :hidden="showRules || firstVisit === true"
       @select-lang="handleLangSelect"
       @first-time-answer="handleFirstTimeAnswer"
     />
 
-    <!-- Rules window (shown to first-time visitors) -->
-    <RulesWindow
-      v-if="showRules"
+    <!-- VN-style rules walkthrough (shown to first-time visitors) -->
+    <GaiChanDialogue
+      v-if="activeView === 'desktop' && firstVisit === true"
       :lang="effectiveLang"
+      :rules-accepted="rulesAccepted"
       @accepted="handleRulesAccepted"
     />
 
@@ -500,6 +523,7 @@ async function handleUnplaceBar(bar) {
 
         <!-- Explorer window (filters) — desktop only -->
         <WinWindow
+          ref="explorerWinRef"
           v-if="explorerWin && !isAdmin && !isMobile"
           title="Explorer"
           icon="&#128193;"
@@ -542,6 +566,7 @@ async function handleUnplaceBar(bar) {
           :tags="sortedTags"
           :lang="effectiveLang"
           @close="closeDrawer"
+          @select-bar="openTwitterPanel"
         />
       </template>
 
@@ -599,15 +624,47 @@ async function handleUnplaceBar(bar) {
         />
       </WinWindow>
 
-      <!-- Placeholder windows (feed, chatroom, about, contact) -->
-      <template v-for="appId in ['feed', 'chatroom', 'about', 'contact']" :key="appId">
+      <!-- Feed window: mobile = full-screen panel, desktop = draggable WinWindow -->
+      <template v-if="wm.getWindow('feed')">
+        <!-- Mobile: full-screen feed (v-show keeps FeedWindow mounted/cached when switching views) -->
+        <div v-if="isMobile" v-show="activeView === 'desktop'" class="mobile-feed-panel">
+          <div class="mobile-feed-titlebar">
+            <span v-html="feedWinIcon" class="mobile-feed-icon"></span>
+            <span class="mobile-feed-title">{{ wm.getWindow('feed').title }}</span>
+            <button class="mobile-feed-close" @click="wm.unregister('feed')">&#10005;</button>
+          </div>
+          <FeedWindow :lang="effectiveLang" @close="wm.unregister('feed')" />
+        </div>
+
+        <!-- Desktop: draggable WinWindow, hidden when not on desktop view (cached) -->
+        <WinWindow
+          v-else
+          :title="wm.getWindow('feed').title"
+          :icon="feedWinIcon"
+          :width="420"
+          :height="560"
+          :initial-x="120"
+          :initial-y="60"
+          :active="wm.isActive('feed')"
+          :minimized="wm.getWindow('feed').minimized || activeView !== 'desktop'"
+          :z-index="wm.getWindow('feed').zIndex"
+          @focus="wm.focus('feed')"
+          @minimize="wm.minimize('feed')"
+          @close="wm.unregister('feed')"
+        >
+          <FeedWindow :lang="effectiveLang" @close="wm.unregister('feed')" />
+        </WinWindow>
+      </template>
+
+      <!-- Placeholder windows (chatroom, about, contact) -->
+      <template v-for="appId in ['chatroom', 'about', 'contact']" :key="appId">
         <WinWindow
           v-if="wm.getWindow(appId)"
           :title="wm.getWindow(appId).title"
           :icon="wm.getWindow(appId).icon"
           :width="260"
-          :initial-x="80 + ['feed', 'chatroom', 'about', 'contact'].indexOf(appId) * 30"
-          :initial-y="60 + ['feed', 'chatroom', 'about', 'contact'].indexOf(appId) * 30"
+          :initial-x="80 + ['chatroom', 'about', 'contact'].indexOf(appId) * 30"
+          :initial-y="60 + ['chatroom', 'about', 'contact'].indexOf(appId) * 30"
           :active="wm.isActive(appId)"
           :minimized="wm.getWindow(appId).minimized"
           :z-index="wm.getWindow(appId).zIndex"
@@ -623,12 +680,24 @@ async function handleUnplaceBar(bar) {
 
       <!-- Bar details popup (directory / search selection only) -->
       <BarPopup
+        v-if="popupBuildingBars"
         :building-bars="popupBuildingBars"
         :building-id="popupBuildingId"
         :tags="sortedTags"
         :lang="effectiveLang"
         :open-bar-ids="openBarIds"
+        :twitter-open="!!twitterBar"
+        :auto-twitter="!isMobile"
         @close="closePopup"
+        @select-bar="openTwitterPanel"
+      />
+
+      <!-- Twitter panel — desktop: right sidebar; mobile: full-screen -->
+      <BarTwitterPanel
+        v-if="twitterBar && twitterBar.sns"
+        :bar="twitterBar"
+        :lang="effectiveLang"
+        @close="twitterBar = null"
       />
 
     </div>
@@ -766,5 +835,68 @@ async function handleUnplaceBar(bar) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   max-height: 50dvh;
   overflow-y: auto;
+}
+
+/* Mobile full-screen feed panel */
+.mobile-feed-panel {
+  position: fixed;
+  inset: 0;
+  bottom: var(--taskbar-height, 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--win-bg-dark);
+  z-index: 250;
+  font-family: var(--win-font);
+}
+
+.mobile-feed-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 44px;
+  background: var(--win-title-active);
+  color: var(--win-title-text-active);
+  font-size: 13px;
+  font-weight: bold;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.mobile-feed-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.mobile-feed-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-feed-close {
+  width: 32px;
+  height: 28px;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--win-text);
+  flex-shrink: 0;
+}
+
+.mobile-feed-close:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
 }
 </style>

@@ -22,7 +22,9 @@ const props = defineProps({
 
 const emit = defineEmits(['minimize', 'maximize', 'close', 'focus'])
 
-const { x, y, startDrag } = useDraggable(props.initialX, props.initialY)
+const { x, y, startDrag, setPosition } = useDraggable(props.initialX, props.initialY)
+
+defineExpose({ setPosition })
 
 const style = computed(() => ({
   left: `${x.value}px`,

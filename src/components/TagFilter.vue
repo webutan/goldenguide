@@ -92,6 +92,23 @@ function rangePercent(min, max) {
 
 const chargeRange = computed(() => rangePercent(props.chargeMin, props.chargeMax))
 const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
+
+const hasAnyFilter = computed(() =>
+  props.modelValue.length > 0 ||
+  props.chargeMin != null || props.chargeMax != null ||
+  props.drinkMin != null || props.drinkMax != null ||
+  props.floorFilter != null || props.openNowFilter
+)
+
+function clearAll() {
+  emit('update:modelValue', [])
+  emit('update:chargeMin', null)
+  emit('update:chargeMax', null)
+  emit('update:drinkMin', null)
+  emit('update:drinkMax', null)
+  emit('update:floorFilter', null)
+  emit('update:openNowFilter', false)
+}
 </script>
 
 <template>
@@ -100,6 +117,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
     <div class="tree-root">
       <img src="/icons/desktop/directory_explorer.png" class="tree-icon" alt="" />
       <span class="tree-label">{{ t('filters') }}</span>
+      <button v-if="hasAnyFilter" class="clear-all-btn" @click="clearAll">&#10005; Clear</button>
     </div>
 
     <!-- Status filter branch (Open Now) -->
@@ -281,7 +299,7 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
               <span v-if="modelValue.includes(tag.id)" class="win-cb-mark">&#10003;</span>
             </span>
             <TagIcon :icon="tag.icon" :size="11" />
-            <span class="tag-label" :style="{ color: tag.color }">{{ tag.label }}</span>
+            <span class="tag-label" :style="{ color: tag.color }">{{ props.lang === 'jp' && tag.label_jp ? tag.label_jp : tag.label }}</span>
           </label>
         </div>
       </div>
@@ -306,6 +324,28 @@ const drinkRange = computed(() => rangePercent(props.drinkMin, props.drinkMax))
   gap: 4px;
   padding: 1px 2px;
   font-weight: bold;
+}
+
+.clear-all-btn {
+  margin-left: auto;
+  height: 14px;
+  padding: 0 5px;
+  font-family: var(--win-font);
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--win-text);
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.clear-all-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
 }
 
 .tree-icon {

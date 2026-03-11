@@ -21,7 +21,7 @@ const props = defineProps({
   lang: { type: String, default: 'en' },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'select-bar'])
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
 
@@ -107,6 +107,15 @@ function getSubName(bar) {
   return bar.name_jp
 }
 
+function parseTwitterHandle(url) {
+  if (!url) return null
+  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/i)
+  if (!match) return null
+  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
+  if (skip.includes(match[1].toLowerCase())) return null
+  return match[1]
+}
+
 function getGoogleMapsUrl(bar) {
   if (bar.google_link) return bar.google_link
   if (bar.plus_code) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(bar.plus_code)}`
@@ -148,16 +157,36 @@ function getOpenStatus(bar) {
               <img :src="`/uploads/${bar.photo}`" :alt="getDisplayName(bar)" />
             </div>
             <div class="drawer-bar-header">
-              <div class="drawer-bar-name-en" :class="{ 'name-favorited': isFavorited(bar.id) }">
-                <svg v-if="isVisited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10" fill="none">
-                  <polyline points="1,5 3.5,8.5 9,1.5" stroke="#4caf50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <svg v-if="isFavorited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10">
-                  <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" fill="#e87898"/>
-                </svg>
-                {{ getDisplayName(bar) }}
+              <div class="drawer-bar-names">
+                <div class="drawer-bar-name-en" :class="{ 'name-favorited': isFavorited(bar.id) }">
+                  <svg v-if="isVisited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10" fill="none">
+                    <polyline points="1,5 3.5,8.5 9,1.5" stroke="#4caf50" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <svg v-if="isFavorited(bar.id)" class="bar-status-icon" viewBox="0 0 10 10" width="10" height="10">
+                    <path d="M5,8.5C5,8.5 1,5.5 1,3C1,1.8 2,1 3,1.5C4,2 5,3 5,3C5,3 6,2 7,1.5C8,1 9,1.8 9,3C9,5.5 5,8.5 5,8.5Z" fill="#e87898"/>
+                  </svg>
+                  {{ getDisplayName(bar) }}
+                </div>
+                <div v-if="getSubName(bar)" class="drawer-bar-name-jp">{{ getSubName(bar) }}</div>
               </div>
-              <div v-if="getSubName(bar)" class="drawer-bar-name-jp">{{ getSubName(bar) }}</div>
+              <div class="drawer-bar-header-btns">
+                <button
+                  v-if="parseTwitterHandle(bar.sns)"
+                  class="icon-action-btn"
+                  title="Twitter/X"
+                  @click="emit('select-bar', bar)"
+                >
+                  <img src="/icons/twitter.png" alt="Twitter/X" class="icon-action-img" />
+                </button>
+                <button
+                  v-if="getGoogleMapsUrl(bar)"
+                  class="maps-icon-btn"
+                  :title="t('googleMaps')"
+                  @click="openGoogleMaps(bar)"
+                >
+                  <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                </button>
+              </div>
             </div>
             <div v-if="getBarTags(bar).length" class="drawer-bar-tags">
               <span
@@ -166,7 +195,7 @@ function getOpenStatus(bar) {
                 class="drawer-tag"
                 :style="{ borderLeft: `3px solid ${tag.color}` }"
               >
-                <TagIcon :icon="tag.icon" :size="10" /> {{ tag.label }}
+                <TagIcon :icon="tag.icon" :size="10" /> {{ lang === 'jp' && tag.label_jp ? tag.label_jp : tag.label }}
               </span>
             </div>
             <div class="drawer-bar-info">
@@ -194,11 +223,16 @@ function getOpenStatus(bar) {
                 </span>
               </div>
               <div v-if="bar.description" class="info-description">{{ bar.description }}</div>
+              <div v-if="bar.sns && !parseTwitterHandle(bar.sns)" class="info-sns-link">
+                <img src="/icons/tags/url1.ico" class="sns-link-icon" />
+                <a :href="bar.sns" target="_blank" rel="noopener">{{ bar.sns.length > 40 ? bar.sns.slice(0, 40) + '...' : bar.sns }}</a>
+              </div>
+              <div v-for="link in (bar.other_links || [])" :key="link" class="info-sns-link">
+                <img src="/icons/tags/url1.ico" class="sns-link-icon" />
+                <a :href="link" target="_blank" rel="noopener">{{ link.length > 40 ? link.slice(0, 40) + '...' : link }}</a>
+              </div>
             </div>
             <div class="drawer-bar-actions">
-              <button v-if="getGoogleMapsUrl(bar)" class="maps-icon-btn" :title="t('googleMaps')" @click="openGoogleMaps(bar)">
-                <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
-              </button>
               <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id)">
                 <template v-if="isVisited(bar.id)">&#10003; {{ t('visited') }}</template>
                 <template v-else>{{ t('markVisited') }}</template>
@@ -348,7 +382,49 @@ function getOpenStatus(bar) {
 }
 
 .drawer-bar-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-bottom: 4px;
+}
+
+.drawer-bar-names {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-bar-header-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.icon-action-btn {
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.icon-action-btn:active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.icon-action-img {
+  width: 80px;
+  height: 15px;
+  display: block;
+  image-rendering: pixelated;
 }
 
 .drawer-bar-name-en {
@@ -408,6 +484,25 @@ function getOpenStatus(bar) {
 .info-label {
   color: var(--win-text-disabled);
   min-width: 70px;
+  flex-shrink: 0;
+}
+
+.info-sns-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+.info-sns-link a {
+  color: var(--valhalla-orange, #b85800);
+  font-size: 10px;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.sns-link-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
   flex-shrink: 0;
 }
 

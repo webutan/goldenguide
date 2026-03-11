@@ -11,6 +11,9 @@ import {
   updateAnnotation as apiUpdateAnnotation,
   deleteAnnotation as apiDeleteAnnotation,
 } from '../api/index.js'
+import { OpenLocationCode } from 'open-location-code'
+
+const _olc = new OpenLocationCode()
 
 const props = defineProps({
   bars: Array,
@@ -41,6 +44,11 @@ const mapContent = ref('')
 let panzoomInstance = null
 
 const { isFavorited, isVisited } = useVisited()
+
+// Zoom tracking — used to show/hide building labels
+const currentZoom = ref(0)
+const baseFitScale = ref(0)
+const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.5)
 
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() {
@@ -201,6 +209,151 @@ function barFloorPrimaryColor(bar) {
   return floorColors(bar.floor ?? 1)[0]
 }
 
+// Convert ASCII digits/letters to full-width Unicode equivalents.
+// Full-width chars all have the same advance width as CJK glyphs, preventing
+// mixed-width squishing when combining e.g. "1" (halfwidth) with "階" (fullwidth).
+function toFullWidth(str) {
+  return str.replace(/[\x21-\x7E]/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0))
+}
+
+// Build display text for a bar label (name + floor + icons)
+function barLabelText(bar) {
+  const name = props.lang === 'jp'
+    ? (bar.name_jp || bar.name_en)
+    : (bar.name_en || bar.name_jp)
+  const f = bar.floor ?? 1
+  let floorLabel
+  if (props.lang === 'jp') {
+    // Use full-width chars so digits and 階 have identical advance widths
+    floorLabel = f < 0
+      ? `${toFullWidth(`B${Math.abs(f)}`)}階`
+      : `${toFullWidth(String(f))}階`
+  } else {
+    floorLabel = f < 0 ? `B${Math.abs(f)}F` : `${f}F`
+  }
+  const fav = isFavorited(bar.id) ? '♥' : ''
+  const vis = isVisited(bar.id) ? '✓' : ''
+  const prefix = [fav, vis].filter(Boolean).join('')
+  return prefix ? `${prefix} ${name} ${floorLabel}` : `${name} ${floorLabel}`
+}
+
+// Compute label layout for every building (only when zoomed in enough).
+//
+// Key insight: the map SVG is inside a rotate(MAP_ROTATION) group. If we place
+// text at (same-x, different-y) SVG coords, the -21° rotation causes each label
+// to appear at a different screen-x (staggered diagonally). Fix: each building
+// gets a <g> positioned at its center and counter-rotated by -MAP_ROTATION so
+// that dy offsets are in screen-aligned space → labels stack straight on screen.
+const buildingLabelData = computed(() => {
+  if (!showLabels.value) return {}
+  const result = {}
+  const PAD = 12
+  const LINE_RATIO = 1.3
+
+  for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
+    const bldg = buildingMap[bldgId]
+    if (!bldg || barsInBldg.length === 0) continue
+
+    const partData = props.partitions[bldgId] || {}
+    const orientOverride = partData.labelOrientation ?? 'auto'
+    const fontSizeOverride = partData.labelFontSize ? Number(partData.labelFontSize) : null
+    const offsetX = partData.labelOffsetX ?? 0
+    const offsetY = partData.labelOffsetY ?? 0
+    const adminRotation = partData.labelTextRotation ?? 0
+
+    const sortedBars = [...barsInBldg].sort((a, b) => {
+      const fd = (b.floor ?? 1) - (a.floor ?? 1)
+      return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
+    })
+    const n = sortedBars.length
+    const usableW = bldg.width - PAD * 2
+    const usableH = bldg.height - PAD * 2
+    const charRatio = props.lang === 'jp' ? 1.0 : 0.55
+
+    const autoOrient = bldg.width >= bldg.height ? 'horizontal' : 'vertical'
+    const orientation = orientOverride === 'auto' ? autoOrient : orientOverride
+
+    // Group anchor = building visual center in SVG space (+ admin offset)
+    const cx = bldg.minX + bldg.width / 2 + offsetX
+    const cy = bldg.minY + bldg.height / 2 + offsetY
+
+    // Counter-rotate the map's own rotation so labels are screen-aligned.
+    // +90° extra for side-by-side (vertical text on screen).
+    const baseRotation = orientation === 'horizontal' ? (-MAP_ROTATION + 90) : -MAP_ROTATION
+    const groupRotation = baseRotation + adminRotation
+
+    // Font size: constrained by the building's usable dimensions
+    const texts = sortedBars.map(bar => barLabelText(bar))
+    const maxLen = Math.max(...texts.map(t => t.length))
+    let fontSize
+    if (orientation === 'vertical') {
+      const fByWidth = usableW / Math.max(1, maxLen * charRatio)
+      const fByHeight = usableH / Math.max(1, n * LINE_RATIO)
+      fontSize = fontSizeOverride ?? Math.max(6, Math.min(fByWidth, fByHeight, 45))
+    } else {
+      const slotW = usableW / n
+      const fBySlotW = slotW * 0.8
+      const fByHeight = usableH / Math.max(1, maxLen * charRatio)
+      fontSize = fontSizeOverride ?? Math.max(6, Math.min(fBySlotW, fByHeight, 45))
+    }
+    const lineSpacing = fontSize * LINE_RATIO
+
+    const items = sortedBars.map((bar, i) => {
+      const text = texts[i]
+      // Offsets are relative to group center, in screen-aligned space
+      let dx, dy
+      if (orientation === 'vertical') {
+        dx = 0
+        dy = (i - (n - 1) / 2) * lineSpacing
+      } else {
+        const slotW = usableW / n
+        dx = (i - (n - 1) / 2) * slotW
+        dy = 0
+      }
+
+      const passes = !hasActiveFilters.value || barPassesFilters(bar)
+      const isSearchHL = props.searchHighlightedBars.size > 0 && props.searchHighlightedBars.has(String(bar.id))
+      const faved = isFavorited(bar.id)
+      const visited = isVisited(bar.id)
+
+      let fill, opacity
+      if (isSearchHL) {
+        fill = '#ffd700'; opacity = 1
+      } else if (!passes) {
+        fill = '#aaaaaa'; opacity = 0.2
+      } else if (faved) {
+        fill = '#e87898'; opacity = 1
+      } else if (visited) {
+        fill = '#70d0a0'; opacity = 1
+      } else if (hasActiveFilters.value) {
+        fill = '#ffcc44'; opacity = 1
+      } else {
+        fill = '#ffffff'; opacity = 0.9
+      }
+
+      return { barId: String(bar.id), text, dx, dy, fontSize, fill, opacity }
+    })
+
+    result[bldgId] = { cx, cy, groupRotation, items }
+  }
+  return result
+})
+
+// Selected building state (persists until cleared)
+const selectedBuilding = ref(null)
+
+function setSelectedBuilding(id) {
+  if (selectedBuilding.value && svgRef.value) {
+    const old = svgRef.value.querySelector(`#${CSS.escape(selectedBuilding.value)}`)
+    if (old) old.classList.remove('building-selected')
+  }
+  selectedBuilding.value = id
+  if (id && svgRef.value) {
+    const el = svgRef.value.querySelector(`#${CSS.escape(id)}`)
+    if (el) el.classList.add('building-selected')
+  }
+}
+
 // Hover tooltip state
 const hoveredBuilding = ref(null)
 const tooltip = ref({ visible: false, x: 0, y: 0, bars: [] })
@@ -289,7 +442,7 @@ function onSvgMouseMove(e) {
       // Start 0.5s timer for tooltip
       hoverTimer = setTimeout(() => {
         showTooltip(newId, e)
-      }, 500)
+      }, 150)
     } else {
       hoveredBuilding.value = null
     }
@@ -406,7 +559,11 @@ function initPanzoom() {
   })
   panzoomInstance.on('panend', clampToBounds)
   panzoomInstance.on('zoom', clampToBounds)
+  panzoomInstance.on('zoom', () => { currentZoom.value = panzoomInstance.getTransform().scale })
   fitToContainer(1.5)
+  const { scale: initScale } = panzoomInstance.getTransform()
+  currentZoom.value = initScale
+  baseFitScale.value = initScale
   // Delay color update to ensure SVG is rendered
   setTimeout(updateBuildingColors, 100)
 }
@@ -467,12 +624,157 @@ watch(() => [props.chargeMin, props.chargeMax, props.drinkMin, props.drinkMax, p
   setTimeout(updateBuildingColors, 50)
 })
 
+// === GPS location tracking ===
+
+function solveLinear3(M, b) {
+  const m = M.map(r => [...r])
+  const v = [...b]
+  for (let col = 0; col < 3; col++) {
+    let maxR = col
+    for (let r = col + 1; r < 3; r++) {
+      if (Math.abs(m[r][col]) > Math.abs(m[maxR][col])) maxR = r
+    }
+    ;[m[col], m[maxR]] = [m[maxR], m[col]]
+    ;[v[col], v[maxR]] = [v[maxR], v[col]]
+    for (let r = col + 1; r < 3; r++) {
+      const f = m[r][col] / m[col][col]
+      for (let c = col; c < 3; c++) m[r][c] -= f * m[col][c]
+      v[r] -= f * v[col]
+    }
+  }
+  const x = [0, 0, 0]
+  for (let r = 2; r >= 0; r--) {
+    x[r] = v[r]
+    for (let c = r + 1; c < 3; c++) x[r] -= m[r][c] * x[c]
+    x[r] /= m[r][r]
+  }
+  return x
+}
+
+function decodePlusCode(code) {
+  try {
+    if (!_olc.isValid(code) || !_olc.isFull(code)) return null
+    const area = _olc.decode(code)
+    return { lat: area.latitudeCenter, lng: area.longitudeCenter }
+  } catch {
+    return null
+  }
+}
+
+const gpsTransform = computed(() => {
+  const pts = []
+  for (const b of props.bars) {
+    if (b.map_x == null || b.map_y == null) continue
+    let lat = b.lat || null
+    let lng = b.lng || null
+    // Fall back to Plus Code if explicit coords are missing
+    if (!lat || !lng) {
+      const decoded = b.plus_code ? decodePlusCode(b.plus_code) : null
+      if (decoded) { lat = decoded.lat; lng = decoded.lng }
+    }
+    if (lat && lng) pts.push({ lat, lng, map_x: b.map_x, map_y: b.map_y })
+  }
+  if (pts.length < 3) return null
+  const AtA = [[0,0,0],[0,0,0],[0,0,0]]
+  const Atbx = [0,0,0]
+  const Atby = [0,0,0]
+  for (const p of pts) {
+    const row = [p.lng, p.lat, 1]
+    for (let r = 0; r < 3; r++) {
+      Atbx[r] += row[r] * p.map_x
+      Atby[r] += row[r] * p.map_y
+      for (let c = 0; c < 3; c++) AtA[r][c] += row[r] * row[c]
+    }
+  }
+  try {
+    const xp = solveLinear3(AtA, Atbx)
+    const yp = solveLinear3(AtA, Atby)
+    return { xp, yp, calibrationCount: pts.length }
+  } catch {
+    return null
+  }
+})
+
+function gpsToSvg(lat, lng) {
+  const t = gpsTransform.value
+  if (!t) return null
+  return {
+    x: t.xp[0] * lng + t.xp[1] * lat + t.xp[2],
+    y: t.yp[0] * lng + t.yp[1] * lat + t.yp[2],
+  }
+}
+
+const geoWatching = ref(false)
+const geoPosition = ref(null)
+const geoError = ref(null)
+let geoWatchId = null
+
+const userSvgPos = computed(() => {
+  if (!geoPosition.value) return null
+  return gpsToSvg(geoPosition.value.lat, geoPosition.value.lng)
+})
+
+function panToUserLocation() {
+  if (!userSvgPos.value || !panzoomInstance || !containerRef.value) return
+  const { x, y } = userSvgPos.value
+  const rotated = rotatePoint(x, y)
+  const rect = containerRef.value.getBoundingClientRect()
+  const { scale } = panzoomInstance.getTransform()
+  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
+  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
+  panzoomInstance.moveTo(offsetX, offsetY)
+}
+
+function startGeoTracking() {
+  if (!navigator.geolocation) {
+    geoError.value = 'Geolocation not supported by your browser'
+    return
+  }
+  geoWatching.value = true
+  geoError.value = null
+  let firstFix = true
+  geoWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      geoPosition.value = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      }
+      if (firstFix) {
+        firstFix = false
+        panToUserLocation()
+      }
+    },
+    (err) => {
+      geoError.value = err.message
+      geoWatching.value = false
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+  )
+}
+
+function stopGeoTracking() {
+  if (geoWatchId !== null) {
+    navigator.geolocation.clearWatch(geoWatchId)
+    geoWatchId = null
+  }
+  geoWatching.value = false
+  geoPosition.value = null
+  geoError.value = null
+}
+
+function toggleGeoTracking() {
+  if (geoWatching.value) stopGeoTracking()
+  else startGeoTracking()
+}
+
 onUnmounted(() => {
   if (panzoomInstance) panzoomInstance.dispose()
   hideTooltip()
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('mousemove', onAnnotationDrag)
   window.removeEventListener('mouseup', onAnnotationDragEnd)
+  if (geoWatchId !== null) navigator.geolocation.clearWatch(geoWatchId)
 })
 
 function panToBuilding(buildingId) {
@@ -802,7 +1104,10 @@ function handleMapClick(e) {
   hideTooltip()
 
   const { id: buildingId } = resolveBuilding(e)
-  if (!buildingId) return
+  if (!buildingId) {
+    setSelectedBuilding(null)
+    return
+  }
 
   if (props.adminMode && props.placingBar) {
     emit('placeBar', { bar: props.placingBar, buildingId })
@@ -817,11 +1122,12 @@ function handleMapClick(e) {
   // Show all bars in the building (opens drawer)
   const barsInBuilding = barsByBuilding.value[buildingId]
   if (barsInBuilding && barsInBuilding.length > 0) {
+    setSelectedBuilding(buildingId)
     emit('selectBuilding', { buildingId, bars: barsInBuilding })
   }
 }
 
-defineExpose({ resetZoom, unplacedBars, panToBuilding })
+defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => setSelectedBuilding(null) })
 </script>
 
 <template>
@@ -841,6 +1147,31 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
       <g :transform="`rotate(${MAP_ROTATION}, ${MAP_CX}, ${MAP_CY})`">
       <g v-html="mapContent" class="map-bg" />
 
+      <!-- Bar name labels (visible when sufficiently zoomed in) -->
+      <Transition name="labels-fade">
+      <g v-if="showLabels" class="building-labels" style="pointer-events: none">
+        <g
+          v-for="(bldgLabels, bldgId) in buildingLabelData"
+          :key="bldgId"
+          :transform="`translate(${bldgLabels.cx}, ${bldgLabels.cy}) rotate(${bldgLabels.groupRotation})`"
+        >
+          <text
+            v-for="label in bldgLabels.items"
+            :key="label.barId"
+            :x="label.dx"
+            :y="label.dy"
+            :font-size="label.fontSize"
+            :fill="label.fill"
+            :opacity="label.opacity"
+            style="font-weight: bold"
+            text-anchor="middle"
+            dominant-baseline="central"
+            font-family="var(--win-font), sans-serif"
+          >{{ label.text }}</text>
+        </g>
+      </g>
+      </Transition>
+
       <!-- Annotations -->
       <g class="annotations">
         <text
@@ -858,6 +1189,11 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
           :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
           @mousedown="onAnnotationMouseDown($event, ann)"
         >{{ annotationText(ann) }}</text>
+      </g>
+      <!-- User GPS location marker -->
+      <g v-if="userSvgPos" :transform="`translate(${userSvgPos.x}, ${userSvgPos.y})`" class="user-location-marker" style="pointer-events: none">
+        <circle class="user-pulse-ring" r="60" />
+        <circle r="22" fill="#2563EB" stroke="white" stroke-width="9" />
       </g>
       </g><!-- close rotation group -->
     </svg>
@@ -882,8 +1218,14 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
             class="tooltip-img"
           />
           <div class="tooltip-info">
-            <div class="tooltip-name">{{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}</div>
+            <div class="tooltip-name">
+              <span v-if="isFavorited(bar.id)" class="tooltip-fav">&#9829;</span>
+              <span v-if="isVisited(bar.id)" class="tooltip-visited">&#10003;</span>
+              {{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}
+            </div>
             <div v-if="bar.name_en && bar.name_jp" class="tooltip-sub">{{ lang === 'jp' ? bar.name_en : bar.name_jp }}</div>
+            <div v-if="bar.charge" class="tooltip-meta">&#165;{{ bar.charge }} cover</div>
+            <div v-if="bar.hours" class="tooltip-meta">{{ bar.hours }}</div>
           </div>
         </div>
       </template>
@@ -894,6 +1236,12 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
       <WinButton class="zoom-btn" title="Zoom out" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" title="Fit to view" @click="resetZoom">&#x27F3;</WinButton>
       <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
+      <WinButton
+        class="zoom-btn"
+        :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError }"
+        :title="geoError ? geoError : (geoWatching ? `Stop location tracking (${gpsTransform?.calibrationCount} bars calibrated)` : (gpsTransform ? `Show my location (${gpsTransform.calibrationCount} bars calibrated)` : 'Show my location (need 3+ bars with plus codes or lat/lng set on the map)') )"
+        @click="toggleGeoTracking"
+      >&#x2316;</WinButton>
     </div>
 
     <!-- Annotation edit toolbar (admin only) -->
@@ -1057,6 +1405,12 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
   filter: brightness(1.5) !important;
 }
 
+:deep(.building-selected) {
+  filter: brightness(2) !important;
+  stroke: #f0c060 !important;
+  stroke-width: 3 !important;
+}
+
 .golden-gai-svg.placing-mode {
   cursor: crosshair;
 }
@@ -1120,6 +1474,16 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
   text-overflow: ellipsis;
 }
 
+.tooltip-fav {
+  color: #e87898;
+  margin-right: 2px;
+}
+
+.tooltip-visited {
+  color: #70d0a0;
+  margin-right: 2px;
+}
+
 .tooltip-sub {
   font-family: var(--win-font);
   font-size: 10px;
@@ -1127,6 +1491,16 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tooltip-meta {
+  font-family: var(--win-font);
+  font-size: 10px;
+  color: var(--win-text-disabled);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 :deep(.building-highlight-pulse) {
@@ -1144,6 +1518,28 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
     stroke-width: 4 !important;
     fill: #ED6E00 !important;
   }
+}
+
+/* Building name labels — fade in/out */
+.labels-fade-enter-active {
+  transition: opacity 0.25s ease;
+}
+.labels-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.labels-fade-enter-from,
+.labels-fade-leave-to {
+  opacity: 0;
+}
+
+/* Building name labels */
+.building-labels text {
+  paint-order: stroke fill;
+  stroke: rgba(0, 0, 0, 0.9);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  font-family: var(--win-font), 'MS Gothic', sans-serif;
+  letter-spacing: 0.5px;
 }
 
 /* Annotations */
@@ -1259,5 +1655,27 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding })
   min-height: 32px !important;
   padding: 4px 8px !important;
   font-size: 16px !important;
+}
+
+/* GPS locate button states */
+:deep(.geo-btn-active) {
+  background: #b8deff !important;
+  border-color: #3a70b0 !important;
+}
+:deep(.geo-btn-error) {
+  color: #cc0000 !important;
+}
+
+/* User location dot */
+.user-pulse-ring {
+  fill: #2563EB;
+  fill-opacity: 0.35;
+  animation: user-gps-pulse 1.8s ease-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes user-gps-pulse {
+  0%   { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(3.5); opacity: 0; }
 }
 </style>

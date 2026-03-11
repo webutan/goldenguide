@@ -91,6 +91,7 @@ function startEditBar(bar) {
     phone: bar.phone || '',
     description: bar.description || '',
     sns: bar.sns || '',
+    other_links: Array.isArray(bar.other_links) ? [...bar.other_links] : [],
     address: bar.address || '',
     plus_code: bar.plus_code || '',
     google_link: bar.google_link || '',
@@ -264,6 +265,7 @@ async function saveBarEdit() {
       seats: editForm.value.seats ? Number(editForm.value.seats) : null,
       hours: legacyHours,
       schedule,
+      other_links: editForm.value.other_links.filter(l => l.trim()),
       tags: editBarTags.value,
     })
     editingBar.value = null
@@ -467,6 +469,34 @@ function setPartitionWeight(index, weight) {
   data.partitions = data.partitions.map((p, i) => i === index ? { ...p, weight: Number(weight) || 1 } : p)
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
+
+function setLabelOrientation(orientation) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.labelOrientation = orientation
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function setLabelFontSize(val) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.labelFontSize = (val === '0' || val === 0 || val === '') ? null : Number(val)
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function setLabelTextRotation(val) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.labelTextRotation = Number(val)
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function setLabelOffset(axis, val) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data[axis === 'x' ? 'labelOffsetX' : 'labelOffsetY'] = Number(val)
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
 </script>
 
 <template>
@@ -639,8 +669,18 @@ function setPartitionWeight(index, weight) {
                 <WinTextInput v-model="editForm.phone" />
               </div>
               <div class="edit-field">
-                <label>SNS</label>
-                <WinTextInput v-model="editForm.sns" />
+                <label>SNS (Twitter/X)</label>
+                <WinTextInput v-model="editForm.sns" placeholder="https://twitter.com/..." />
+              </div>
+              <div class="edit-field">
+                <label>Other Links</label>
+                <div class="other-links-list">
+                  <div v-for="(link, i) in editForm.other_links" :key="i" class="other-link-row">
+                    <WinTextInput v-model="editForm.other_links[i]" placeholder="https://..." style="flex:1" />
+                    <button class="unplace-btn" @click="editForm.other_links.splice(i, 1)" title="Remove">&#10005;</button>
+                  </div>
+                  <WinButton @click="editForm.other_links.push('')" style="margin-top:4px">+ Add Link</WinButton>
+                </div>
               </div>
               <div class="edit-field">
                 <label>Plus Code</label>
@@ -686,7 +726,7 @@ function setPartitionWeight(index, weight) {
                 <div class="edit-tags">
                   <label v-for="tag in tags" :key="tag.id" class="edit-tag-item">
                     <input type="checkbox" :checked="editBarTags.includes(tag.id)" @change="toggleBarTag(tag.id)" />
-                    <span>{{ tag.icon }} {{ tag.label }}</span>
+                    <TagIcon :icon="tag.icon" :size="12" /> {{ tag.label }}
                   </label>
                 </div>
               </div>
@@ -956,6 +996,84 @@ function setPartitionWeight(index, weight) {
                 </div>
               </div>
             </div>
+
+            <!-- Label settings -->
+            <div class="edit-field" style="margin-top: 8px">
+              <label>Label Layout</label>
+              <select
+                class="split-select"
+                :value="currentPartition?.labelOrientation ?? 'auto'"
+                @change="setLabelOrientation($event.target.value)"
+              >
+                <option value="auto">Auto</option>
+                <option value="vertical">Vertical stack</option>
+                <option value="horizontal">Side by side</option>
+              </select>
+            </div>
+
+            <div class="edit-field">
+              <label>Label Size</label>
+              <div class="angle-controls">
+                <input
+                  type="range"
+                  min="0"
+                  max="60"
+                  step="1"
+                  :value="currentPartition?.labelFontSize ?? 0"
+                  @input="setLabelFontSize($event.target.value)"
+                  class="angle-slider"
+                />
+                <span class="angle-value">{{ currentPartition?.labelFontSize || 'Auto' }}</span>
+              </div>
+            </div>
+
+            <div class="edit-field">
+              <label>Label Rotation</label>
+              <div class="angle-controls">
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  :value="currentPartition?.labelTextRotation ?? 0"
+                  @input="setLabelTextRotation($event.target.value)"
+                  class="angle-slider"
+                />
+                <span class="angle-value">{{ currentPartition?.labelTextRotation ?? 0 }}&deg;</span>
+              </div>
+            </div>
+
+            <div class="edit-field">
+              <label>Label Offset X</label>
+              <div class="angle-controls">
+                <input
+                  type="range"
+                  min="-400"
+                  max="400"
+                  step="5"
+                  :value="currentPartition?.labelOffsetX ?? 0"
+                  @input="setLabelOffset('x', $event.target.value)"
+                  class="angle-slider"
+                />
+                <span class="angle-value">{{ currentPartition?.labelOffsetX ?? 0 }}</span>
+              </div>
+            </div>
+
+            <div class="edit-field">
+              <label>Label Offset Y</label>
+              <div class="angle-controls">
+                <input
+                  type="range"
+                  min="-400"
+                  max="400"
+                  step="5"
+                  :value="currentPartition?.labelOffsetY ?? 0"
+                  @input="setLabelOffset('y', $event.target.value)"
+                  class="angle-slider"
+                />
+                <span class="angle-value">{{ currentPartition?.labelOffsetY ?? 0 }}</span>
+              </div>
+            </div>
           </div>
         </template>
 
@@ -1097,6 +1215,16 @@ function setPartitionWeight(index, weight) {
   gap: 4px;
 }
 
+.other-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.other-link-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .edit-textarea {
   width: 100%;
   min-height: 50px;

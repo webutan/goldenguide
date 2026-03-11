@@ -16,7 +16,7 @@ defineEmits(['minimize', 'maximize', 'close', 'mousedown'])
     :class="['win-titlebar', { active }]"
     @mousedown="$emit('mousedown', $event)"
   >
-    <span v-if="icon" class="win-titlebar-icon">{{ icon }}</span>
+    <span v-if="icon" class="win-titlebar-icon" v-html="icon"></span>
     <span class="win-titlebar-text">{{ title }}</span>
     <div class="win-titlebar-controls">
       <button v-if="showMinimize" class="win-ctrl-btn" @click.stop="$emit('minimize')" title="Minimize">
