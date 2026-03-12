@@ -401,10 +401,58 @@ function onTagDragEnd() {
 }
 
 // === Buildings tab (partition editor) ===
+
+const STREET_COLORS = {
+  'hanazono-1':  '#8B2500',
+  'hanazono-3':  '#005559',
+  'hanazono-5':  '#3a5c20',
+  'hanazono-8':  '#6a1a48',
+  'maneki-dori': '#4a3010',
+}
+const STREET_COLOR_DEFAULT = '#1a0e2a'
+const STREET_NAMES = {
+  'hanazono-1':  'Hanazono 1 (red)',
+  'hanazono-3':  'Hanazono 3 (teal)',
+  'hanazono-5':  'Hanazono 5 (green)',
+  'hanazono-8':  'Hanazono 8 (wine)',
+  'maneki-dori': 'Maneki-dori (brown)',
+}
+
+const streetForSelectedBuilding = computed(() => {
+  if (!props.selectedBuilding) return null
+  const bars = props.bars.filter(b => b.building_id === props.selectedBuilding)
+  const counts = {}
+  for (const bar of bars) {
+    if (bar.street) counts[bar.street] = (counts[bar.street] || 0) + 1
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  return top?.[0] ?? null
+})
+
+const streetColorForBuilding = computed(() => {
+  return STREET_COLORS[streetForSelectedBuilding.value] || STREET_COLOR_DEFAULT
+})
+
+const streetNameForBuilding = computed(() => {
+  return STREET_NAMES[streetForSelectedBuilding.value] || 'Unknown street'
+})
+
 const currentPartition = computed(() => {
   if (!props.selectedBuilding) return null
   return props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
 })
+
+function setBuildingColor(color) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value, buildingColor: color }
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function resetBuildingColor() {
+  if (!props.selectedBuilding) return
+  const { buildingColor, ...rest } = currentPartition.value
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data: rest })
+}
 
 const barsInSelectedBuilding = computed(() => {
   if (!props.selectedBuilding) return []
@@ -959,6 +1007,26 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
 
+            <!-- Building fill color override -->
+            <div v-if="currentPartition" class="edit-field" style="margin-top: 8px">
+              <label>Building Color</label>
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+                <input
+                  type="color"
+                  :value="currentPartition.buildingColor || streetColorForBuilding"
+                  @input="setBuildingColor($event.target.value)"
+                  class="building-color-input"
+                />
+                <button
+                  v-if="currentPartition.buildingColor"
+                  class="reset-color-btn"
+                  @click="resetBuildingColor"
+                  title="Reset to street color"
+                >Reset</button>
+                <span class="color-hint">{{ streetNameForBuilding }}</span>
+              </div>
+            </div>
+
             <div v-if="currentPartition && currentPartition.partitions.length > 0" class="partition-colors">
               <div v-for="(p, i) in currentPartition.partitions" :key="i" class="partition-color-item">
                 <div class="partition-color-row">
@@ -1432,6 +1500,29 @@ function setLabelOffset(axis, val) {
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
   outline: none;
+}
+
+.building-color-input {
+  width: 36px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--win-border-dark);
+  cursor: pointer;
+}
+
+.reset-color-btn {
+  font-family: var(--win-font);
+  font-size: 10px;
+  padding: 1px 4px;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-dark);
+  color: var(--win-text);
+  cursor: pointer;
+}
+
+.color-hint {
+  font-size: 10px;
+  color: var(--win-text-disabled);
 }
 
 .partition-colors {

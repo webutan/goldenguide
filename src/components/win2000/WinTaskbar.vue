@@ -98,7 +98,7 @@ setInterval(updateTime, 30000)
     <!-- Window buttons -->
     <div class="taskbar-windows">
       <button
-        v-for="win in windows"
+        v-for="win in windows.filter(w => activeView === 'map' || (w.id !== 'search' && w.id !== 'explorer'))"
         :key="win.id"
         :class="['taskbar-win-btn', { active: isActive(win.id), minimized: win.minimized }]"
         @click="toggle(win.id)"

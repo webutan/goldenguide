@@ -5,6 +5,7 @@ import { useI18n } from '../composables/useI18n.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
+import ReviewDialog from './ReviewDialog.vue'
 
 const props = defineProps({
   buildingBars: Array, // array of bars in the clicked building
@@ -16,10 +17,12 @@ const props = defineProps({
   autoTwitter: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'select-bar'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews'])
 
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
+
+const showReviewDialog = ref(false)
 
 // Which bar is selected within the building
 const selectedIndex = ref(0)
@@ -249,11 +252,12 @@ function openGoogleMaps() {
                 </WinButton>
                 <WinButton
                   :pressed="visited"
-                  @click="toggleVisited(bar.id)"
+                  @click="toggleVisited(bar.id, () => { showReviewDialog = true })"
                 >
                   <template v-if="visited">&#10003; {{ t('visited') }}</template>
                   <template v-else>{{ t('markVisited') }}</template>
                 </WinButton>
+                <WinButton @click="emit('show-reviews', bar)">{{ t('reviews') }}</WinButton>
                 <WinButton @click="emit('close')">{{ t('close') }}</WinButton>
               </div>
             </template>
@@ -262,6 +266,13 @@ function openGoogleMaps() {
         </div>
       </div>
     </Transition>
+
+    <ReviewDialog
+      v-if="showReviewDialog && bar"
+      :bar="bar"
+      :lang="lang"
+      @done="showReviewDialog = false"
+    />
   </Teleport>
 </template>
 
@@ -537,9 +548,15 @@ function openGoogleMaps() {
   margin-top: 10px;
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--win-border-dark);
+}
+
+.dialog-actions > * {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .maps-icon-btn {

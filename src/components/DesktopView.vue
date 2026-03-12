@@ -1,6 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from '../composables/useI18n.js'
+import { useReviews } from '../composables/useReviews.js'
+import StickyNote from './StickyNote.vue'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -10,17 +12,26 @@ const props = defineProps({
 const emit = defineEmits(['openApp'])
 
 const { t } = useI18n(computed(() => props.lang))
+const { weeklyReviews, loadWeeklyReviews } = useReviews()
 
 const selected = ref(null)
+const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768
 
 const icons = [
   { id: 'map', icon: '/icons/desktop/search_web.png', labelKey: 'iconMap' },
   { id: 'directory', icon: '/icons/desktop/directory_open_cool.png', labelKey: 'iconDirectory' },
   { id: 'feed', icon: '/icons/twitterblue.ico', labelKey: 'iconFeed' },
   { id: 'chatroom', icon: '/icons/desktop/network_internet_pcs.png', labelKey: 'iconChatroom' },
+  { id: 'reviews', icon: '/icons/winrep-1.png', labelKey: 'iconReviews' },
   { id: 'about', icon: '/icons/desktop/about.png', labelKey: 'iconAbout' },
   { id: 'contact', icon: '/icons/desktop/contact.png', labelKey: 'iconContact' },
 ]
+
+const stickyNotes = computed(() => weeklyReviews.value.slice(0, 8))
+
+onMounted(() => {
+  loadWeeklyReviews()
+})
 
 function handleClick(id) {
   if (selected.value === id) {
@@ -43,6 +54,15 @@ function handleDesktopClick() {
 
 <template>
   <div class="desktop-view" @click.self="handleDesktopClick">
+    <!-- Sticky notes: desktop only, behind icons -->
+    <template v-if="!isMobile">
+      <StickyNote
+        v-for="review in stickyNotes"
+        :key="review.id"
+        :review="review"
+      />
+    </template>
+
     <img src="/signs/sign.png" class="desktop-sign-banner" alt="Golden Gai" @click="handleDesktopClick" />
     <div class="desktop-icons">
       <div

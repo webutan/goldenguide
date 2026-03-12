@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
+import ReviewDialog from './ReviewDialog.vue'
 
 const props = defineProps({
   buildingId: String,
@@ -21,9 +22,11 @@ const props = defineProps({
   lang: { type: String, default: 'en' },
 })
 
-const emit = defineEmits(['close', 'select-bar'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews'])
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
+
+const reviewDialogBar = ref(null)
 
 const FLOOR_COLORS = {
   '-3': '#0f2040',
@@ -233,7 +236,7 @@ function getOpenStatus(bar) {
               </div>
             </div>
             <div class="drawer-bar-actions">
-              <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id)">
+              <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id, () => { reviewDialogBar.value = bar })">
                 <template v-if="isVisited(bar.id)">&#10003; {{ t('visited') }}</template>
                 <template v-else>{{ t('markVisited') }}</template>
               </WinButton>
@@ -241,13 +244,22 @@ function getOpenStatus(bar) {
                 <template v-if="isFavorited(bar.id)">&#9829; {{ t('favorited') }}</template>
                 <template v-else>{{ t('markFavorite') }}</template>
               </WinButton>
+              <WinButton small @click="emit('show-reviews', bar)">{{ t('reviews') }}</WinButton>
             </div>
           </div>
         </template>
         </div></WinScrollContainer>
       </div>
     </div>
+
   </Transition>
+
+  <ReviewDialog
+    v-if="reviewDialogBar"
+    :bar="reviewDialogBar"
+    :lang="lang"
+    @done="reviewDialogBar.value = null"
+  />
 </template>
 
 <style scoped>

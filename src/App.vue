@@ -14,8 +14,12 @@ import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
 import ContactWindow from './components/ContactWindow.vue'
 import FeedWindow from './components/FeedWindow.vue'
+import ChatWindow from './components/ChatWindow.vue'
 import BarTwitterPanel from './components/BarTwitterPanel.vue'
 import DatabaseTable from './components/DatabaseTable.vue'
+import BiosScreen from './components/BiosScreen.vue'
+import ReviewPanel from './components/ReviewPanel.vue'
+import ReviewsWindow from './components/ReviewsWindow.vue'
 import { useI18n } from './composables/useI18n.js'
 import { useVisited } from './composables/useVisited.js'
 import { useApi } from './composables/useApi.js'
@@ -30,8 +34,12 @@ const { isAdmin, toggleAdmin } = useAdmin()
 const wm = useWindowManager()
 const { openBarIds } = useOpenNow(bars)
 
+const showBios = ref(true)
+const reviewPanelBar = ref(null)
+
 const activeView = ref('desktop') // 'desktop' | 'directory' | 'map'
 const activeTags = ref([])
+const tagMode = ref('or') // 'or' | 'and'
 const chargeMin = ref(null)
 const chargeMax = ref(null)
 const drinkMin = ref(null)
@@ -295,6 +303,7 @@ function handleOpenDb() {
 
 function handleSwitchView(view) {
   activeView.value = view
+  closePopup()
 }
 
 function handleOpenApp(app) {
@@ -305,9 +314,14 @@ function handleOpenApp(app) {
   } else if (app === 'contact') {
     showContact.value = true
   } else {
-    // Placeholder windows for feed, chatroom, about
-    const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About' }
-    const icons = { feed: '<img src="/icons/twitterblue.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">', about: '&#8505;' }
+    // Placeholder windows for feed, chatroom, about, reviews
+    const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About', reviews: 'Reviews' }
+    const icons = {
+      feed: '<img src="/icons/twitterblue.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+      chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+      about: '&#8505;',
+      reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+    }
     if (!wm.getWindow(app)) {
       wm.register(app, titles[app] || app, icons[app] || '')
     }
@@ -338,6 +352,7 @@ function closePopup() {
   popupBuildingBars.value = null
   popupBuildingId.value = null
   twitterBar.value = null
+  reviewPanelBar.value = null
 }
 
 function openTwitterPanel(bar) {
@@ -388,6 +403,8 @@ async function handleUnplaceBar(bar) {
 </script>
 
 <template>
+  <BiosScreen v-if="showBios" @done="showBios = false" />
+
   <div v-if="loading" class="loading-screen">Loading...</div>
   <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
 
@@ -407,7 +424,7 @@ async function handleUnplaceBar(bar) {
          - firstVisit === false: start tucked (skip rules), ready for interactive help
          - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
-      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null"
+      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && wm.getWindow('chatroom'))"
       :lang="effectiveLang"
       :rules-accepted="rulesAccepted || firstVisit === false"
       :bars="bars"
@@ -471,6 +488,7 @@ async function handleUnplaceBar(bar) {
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
           :label-mode="labelMode"
+          :tag-mode="tagMode"
           @select-building="handleSelectBuilding"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"
@@ -530,6 +548,8 @@ async function handleUnplaceBar(bar) {
               v-model:drink-max="drinkMax"
               v-model:floor-filter="floorFilter"
               v-model:open-now-filter="openNowFilter"
+              :tag-mode="tagMode"
+              @update:tag-mode="tagMode = $event"
             />
           </div>
         </div>
@@ -585,6 +605,8 @@ async function handleUnplaceBar(bar) {
             v-model:drink-max="drinkMax"
             v-model:floor-filter="floorFilter"
             v-model:open-now-filter="openNowFilter"
+            :tag-mode="tagMode"
+            @update:tag-mode="tagMode = $event"
           />
         </WinWindow>
         <!-- Building drawer (map building clicks) -->
@@ -604,6 +626,7 @@ async function handleUnplaceBar(bar) {
           :lang="effectiveLang"
           @close="closeDrawer"
           @select-bar="openTwitterPanel"
+          @show-reviews="reviewPanelBar = $event"
         />
       </template>
 
@@ -693,15 +716,76 @@ async function handleUnplaceBar(bar) {
         </WinWindow>
       </template>
 
-      <!-- Placeholder windows (chatroom, about, contact) -->
-      <template v-for="appId in ['chatroom', 'about', 'contact']" :key="appId">
+      <!-- Chatroom window: mobile = full-screen panel, desktop = draggable WinWindow -->
+      <template v-if="wm.getWindow('chatroom')">
+        <!-- Mobile: full-screen -->
+        <div v-if="isMobile" class="mobile-feed-panel">
+          <div class="mobile-feed-titlebar">
+            <span v-html="wm.getWindow('chatroom').icon" class="mobile-feed-icon"></span>
+            <span class="mobile-feed-title">{{ wm.getWindow('chatroom').title }}</span>
+            <button class="mobile-feed-close" @click="wm.unregister('chatroom')">&#10005;</button>
+          </div>
+          <ChatWindow :lang="effectiveLang" :bars="bars" />
+        </div>
+
+        <!-- Desktop: draggable WinWindow -->
+        <WinWindow
+          v-else
+          :title="wm.getWindow('chatroom').title"
+          :icon="wm.getWindow('chatroom').icon"
+          :width="360"
+          :height="480"
+          :initial-x="100"
+          :initial-y="60"
+          :active="wm.isActive('chatroom')"
+          :minimized="wm.getWindow('chatroom').minimized"
+          :z-index="wm.getWindow('chatroom').zIndex"
+          @focus="wm.focus('chatroom')"
+          @minimize="wm.minimize('chatroom')"
+          @close="wm.unregister('chatroom')"
+        >
+          <ChatWindow :lang="effectiveLang" :bars="bars" />
+        </WinWindow>
+      </template>
+
+      <!-- Reviews window -->
+      <template v-if="wm.getWindow('reviews')">
+        <div v-if="isMobile" class="mobile-feed-panel">
+          <div class="mobile-feed-titlebar">
+            <span v-html="wm.getWindow('reviews').icon" class="mobile-feed-icon"></span>
+            <span class="mobile-feed-title">{{ wm.getWindow('reviews').title }}</span>
+            <button class="mobile-feed-close" @click="wm.unregister('reviews')">&#10005;</button>
+          </div>
+          <ReviewsWindow :lang="effectiveLang" />
+        </div>
+        <WinWindow
+          v-else
+          :title="wm.getWindow('reviews').title"
+          :icon="wm.getWindow('reviews').icon"
+          :width="360"
+          :height="500"
+          :initial-x="130"
+          :initial-y="60"
+          :active="wm.isActive('reviews')"
+          :minimized="wm.getWindow('reviews').minimized"
+          :z-index="wm.getWindow('reviews').zIndex"
+          @focus="wm.focus('reviews')"
+          @minimize="wm.minimize('reviews')"
+          @close="wm.unregister('reviews')"
+        >
+          <ReviewsWindow :lang="effectiveLang" />
+        </WinWindow>
+      </template>
+
+      <!-- Placeholder windows (about, contact) -->
+      <template v-for="appId in ['about', 'contact']" :key="appId">
         <WinWindow
           v-if="wm.getWindow(appId)"
           :title="wm.getWindow(appId).title"
           :icon="wm.getWindow(appId).icon"
           :width="260"
-          :initial-x="80 + ['chatroom', 'about', 'contact'].indexOf(appId) * 30"
-          :initial-y="60 + ['chatroom', 'about', 'contact'].indexOf(appId) * 30"
+          :initial-x="80 + ['about', 'contact'].indexOf(appId) * 30"
+          :initial-y="60 + ['about', 'contact'].indexOf(appId) * 30"
           :active="wm.isActive(appId)"
           :minimized="wm.getWindow(appId).minimized"
           :z-index="wm.getWindow(appId).zIndex"
@@ -727,6 +811,7 @@ async function handleUnplaceBar(bar) {
         :auto-twitter="!isMobile"
         @close="closePopup"
         @select-bar="openTwitterPanel"
+        @show-reviews="reviewPanelBar = $event"
       />
 
       <!-- Twitter panel — desktop: right sidebar; mobile: full-screen -->
@@ -735,6 +820,14 @@ async function handleUnplaceBar(bar) {
         :bar="twitterBar"
         :lang="effectiveLang"
         @close="twitterBar = null"
+      />
+
+      <!-- Review panel -->
+      <ReviewPanel
+        v-if="reviewPanelBar"
+        :bar="reviewPanelBar"
+        :lang="effectiveLang"
+        @close="reviewPanelBar = null"
       />
 
     </div>

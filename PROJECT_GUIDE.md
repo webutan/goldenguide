@@ -8,7 +8,7 @@
 
 **Golden Gai Map** is an interactive bar directory and SVG map for the Golden Gai district of Shinjuku, Tokyo. It has a deliberately retro **Windows 2000 / CRT monitor aesthetic** with Japanese visual novel elements.
 
-- **Tech stack:** Vue 3 (Composition API, `<script setup>`), Vite, Node.js/Express, PostgreSQL
+- **Tech stack:** Vue 3 (Composition API, `<script setup>`), Vite, Node.js/Express, PostgreSQL, Socket.io (chatroom)
 - **Deployment:** Frontend served as static build from `dist/`; backend Express API at port 3001
 - **GitHub:** `https://github.com/webutan/goldenguide.git` (branch: `main`)
 - **Local dev:**
@@ -68,6 +68,7 @@ golden-gai-map/
 │   │   ├── BarPopup.vue          ← Bar detail popup (desktop)
 │   │   ├── BarTwitterPanel.vue   ← Twitter/SNS feed panel for individual bars
 │   │   ├── FeedWindow.vue        ← General feed window
+│   │   ├── ChatWindow.vue        ← AIM-style anonymous chatroom (Socket.io)
 │   │   ├── AdminPanel.vue        ← Admin building/label/partition controls
 │   │   ├── DatabaseTable.vue     ← Spreadsheet-style DB editor
 │   │   ├── TagFilter.vue         ← Filter sidebar (tags, price, floor, open now)
@@ -90,7 +91,8 @@ golden-gai-map/
 │   │   ├── useVisited.js      ← localStorage visited bar tracking
 │   │   ├── useWindowManager.js← WM: register/focus/minimize/unregister windows
 │   │   ├── useDraggable.js    ← Drag composable for WinWindow
-│   │   └── useOpenNow.js      ← Computed set of currently-open bar IDs
+│   │   ├── useOpenNow.js      ← Computed set of currently-open bar IDs
+│   │   └── useChat.js         ← Socket.io chat: messages, nickname, send
 │   └── data/
 │       ├── buildings.json     ← Building coordinate data keyed by SVG element ID
 │       └── tags.json          ← Tag definitions (id, label, label_jp, icon, color)
@@ -104,7 +106,8 @@ golden-gai-map/
 │   │   ├── tags.js        ← Tags management (GET /api/tags, POST, PATCH, DELETE)
 │   │   ├── photos.js      ← Photo upload/delete
 │   │   ├── annotations.js ← Map text annotations (admin-placed labels)
-│   │   └── feed.js        ← Twitter/SNS feed proxy
+│   │   ├── feed.js        ← Twitter/SNS feed proxy
+│   │   └── chat.js        ← Socket.io /chat namespace; persists to chat_messages table
 │   └── jobs/              ← Background jobs (feed refresh, caching)
 ├── media/                 ← SOURCE assets (NOT served). Always copy needed files to public/
 ├── PROJECT_GUIDE.md       ← This file
@@ -146,6 +149,29 @@ golden-gai-map/
 
 ### Window Manager
 `useWindowManager()` provides a reactive window registry. Key methods: `register(id, title, icon)`, `wm.getWindow(id)`, `wm.focus(id)`, `wm.minimize(id)`, `wm.unregister(id)`. z-index is auto-managed.
+
+---
+
+## Chatroom Feature
+
+Anonymous IRC-style chat with AIM aesthetic, powered by Socket.io.
+
+### Architecture
+- **Frontend:** `ChatWindow.vue` + `useChat.js` composable
+- **Backend:** `server/routes/chat.js` registers a `/chat` Socket.io namespace
+- **Server:** `server/index.js` wraps Express in `http.createServer` and attaches `socket.io`
+- **DB:** `chat_messages (id, nickname, message, created_at)` — last 500 kept, older pruned on insert
+- **Nginx:** `/socket.io/` location block with `Upgrade`/`Connection` WebSocket headers
+
+### useChat.js
+- Module-level singleton socket (persists while any ChatWindow is mounted)
+- `nickname` persisted in `localStorage` key `golden-gai-chat-nickname`
+- Auto-assigns `GuestXXXX` name on first open; prompts user to set their screen name
+- Rate limiting: enforced server-side (1 msg/sec per socket)
+- Events: `chat:send`, `chat:message`, `chat:history`, `chat:usercount`
+
+### Opening the chatroom
+Click the chatroom icon on the desktop (DesktopView) → `handleOpenApp('chatroom')` in App.vue → registers window and shows `ChatWindow.vue` inside a `WinWindow`
 
 ---
 

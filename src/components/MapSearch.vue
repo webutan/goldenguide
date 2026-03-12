@@ -146,6 +146,8 @@ watch(showDropdown, async (val) => {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+  font-size: 13px;
+  font-weight: bold;
 }
 
 .result-street {

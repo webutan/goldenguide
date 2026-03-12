@@ -36,6 +36,7 @@ const props = defineProps({
   visitedFilter: { type: Boolean, default: false },
   tourHighlight: { type: String, default: null },
   labelMode: { type: String, default: 'yoko' },
+  tagMode: { type: String, default: 'or' }, // 'or' | 'and'
 })
 
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar'])
@@ -128,7 +129,9 @@ const hasActiveFilters = computed(() => {
     props.chargeMin != null || props.chargeMax != null ||
     props.drinkMin != null || props.drinkMax != null ||
     props.floorFilter != null ||
-    props.openNowFilter
+    props.openNowFilter ||
+    props.favoritesFilter ||
+    props.visitedFilter
 })
 
 // Whether floor filter is active (separate from tag/price filters)
@@ -139,7 +142,10 @@ function barPassesFilters(bar) {
   if (props.floorFilter != null && (bar.floor ?? 1) !== props.floorFilter) return false
   if (props.activeTags && props.activeTags.length > 0) {
     const tagIds = (bar.tags || []).map(t => typeof t === 'string' ? t : t.id)
-    if (!props.activeTags.some(at => tagIds.includes(at))) return false
+    const check = props.tagMode === 'and'
+      ? props.activeTags.every(at => tagIds.includes(at))
+      : props.activeTags.some(at => tagIds.includes(at))
+    if (!check) return false
   }
   const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
   const drinkPrice = bar.drink_price != null && bar.drink_price !== '' ? Number(bar.drink_price) : null
@@ -152,6 +158,44 @@ function barPassesFilters(bar) {
   if (props.visitedFilter && !isVisited(bar.id)) return false
   return true
 }
+
+// Street-based building colors (replaces count-based color system)
+const STREET_COLORS = {
+  'hanazono-1':  '#8B2500',   // deep red-orange
+  'hanazono-3':  '#005559',   // teal
+  'hanazono-5':  '#3a5c20',   // olive green
+  'hanazono-8':  '#6a1a48',   // dark wine
+  'maneki-dori': '#4a3010',   // dark brown
+}
+const STREET_COLOR_DEFAULT = '#1a0e2a'  // fallback: dark purple
+
+// For each building, find the most common street among its bars
+const buildingDominantStreet = computed(() => {
+  const result = {}
+  for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
+    const counts = {}
+    for (const bar of barsInBldg) {
+      if (bar.street) counts[bar.street] = (counts[bar.street] || 0) + 1
+    }
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+    result[bldgId] = top?.[0] ?? null
+  }
+  return result
+})
+
+// Filter count badges: shown when zoomed out with active filters (2+ matching bars)
+const buildingFilterCountBadges = computed(() => {
+  if (!hasActiveFilters.value || showLabels.value) return {}
+  const result = {}
+  for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
+    const count = barsInBldg.filter(barPassesFilters).length
+    if (count < 2) continue
+    const bldg = buildingMap[bldgId]
+    if (!bldg) continue
+    result[bldgId] = { cx: bldg.cx, cy: bldg.cy, count }
+  }
+  return result
+})
 
 // Floor color system — two variants per floor (primary, lighter)
 const FLOOR_COLORS = {
@@ -493,9 +537,7 @@ function clearHighlight() {
   hoveredBuilding.value = null
 }
 
-const COUNT_CLASSES = ['has-bars-1', 'has-bars-2', 'has-bars-3', 'has-bars-4', 'has-bars-5plus']
-
-// Color buildings based on bar count; dim those with no filter matches
+// Color buildings by street; dim those with no filter matches
 function updateBuildingColors() {
   if (!svgRef.value) return
   const paths = svgRef.value.querySelectorAll('path[id^="bldg-"]')
@@ -512,13 +554,14 @@ function updateBuildingColors() {
 
     const barsInBldg = barsByBuilding.value[path.id]
     if (barsInBldg && barsInBldg.length > 0) {
-      // Base class (cursor, stroke-width) + count-based color class
+      // Determine building fill color: admin override first, then street color
+      const overrideColor = props.partitions[path.id]?.buildingColor
+      const dominantStreet = buildingDominantStreet.value[path.id]
+      const color = overrideColor || STREET_COLORS[dominantStreet] || STREET_COLOR_DEFAULT
+      path.style.setProperty('--bldg-fill', color)
+
+      // Base class (cursor, stroke-width)
       path.classList.add('has-bars')
-      path.classList.remove(...COUNT_CLASSES)
-      const countClass = barsInBldg.length <= 4
-        ? `has-bars-${barsInBldg.length}`
-        : 'has-bars-5plus'
-      path.classList.add(countClass)
 
       // Dim if filters active and no bar in this building matches
       if (tagFilter !== null && !tagFilter.has(path.id)) {
@@ -527,7 +570,8 @@ function updateBuildingColors() {
         path.classList.remove('tag-dimmed')
       }
     } else {
-      path.classList.remove('has-bars', ...COUNT_CLASSES, 'tag-dimmed')
+      path.classList.remove('has-bars', 'tag-dimmed')
+      path.style.removeProperty('--bldg-fill')
     }
   }
 }
@@ -659,6 +703,10 @@ watch(() => props.activeTags, () => {
 watch(() => [props.chargeMin, props.chargeMax, props.drinkMin, props.drinkMax, props.openNowFilter], () => {
   setTimeout(updateBuildingColors, 50)
 })
+
+watch(() => props.partitions, () => {
+  setTimeout(updateBuildingColors, 50)
+}, { deep: true })
 
 // === GPS location tracking ===
 
@@ -1246,6 +1294,28 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       </g>
       </Transition>
 
+      <!-- Filter count badges: shown when zoomed out with active filters -->
+      <g v-if="hasActiveFilters && !showLabels" class="filter-count-badges" style="pointer-events: none">
+        <g
+          v-for="(badge, bldgId) in buildingFilterCountBadges"
+          :key="bldgId"
+          :transform="`translate(${badge.cx}, ${badge.cy}) rotate(${-MAP_ROTATION})`"
+        >
+          <text
+            x="0" y="0"
+            text-anchor="middle"
+            dominant-baseline="central"
+            font-size="80"
+            font-weight="bold"
+            fill="#ffcc44"
+            stroke="#1a0800"
+            stroke-width="14"
+            paint-order="stroke"
+            font-family="var(--win-font), sans-serif"
+          >{{ badge.count }}</text>
+        </g>
+      </g>
+
       <!-- Annotations -->
       <g class="annotations">
         <text
@@ -1434,32 +1504,12 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
   transition: fill 0.15s, stroke 0.15s;
 }
 
-/* Buildings with bars — base class (cursor + stroke-width only) */
+/* Buildings with bars — street-based fill via CSS custom property */
 .golden-gai-svg :deep(#BUILDINGS path.has-bars) {
+  fill: var(--bldg-fill, #3a2010) !important;
+  stroke: #1a0a00 !important;
   stroke-width: 1.8 !important;
   cursor: pointer;
-}
-
-/* Count-based fill colors: 1 bar = orange, 2 = teal, 3 = olive, 4 = wine, 5+ = brown */
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-1) {
-  fill: #934400 !important;
-  stroke: #4A2200 !important;
-}
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-2) {
-  fill: #005559 !important;
-  stroke: #003340 !important;
-}
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-3) {
-  fill: #4a6030 !important;
-  stroke: #2a4015 !important;
-}
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-4) {
-  fill: #7a2050 !important;
-  stroke: #501030 !important;
-}
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-5plus) {
-  fill: #5a3020 !important;
-  stroke: #3a1808 !important;
 }
 
 /* Dimmed buildings that don't match active tag filter */
@@ -1471,11 +1521,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
 }
 
 /* Hover: brighten for all has-bars buildings */
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-1:hover),
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-2:hover),
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-3:hover),
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-4:hover),
-.golden-gai-svg :deep(#BUILDINGS path.has-bars-5plus:hover) {
+.golden-gai-svg :deep(#BUILDINGS path.has-bars:hover) {
   filter: brightness(1.5) !important;
 }
 

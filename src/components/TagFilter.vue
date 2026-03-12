@@ -19,6 +19,7 @@ const props = defineProps({
   openNowFilter: { type: Boolean, default: false },
   lang: { type: String, default: 'en' },
   collapseByDefault: { type: Boolean, default: false },
+  tagMode: { type: String, default: 'or' }, // 'or' | 'and'
 })
 
 const { t } = useI18n(computed(() => props.lang))
@@ -31,6 +32,7 @@ const emit = defineEmits([
   'update:drinkMax',
   'update:floorFilter',
   'update:openNowFilter',
+  'update:tagMode',
 ])
 
 // Derive available floors from bars data
@@ -283,6 +285,17 @@ function clearAll() {
         <img src="/icons/desktop/message_tack.png" class="tree-icon" alt="" />
         <span class="tree-label">{{ t('tags') }}</span>
         <span v-if="modelValue.length > 0" class="tree-count">({{ modelValue.length }})</span>
+        <span v-if="modelValue.length > 1" class="tag-mode-toggle">
+          <button
+            :class="['tag-mode-btn', { active: tagMode === 'or' }]"
+            @click.stop="emit('update:tagMode', 'or')"
+            title="Match any selected tag"
+          >Or</button><button
+            :class="['tag-mode-btn', { active: tagMode === 'and' }]"
+            @click.stop="emit('update:tagMode', 'and')"
+            title="Match all selected tags"
+          >And</button>
+        </span>
       </div>
       <div v-if="tagsExpanded" class="tree-children">
         <div
@@ -434,6 +447,28 @@ function clearAll() {
 .tree-count {
   color: var(--win-text-disabled);
   font-size: 10px;
+}
+
+.tag-mode-toggle {
+  display: inline-flex;
+  margin-left: 4px;
+  border: 1px solid var(--win-border-dark);
+}
+
+.tag-mode-btn {
+  font-family: var(--win-font);
+  font-size: 9px;
+  padding: 0 4px;
+  line-height: 14px;
+  background: var(--win-bg);
+  border: none;
+  color: var(--win-text-disabled);
+  cursor: pointer;
+}
+
+.tag-mode-btn.active {
+  background: var(--win-active-title, #0a246a);
+  color: #fff;
 }
 
 /* Slider leaf nodes */

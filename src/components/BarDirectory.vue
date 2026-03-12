@@ -28,6 +28,7 @@ const dirFloorFilter = ref(null)
 const dirOpenNowFilter = ref(false)
 const dirFavoritesFilter = ref(false)
 const dirVisitedFilter = ref(false)
+const dirTagMode = ref('or') // 'or' | 'and'
 
 const barsRef = computed(() => props.bars || [])
 const { openBarIds, definitivelyOpenIds, closedBarIds } = useOpenNow(barsRef)
@@ -64,7 +65,10 @@ function barPassesFilters(bar) {
   if (dirFloorFilter.value != null && (bar.floor ?? 1) !== dirFloorFilter.value) return false
   if (dirActiveTags.value.length > 0) {
     const tagIds = (bar.tags || []).map(tg => typeof tg === 'string' ? tg : tg.id)
-    if (!dirActiveTags.value.some(at => tagIds.includes(at))) return false
+    const check = dirTagMode.value === 'and'
+      ? dirActiveTags.value.every(at => tagIds.includes(at))
+      : dirActiveTags.value.some(at => tagIds.includes(at))
+    if (!check) return false
   }
   const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
   if (dirChargeMin.value != null && (charge === null || charge < dirChargeMin.value)) return false
@@ -129,6 +133,8 @@ function floorLabel(floor) {
             v-model:drink-max="dirDrinkMax"
             v-model:floor-filter="dirFloorFilter"
             v-model:open-now-filter="dirOpenNowFilter"
+            :tag-mode="dirTagMode"
+            @update:tag-mode="dirTagMode = $event"
           />
         </WinScrollContainer>
       </div>
@@ -192,6 +198,8 @@ function floorLabel(floor) {
           v-model:drink-max="dirDrinkMax"
           v-model:floor-filter="dirFloorFilter"
           v-model:open-now-filter="dirOpenNowFilter"
+          :tag-mode="dirTagMode"
+          @update:tag-mode="dirTagMode = $event"
         />
       </div>
 

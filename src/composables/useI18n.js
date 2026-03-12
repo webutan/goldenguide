@@ -63,6 +63,21 @@ const translations = {
 
   // Placeholder
   'comingSoon': { en: 'Coming soon', jp: '準備中' },
+
+  // Reviews
+  'leaveReview': { en: 'Do you want to leave a review?', jp: 'レビューを書きますか？' },
+  'reviewPromptYes': { en: 'Yes', jp: 'はい' },
+  'reviewPromptNo': { en: 'No', jp: 'いいえ' },
+  'reviews': { en: 'Reviews', jp: 'レビュー' },
+  'noReviews': { en: 'No reviews yet. Be the first!', jp: 'まだレビューがありません。最初のレビューを書きましょう！' },
+  'submitReview': { en: 'Submit', jp: '投稿する' },
+  'reviewPlaceholder': { en: 'Write your review... (max 500 chars)', jp: 'レビューを書いてください... (最大500文字)' },
+  'iconReviews': { en: 'Reviews', jp: 'レビュー' },
+
+  // Check-in
+  'checkIn': { en: 'Check In', jp: 'チェックイン' },
+  'checkedIn': { en: 'Checked In ✓', jp: 'チェックイン済み ✓' },
+  'whoIsHere': { en: "Who's Here", jp: '今どこにいる' },
 }
 
 export function useI18n(lang) {

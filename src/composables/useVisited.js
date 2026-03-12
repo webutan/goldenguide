@@ -28,14 +28,16 @@ export function useVisited() {
     return visitedIds.value.includes(barId)
   }
 
-  function toggleVisited(barId) {
+  function toggleVisited(barId, onNewVisit) {
     const idx = visitedIds.value.indexOf(barId)
     if (idx === -1) {
-      visitedIds.value.push(barId)
+      visitedIds.value = [...visitedIds.value, barId]
+      saveVisited()
+      onNewVisit?.()
     } else {
-      visitedIds.value.splice(idx, 1)
+      visitedIds.value = visitedIds.value.filter(id => id !== barId)
+      saveVisited()
     }
-    saveVisited()
   }
 
   function isFavorited(barId) {

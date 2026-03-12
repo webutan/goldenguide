@@ -170,6 +170,33 @@ const MIGRATIONS = [
       UPDATE tags SET label_jp = '現金のみ'          WHERE id = 'cash-only'     AND label_jp IS NULL;
     `,
   },
+  {
+    name: '011-chat-messages',
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id          SERIAL PRIMARY KEY,
+        nickname    TEXT NOT NULL,
+        message     TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
+    `,
+  },
+  {
+    name: '012-reviews',
+    sql: `
+      CREATE TABLE IF NOT EXISTS reviews (
+        id         SERIAL PRIMARY KEY,
+        bar_id     INTEGER NOT NULL REFERENCES bars(id) ON DELETE CASCADE,
+        nickname   TEXT NOT NULL,
+        text       TEXT NOT NULL CHECK (char_length(text) <= 500),
+        drawing    TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_reviews_bar ON reviews(bar_id);
+      CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at DESC);
+    `,
+  },
 ]
 
 export async function runMigrations() {
