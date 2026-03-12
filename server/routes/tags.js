@@ -7,6 +7,7 @@ const router = Router()
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM tags ORDER BY id')
+    res.set('Cache-Control', 'no-store')
     res.json(result.rows)
   } catch (err) {
     console.error('GET /api/tags error:', err)
@@ -17,13 +18,13 @@ router.get('/', async (req, res) => {
 // POST /api/tags — create tag (admin)
 router.post('/', admin, async (req, res) => {
   try {
-    const { id, label, icon, color } = req.body
+    const { id, label, label_jp, icon, color } = req.body
     if (!id || !label) {
       return res.status(400).json({ error: 'id and label are required' })
     }
     const result = await pool.query(
-      'INSERT INTO tags (id, label, icon, color) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id, label, icon || '', color || '#888']
+      'INSERT INTO tags (id, label, label_jp, icon, color) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [id, label, label_jp || null, icon || '', color || '#888']
     )
     res.status(201).json(result.rows[0])
   } catch (err) {
@@ -38,12 +39,13 @@ router.post('/', admin, async (req, res) => {
 // PATCH /api/tags/:id — update tag (admin)
 router.patch('/:id', admin, async (req, res) => {
   try {
-    const { label, icon, color } = req.body
+    const { label, label_jp, icon, color } = req.body
     const updates = []
     const values = []
     let idx = 1
 
     if (label !== undefined) { updates.push(`label = $${idx++}`); values.push(label) }
+    if (label_jp !== undefined) { updates.push(`label_jp = $${idx++}`); values.push(label_jp) }
     if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(icon) }
     if (color !== undefined) { updates.push(`color = $${idx++}`); values.push(color) }
 

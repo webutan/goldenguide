@@ -706,6 +706,14 @@ function closeInteractiveDialogue() {
   emit('tour-mode', false)
 }
 
+// Touch handler for tucked panel — fires immediately without 300ms delay
+function handleTouchEnd(e) {
+  if (isTucked.value) {
+    e.preventDefault() // prevent subsequent synthetic click
+    openInteractiveDialogue()
+  }
+}
+
 // Click anywhere on panel (not a button) to advance — VN style
 let lastAdvanceTime = 0
 function handleDialogueClick(e) {
@@ -792,6 +800,7 @@ watch(() => props.lang, () => {
       class="gaichan-dialogue"
       :class="{ tucked: isTucked }"
       @click="handleDialogueClick"
+      @touchend="handleTouchEnd"
     >
       <div class="dialogue-body">
 

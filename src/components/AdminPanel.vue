@@ -1008,6 +1008,7 @@ function setLabelOffset(axis, val) {
                 <option value="auto">Auto</option>
                 <option value="vertical">Vertical stack</option>
                 <option value="horizontal">Side by side</option>
+                <option value="tate">縦書き (Tate)</option>
               </select>
             </div>
 

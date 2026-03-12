@@ -35,6 +35,7 @@ const props = defineProps({
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
   tourHighlight: { type: String, default: null },
+  labelMode: { type: String, default: 'yoko' },
 })
 
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar'])
@@ -50,6 +51,12 @@ const { isFavorited, isVisited } = useVisited()
 const currentZoom = ref(0)
 const baseFitScale = ref(0)
 const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.5)
+
+// User rotation applied via container transform (pinch-to-rotate on mobile)
+const userRotation = ref(0)
+const mapRotateStyle = computed(() =>
+  userRotation.value !== 0 ? { transform: `rotate(${userRotation.value}deg)` } : {}
+)
 
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() {
@@ -218,6 +225,17 @@ function toFullWidth(str) {
 }
 
 // Build display text for a bar label (name + floor + icons)
+// Japanese-only label for 縦書き (tate) mode — uses JP name, full-width floor chars
+function barLabelTextTate(bar) {
+  const name = bar.name_jp || bar.name_en || ''
+  const f = bar.floor ?? 1
+  const floorLabel = f < 0 ? `Ｂ${Math.abs(f)}階` : `${toFullWidth(String(f))}階`
+  const fav = isFavorited(bar.id) ? '♥' : ''
+  const vis = isVisited(bar.id) ? '✓' : ''
+  const prefix = [fav, vis].filter(Boolean).join('')
+  return prefix ? `${prefix}${name}${floorLabel}` : `${name}${floorLabel}`
+}
+
 function barLabelText(bar) {
   const name = props.lang === 'jp'
     ? (bar.name_jp || bar.name_en)
@@ -272,25 +290,33 @@ const buildingLabelData = computed(() => {
     const charRatio = props.lang === 'jp' ? 1.0 : 0.55
 
     const autoOrient = bldg.width >= bldg.height ? 'horizontal' : 'vertical'
-    const orientation = orientOverride === 'auto' ? autoOrient : orientOverride
+    const isTate = orientOverride === 'tate'
+    const orientation = isTate ? 'tate' : (orientOverride === 'auto' ? autoOrient : orientOverride)
 
     // Group anchor = building visual center in SVG space (+ admin offset)
     const cx = bldg.minX + bldg.width / 2 + offsetX
     const cy = bldg.minY + bldg.height / 2 + offsetY
 
     // Counter-rotate the map's own rotation so labels are screen-aligned.
-    // +90° extra for side-by-side (vertical text on screen).
-    const baseRotation = orientation === 'horizontal' ? (-MAP_ROTATION + 90) : -MAP_ROTATION
+    // +90° extra for side-by-side (horizontal and tate modes).
+    const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
     const groupRotation = baseRotation + adminRotation
 
     // Font size: constrained by the building's usable dimensions
-    const texts = sortedBars.map(bar => barLabelText(bar))
+    const texts = isTate
+      ? sortedBars.map(bar => barLabelTextTate(bar))
+      : sortedBars.map(bar => barLabelText(bar))
     const maxLen = Math.max(...texts.map(t => t.length))
     let fontSize
     if (orientation === 'vertical') {
       const fByWidth = usableW / Math.max(1, maxLen * charRatio)
       const fByHeight = usableH / Math.max(1, n * LINE_RATIO)
       fontSize = fontSizeOverride ?? Math.max(6, Math.min(fByWidth, fByHeight, 45))
+    } else if (orientation === 'tate') {
+      // Each bar gets a column; font size constrained by column width and building height per char
+      const fByColWidth = (usableW / n) * 0.9
+      const fByHeight = usableH / Math.max(1, maxLen)
+      fontSize = fontSizeOverride ?? Math.max(6, Math.min(fByColWidth, fByHeight, 45))
     } else {
       const slotW = usableW / n
       const fBySlotW = slotW * 0.8
@@ -306,6 +332,10 @@ const buildingLabelData = computed(() => {
       if (orientation === 'vertical') {
         dx = 0
         dy = (i - (n - 1) / 2) * lineSpacing
+      } else if (orientation === 'tate') {
+        const colSpacing = fontSize * 1.2
+        dx = (i - (n - 1) / 2) * colSpacing
+        dy = 0
       } else {
         const slotW = usableW / n
         dx = (i - (n - 1) / 2) * slotW
@@ -332,7 +362,7 @@ const buildingLabelData = computed(() => {
         fill = '#ffffff'; opacity = 0.9
       }
 
-      return { barId: String(bar.id), text, dx, dy, fontSize, fill, opacity }
+      return { barId: String(bar.id), text, dx, dy, fontSize, fill, opacity, writingMode: isTate ? 'vertical-rl' : undefined }
     })
 
     result[bldgId] = { cx, cy, groupRotation, items }
@@ -515,6 +545,11 @@ function fitToContainer(zoomMultiplier = 1) {
     panzoomInstance.zoomAbs(0, 0, scale)
     panzoomInstance.moveTo(offsetX, offsetY)
   }
+}
+
+function resetView() {
+  userRotation.value = 0
+  fitToContainer()
 }
 
 function resetZoom() {
@@ -1074,6 +1109,37 @@ function getSvgPoint(e) {
 }
 
 // Emit building selection for admin editing
+let rotTouchStartAngle = null
+let rotTouchStartRotation = 0
+
+function getTouchAngle(touches) {
+  const dx = touches[1].clientX - touches[0].clientX
+  const dy = touches[1].clientY - touches[0].clientY
+  return Math.atan2(dy, dx) * 180 / Math.PI
+}
+
+function onContainerTouchStart(e) {
+  if (e.touches.length === 2) {
+    rotTouchStartAngle = getTouchAngle(e.touches)
+    rotTouchStartRotation = userRotation.value
+  }
+}
+
+function onContainerTouchMove(e) {
+  if (e.touches.length === 2 && rotTouchStartAngle !== null) {
+    const currentAngle = getTouchAngle(e.touches)
+    const delta = currentAngle - rotTouchStartAngle
+    userRotation.value = rotTouchStartRotation + delta
+  }
+}
+
+function onContainerTouchEnd(e) {
+  if (e.touches.length < 2) {
+    rotTouchStartAngle = null
+  }
+}
+
+
 // Touch tap detection (panzoom consumes touch events so @click never fires on mobile)
 let touchStartX = 0
 let touchStartY = 0
@@ -1128,11 +1194,18 @@ function handleMapClick(e) {
   }
 }
 
-defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => setSelectedBuilding(null) })
+defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection: () => setSelectedBuilding(null) })
 </script>
 
 <template>
-  <div class="map-container" ref="containerRef">
+  <div
+    class="map-container"
+    ref="containerRef"
+    @touchstart.passive="onContainerTouchStart"
+    @touchmove.passive="onContainerTouchMove"
+    @touchend.passive="onContainerTouchEnd"
+  >
+    <div class="map-svg-wrap" :style="mapRotateStyle">
     <svg
       ref="svgRef"
       :viewBox="`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`"
@@ -1164,7 +1237,7 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
             :font-size="label.fontSize"
             :fill="label.fill"
             :opacity="label.opacity"
-            style="font-weight: bold"
+            :style="label.writingMode ? `font-weight:bold;writing-mode:${label.writingMode}` : 'font-weight:bold'"
             text-anchor="middle"
             dominant-baseline="central"
             font-family="var(--win-font), sans-serif"
@@ -1198,6 +1271,7 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
       </g>
       </g><!-- close rotation group -->
     </svg>
+    </div><!-- close map-svg-wrap -->
 
     <!-- Hover tooltip -->
     <div
@@ -1245,7 +1319,7 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
       >&#x2316;</WinButton>
     </div>
 
-    <!-- Location button always visible on mobile, below filter bar -->
+    <!-- Location + reset buttons always visible on mobile, below filter bar -->
     <div v-if="isMobile" class="map-controls map-controls--mobile-location">
       <WinButton
         class="zoom-btn zoom-btn--location-mobile"
@@ -1253,6 +1327,11 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
         :title="geoError ? geoError : (geoWatching ? 'Stop location tracking' : 'Show my location')"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
+      <WinButton
+        class="zoom-btn zoom-btn--location-mobile"
+        title="Reset rotation and zoom"
+        @click="resetView"
+      >&#x27F3;</WinButton>
     </div>
 
     <!-- Annotation edit toolbar (admin only) -->
@@ -1316,6 +1395,12 @@ defineExpose({ resetZoom, unplacedBars, panToBuilding, clearSelection: () => set
 </template>
 
 <style scoped>
+.map-svg-wrap {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+}
+
 .golden-gai-svg {
   background: #0a0810;
 }

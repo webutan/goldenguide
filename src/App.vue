@@ -220,6 +220,13 @@ function onWindowResize() { isMobile.value = window.innerWidth <= 768 }
 onMounted(() => window.addEventListener('resize', onWindowResize))
 onUnmounted(() => window.removeEventListener('resize', onWindowResize))
 
+// Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
+const labelMode = ref(localStorage.getItem('golden-gai-label-mode') || 'yoko')
+function setLabelMode(mode) {
+  labelMode.value = mode
+  localStorage.setItem('golden-gai-label-mode', mode)
+}
+
 const mobileMapFiltersOpen = ref(false)
 const mapFavoritesFilter = ref(false)
 const mapVisitedFilter = ref(false)
@@ -463,6 +470,7 @@ async function handleUnplaceBar(bar) {
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
+          :label-mode="labelMode"
           @select-building="handleSelectBuilding"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"

@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     const barsResult = await pool.query(`
       SELECT b.*,
         COALESCE(
-          json_agg(json_build_object('id', t.id, 'label', t.label, 'icon', t.icon, 'color', t.color))
+          json_agg(json_build_object('id', t.id, 'label', t.label, 'label_jp', t.label_jp, 'icon', t.icon, 'color', t.color))
           FILTER (WHERE t.id IS NOT NULL),
           '[]'
         ) AS tags,
@@ -21,6 +21,7 @@ router.get('/', async (req, res) => {
       GROUP BY b.id
       ORDER BY b.street, b.floor, b.name_jp
     `)
+    res.set('Cache-Control', 'no-store')
     res.json(barsResult.rows)
   } catch (err) {
     console.error('GET /api/bars error:', err)
@@ -34,7 +35,7 @@ router.get('/:slug', async (req, res) => {
     const barResult = await pool.query(`
       SELECT b.*,
         COALESCE(
-          json_agg(DISTINCT jsonb_build_object('id', t.id, 'label', t.label, 'icon', t.icon, 'color', t.color))
+          json_agg(DISTINCT jsonb_build_object('id', t.id, 'label', t.label, 'label_jp', t.label_jp, 'icon', t.icon, 'color', t.color))
           FILTER (WHERE t.id IS NOT NULL),
           '[]'
         ) AS tags,
@@ -54,6 +55,7 @@ router.get('/:slug', async (req, res) => {
     if (barResult.rows.length === 0) {
       return res.status(404).json({ error: 'Bar not found' })
     }
+    res.set('Cache-Control', 'no-store')
     res.json(barResult.rows[0])
   } catch (err) {
     console.error('GET /api/bars/:slug error:', err)
@@ -71,7 +73,7 @@ router.patch('/:id', admin, async (req, res) => {
     const allowedFields = [
       'name_jp', 'name_en', 'street', 'floor', 'building_id', 'map_x', 'map_y',
       'lat', 'lng', 'address', 'plus_code', 'google_link', 'charge', 'male_charge', 'drink_price', 'cash_only',
-      'seats', 'phone', 'hours', 'closed_days', 'description', 'sns', 'is_active', 'schedule',
+      'seats', 'phone', 'hours', 'closed_days', 'description', 'sns', 'other_links', 'is_active', 'schedule',
     ]
 
     const updates = []
