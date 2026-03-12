@@ -124,6 +124,52 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    name: '008-cache-table',
+    sql: `
+      CREATE TABLE IF NOT EXISTS cache (
+        key        TEXT PRIMARY KEY,
+        data       JSONB NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+    `,
+  },
+  {
+    name: '009-update-tag-icons',
+    sql: `
+      INSERT INTO tags (id, label, icon, color) VALUES
+        ('smoking',       'Smoking OK',       '/icons/tags/smoking.ico',     '#888'),
+        ('no-smoking',    'No Smoking',       '/icons/tags/nosmoking.ico',   '#4CAF50'),
+        ('english-ok',    'English OK',       '/icons/tags/uk.ico',          '#2196F3'),
+        ('japanese-only', 'Japanese Only',    '/icons/tags/japan.ico',       '#F44336'),
+        ('members-only',  'Members Only',     '/icons/tags/key_padlock.ico', '#9E9E9E'),
+        ('otoshi',        'Otoshi Included',  '/icons/tags/otoshi.ico',      '#795548'),
+        ('bottle-keep',   'Bottle Keep',      '/icons/tags/bottle.ico',      '#FF9800'),
+        ('card',          'Credit Card OK',   '/icons/tags/card.ico',        '#9141ac'),
+        ('karaoke',       'Karaoke',          '/icons/tags/microphone.ico',  '#9C27B0'),
+        ('cash-only',     'Cash Only',        '/icons/tags/money.ico',       '#F44336')
+      ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label, icon = EXCLUDED.icon, color = EXCLUDED.color;
+      DELETE FROM bar_tags WHERE tag_id = 'walk-in-ok';
+      DELETE FROM tags WHERE id = 'walk-in-ok';
+    `,
+  },
+  {
+    name: '010-label-jp-other-links',
+    sql: `
+      ALTER TABLE tags ADD COLUMN IF NOT EXISTS label_jp TEXT;
+      ALTER TABLE bars ADD COLUMN IF NOT EXISTS other_links JSONB DEFAULT '[]';
+      UPDATE tags SET label_jp = 'Smoking OK'       WHERE id = 'smoking'       AND label_jp IS NULL;
+      UPDATE tags SET label_jp = '禁煙'              WHERE id = 'no-smoking'    AND label_jp IS NULL;
+      UPDATE tags SET label_jp = '英語OK'            WHERE id = 'english-ok'    AND label_jp IS NULL;
+      UPDATE tags SET label_jp = '日本語のみ'        WHERE id = 'japanese-only' AND label_jp IS NULL;
+      UPDATE tags SET label_jp = '会員制'            WHERE id = 'members-only'  AND label_jp IS NULL;
+      UPDATE tags SET label_jp = 'お通し込み'        WHERE id = 'otoshi'        AND label_jp IS NULL;
+      UPDATE tags SET label_jp = 'ボトルキープ'      WHERE id = 'bottle-keep'   AND label_jp IS NULL;
+      UPDATE tags SET label_jp = 'カード払いOK'      WHERE id = 'card'          AND label_jp IS NULL;
+      UPDATE tags SET label_jp = 'カラオケ'          WHERE id = 'karaoke'       AND label_jp IS NULL;
+      UPDATE tags SET label_jp = '現金のみ'          WHERE id = 'cash-only'     AND label_jp IS NULL;
+    `,
+  },
 ]
 
 export async function runMigrations() {
