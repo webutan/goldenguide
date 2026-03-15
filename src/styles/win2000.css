@@ -55,7 +55,7 @@
   --valhalla-orange: #e8a040;
 
   /* Taskbar */
-  --taskbar-height: 32px;
+  --taskbar-height: max(32px, calc(32px + env(safe-area-inset-bottom)));
 
   /* Fonts — pixelated MS Sans Serif + Japanese pixel fallback */
   --win-font: 'W95FA', 'PixelMplus10', 'MS Sans Serif', 'Microsoft Sans Serif', sans-serif;
@@ -64,7 +64,7 @@
 
 @media (max-width: 768px) {
   :root {
-    --taskbar-height: 52px;
+    --taskbar-height: max(52px, calc(52px + env(safe-area-inset-bottom)));
   }
 }
 

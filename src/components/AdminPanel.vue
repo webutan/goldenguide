@@ -454,15 +454,28 @@ function resetBuildingColor() {
   emit('updatePartitions', { buildingId: props.selectedBuilding, data: rest })
 }
 
+function setIndependentBuilding(val) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value, isIndependentBuilding: val }
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
 const barsInSelectedBuilding = computed(() => {
   if (!props.selectedBuilding) return []
   return props.bars.filter(b => b.building_id === props.selectedBuilding)
 })
 
+// Normalize partition to always use barIds (array) format
+function normalizePartition(p) {
+  if (p.barIds) return p
+  return { ...p, barIds: p.barId ? [String(p.barId)] : [], barId: undefined }
+}
+
 function addPartition() {
   if (!props.selectedBuilding) return
-  const data = { ...(props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }) }
-  data.partitions = [...data.partitions, { color: '#2a1845', barId: null }]
+  const existing = props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
+  const data = { ...existing }
+  data.partitions = [...(data.partitions || []).map(normalizePartition), { color: null, barIds: [], weight: 1 }]
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
@@ -473,10 +486,34 @@ function removePartition() {
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
-function setPartitionBar(index, barId) {
+// Toggle a bar on/off for a partition slot
+function togglePartitionBar(index, barId, checked) {
   if (!props.selectedBuilding) return
   const data = { ...currentPartition.value }
-  data.partitions = data.partitions.map((p, i) => i === index ? { ...p, barId: barId || null } : p)
+  data.partitions = data.partitions.map((p, i) => {
+    if (i !== index) return normalizePartition(p)
+    const np = normalizePartition(p)
+    const barIds = checked
+      ? [...new Set([...np.barIds, String(barId)])]
+      : np.barIds.filter(id => id !== String(barId))
+    return { ...np, barIds }
+  })
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function partitionHasBar(p, barId) {
+  const np = normalizePartition(p)
+  return np.barIds.includes(String(barId))
+}
+
+function setPartitionColor(index, color) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = data.partitions.map((p, i) => {
+    if (i !== index) return normalizePartition(p)
+    const np = normalizePartition(p)
+    return { ...np, color: color || null }
+  })
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
@@ -485,11 +522,18 @@ const ADMIN_FLOOR_COLORS = {
   1: '#934400', 2: '#005559', 3: '#4a6030', 4: '#7a2050', 5: '#5a3020',
 }
 
-function getPartitionFloorColor(p) {
-  if (!p.barId) return '#2a2a2a'
-  const bar = props.bars.find(b => String(b.id) === String(p.barId))
-  if (!bar) return '#2a2a2a'
-  return ADMIN_FLOOR_COLORS[bar.floor ?? 1] ?? '#934400'
+// Shows the partition's custom color or auto-derived floor color for the first bar
+function getPartitionColor(p) {
+  if (p.color) return p.color
+  const barIds = p.barIds || (p.barId ? [String(p.barId)] : [])
+  const firstBarId = barIds[0]
+  if (!firstBarId) return '#2a2a2a'
+  const bar = props.bars.find(b => String(b.id) === firstBarId)
+  return bar ? (ADMIN_FLOOR_COLORS[bar.floor ?? 1] ?? '#934400') : '#2a2a2a'
+}
+
+function floorLabel(floor) {
+  return floor < 0 ? `B${Math.abs(floor)}F` : `${floor}F`
 }
 
 function setSplitDirection(dir) {
@@ -522,6 +566,15 @@ function setLabelOrientation(orientation) {
   if (!props.selectedBuilding) return
   const data = { ...currentPartition.value }
   data.labelOrientation = orientation
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+function setPartitionLabelField(index, field, val) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = data.partitions.map((p, i) =>
+    i === index ? { ...p, [field]: (val === '' || val === 0 || val === '0') ? undefined : val } : p
+  )
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
@@ -946,6 +999,17 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
 
+            <div v-if="currentPartition && currentPartition.partitions.length > 0" class="edit-field">
+              <label>Mode</label>
+              <WinButton
+                small
+                :pressed="currentPartition.isIndependentBuilding"
+                @click="setIndependentBuilding(!currentPartition.isIndependentBuilding)"
+              >
+                &#127968; Different Building
+              </WinButton>
+            </div>
+
             <div class="edit-field">
               <label>Split Direction</label>
               <select
@@ -1031,24 +1095,38 @@ function setLabelOffset(axis, val) {
               <div v-for="(p, i) in currentPartition.partitions" :key="i" class="partition-color-item">
                 <div class="partition-color-row">
                   <span class="partition-label">Slot {{ i + 1 }}</span>
-                  <span
-                    class="partition-floor-swatch"
-                    :style="{ background: getPartitionFloorColor(p) }"
-                    :title="p.barId ? 'Floor color' : 'No bar assigned'"
-                  ></span>
+                  <input
+                    type="color"
+                    :value="getPartitionColor(p)"
+                    @input="setPartitionColor(i, $event.target.value)"
+                    class="partition-color-input"
+                    title="Partition color"
+                  />
+                  <button
+                    v-if="p.color"
+                    class="reset-color-btn"
+                    @click="setPartitionColor(i, null)"
+                    title="Auto color from bar floor"
+                  >Auto</button>
                 </div>
-                <select
-                  class="split-select"
-                  :value="p.barId || ''"
-                  @change="setPartitionBar(i, $event.target.value)"
-                >
-                  <option value="">-- No bar --</option>
-                  <option
+                <div class="partition-bars-label">Bars in this slot:</div>
+                <div class="partition-bars-list">
+                  <label
                     v-for="bar in barsInSelectedBuilding"
                     :key="bar.id"
-                    :value="bar.id"
-                  >{{ (bar.name_en || bar.name_jp) + ' (' + (bar.floor >= 0 ? bar.floor + 'F' : 'B' + Math.abs(bar.floor) + 'F') + ')' }}</option>
-                </select>
+                    class="partition-bar-check"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="partitionHasBar(p, bar.id)"
+                      @change="togglePartitionBar(i, bar.id, $event.target.checked)"
+                    />
+                    {{ (bar.name_en || bar.name_jp) + ' (' + floorLabel(bar.floor ?? 1) + ')' }}
+                  </label>
+                  <div v-if="barsInSelectedBuilding.length === 0" class="partition-no-bars">
+                    No bars in this building
+                  </div>
+                </div>
                 <div class="angle-controls">
                   <span class="partition-label">Size</span>
                   <input
@@ -1062,6 +1140,75 @@ function setLabelOffset(axis, val) {
                   />
                   <span class="angle-value">{{ (p.weight || 1).toFixed(1) }}</span>
                 </div>
+                <template v-if="currentPartition.isIndependentBuilding">
+                  <div class="partition-bars-label" style="margin-top: 6px">Label (per-slot)</div>
+                  <div class="angle-controls">
+                    <span class="partition-label">Orient</span>
+                    <select
+                      class="split-select"
+                      :value="p.labelOrientation ?? ''"
+                      @change="setPartitionLabelField(i, 'labelOrientation', $event.target.value || undefined)"
+                    >
+                      <option value="">Inherit</option>
+                      <option value="auto">Auto</option>
+                      <option value="vertical">Vertical</option>
+                      <option value="horizontal">Horizontal</option>
+                      <option value="tate">縦書き</option>
+                    </select>
+                  </div>
+                  <div class="angle-controls">
+                    <span class="partition-label">Size</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="60"
+                      step="1"
+                      :value="p.labelFontSize ?? 0"
+                      @input="setPartitionLabelField(i, 'labelFontSize', Number($event.target.value) || undefined)"
+                      class="angle-slider"
+                    />
+                    <span class="angle-value">{{ p.labelFontSize || 'Auto' }}</span>
+                  </div>
+                  <div class="angle-controls">
+                    <span class="partition-label">Rotate</span>
+                    <input
+                      type="range"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      :value="p.labelTextRotation ?? 0"
+                      @input="setPartitionLabelField(i, 'labelTextRotation', Number($event.target.value))"
+                      class="angle-slider"
+                    />
+                    <span class="angle-value">{{ p.labelTextRotation ?? 0 }}&deg;</span>
+                  </div>
+                  <div class="angle-controls">
+                    <span class="partition-label">Offset X</span>
+                    <input
+                      type="range"
+                      min="-400"
+                      max="400"
+                      step="5"
+                      :value="p.labelOffsetX ?? 0"
+                      @input="setPartitionLabelField(i, 'labelOffsetX', Number($event.target.value))"
+                      class="angle-slider"
+                    />
+                    <span class="angle-value">{{ p.labelOffsetX ?? 0 }}</span>
+                  </div>
+                  <div class="angle-controls">
+                    <span class="partition-label">Offset Y</span>
+                    <input
+                      type="range"
+                      min="-400"
+                      max="400"
+                      step="5"
+                      :value="p.labelOffsetY ?? 0"
+                      @input="setPartitionLabelField(i, 'labelOffsetY', Number($event.target.value))"
+                      class="angle-slider"
+                    />
+                    <span class="angle-value">{{ p.labelOffsetY ?? 0 }}</span>
+                  </div>
+                </template>
               </div>
             </div>
 
@@ -1554,14 +1701,45 @@ function setLabelOffset(axis, val) {
     inset -1px -1px 0 var(--win-border-light);
 }
 
-.partition-floor-swatch {
-  width: 14px;
-  height: 14px;
+.partition-color-input {
+  width: 28px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  cursor: pointer;
   flex-shrink: 0;
-  border-radius: 2px;
-  box-shadow:
-    inset 1px 1px 0 var(--win-border-dark),
-    inset -1px -1px 0 var(--win-border-light);
+}
+
+.partition-bars-label {
+  font-size: 10px;
+  color: var(--win-text-disabled);
+  margin: 4px 0 2px;
+}
+
+.partition-bars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.partition-bar-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.partition-bar-check input[type="checkbox"] {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.partition-no-bars {
+  font-size: 10px;
+  color: var(--win-text-disabled);
+  font-style: italic;
 }
 
 .angle-controls {

@@ -10,6 +10,7 @@ import ReviewDialog from './ReviewDialog.vue'
 const props = defineProps({
   buildingId: String,
   bars: Array,
+  allBars: { type: Array, default: () => [] },
   activeTags: { type: Array, default: () => [] },
   chargeMin: { type: Number, default: null },
   chargeMax: { type: Number, default: null },
@@ -20,9 +21,13 @@ const props = defineProps({
   openBarIds: { type: Set, default: () => new Set() },
   tags: { type: Array, default: () => [] },
   lang: { type: String, default: 'en' },
+  allBarsMode: { type: Boolean, default: false },
+  favoritesFilter: { type: Boolean, default: false },
+  visitedFilter: { type: Boolean, default: false },
+  hoverBuildingId: { type: String, default: null },
 })
 
-const emit = defineEmits(['close', 'select-bar', 'show-reviews'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'hover-bar', 'unhover-bar', 'back-to-all'])
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
 
@@ -47,7 +52,8 @@ const hasActiveFilters = computed(() =>
   (props.activeTags && props.activeTags.length > 0) ||
   props.chargeMin != null || props.chargeMax != null ||
   props.drinkMin != null || props.drinkMax != null ||
-  props.floorFilter != null || props.openNowFilter
+  props.floorFilter != null || props.openNowFilter ||
+  props.favoritesFilter || props.visitedFilter
 )
 
 function barPassesFilters(bar) {
@@ -63,6 +69,8 @@ function barPassesFilters(bar) {
   if (props.drinkMin != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice < props.drinkMin) return false
   if (props.drinkMax != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice > props.drinkMax) return false
   if (props.openNowFilter && !props.openBarIds.has(String(bar.id))) return false
+  if (props.favoritesFilter && !isFavorited(bar.id)) return false
+  if (props.visitedFilter && !isVisited(bar.id)) return false
   return true
 }
 
@@ -71,20 +79,71 @@ const visibleBars = computed(() => {
   return props.bars.filter(barPassesFilters)
 })
 
-const floorGroups = computed(() => {
-  const groups = {}
-  for (const bar of visibleBars.value) {
-    const f = bar.floor ?? 1
-    if (!groups[f]) groups[f] = []
-    groups[f].push(bar)
+// In all-bars mode (no hover): group by building ID
+// In hover mode: show only bars from hovered building (no filter, transient)
+// In building mode: existing floor grouping
+const displayedGroups = computed(() => {
+  function makeFloorGroups(barsArr) {
+    const groups = {}
+    for (const bar of barsArr) {
+      const f = bar.floor ?? 1
+      if (!groups[f]) groups[f] = []
+      groups[f].push(bar)
+    }
+    return Object.entries(groups)
+      .map(([f, bars]) => ({
+        key: `floor-${f}`,
+        label: Number(f) < 0 ? `B${Math.abs(Number(f))}F` : `${f}F`,
+        floor: Number(f),
+        bars,
+        isBuilding: false,
+      }))
+      .sort((a, b) => b.floor - a.floor)
   }
-  return Object.entries(groups)
-    .map(([f, bars]) => ({
-      floor: Number(f),
-      floorLabel: Number(f) < 0 ? `B${Math.abs(Number(f))}F` : `${f}F`,
-      bars,
-    }))
-    .sort((a, b) => b.floor - a.floor)
+
+  if (props.hoverBuildingId) {
+    const barsForBuilding = props.allBars.filter(b => String(b.building_id) === String(props.hoverBuildingId))
+    return makeFloorGroups(barsForBuilding)
+  }
+
+  if (props.allBarsMode) {
+    // All-bars mode: group by building_id
+    const groups = {}
+    for (const bar of visibleBars.value) {
+      const bldg = bar.building_id || 'unplaced'
+      if (!groups[bldg]) groups[bldg] = []
+      groups[bldg].push(bar)
+    }
+    return Object.entries(groups)
+      .map(([bldgId, bars]) => ({
+        key: `bldg-${bldgId}`,
+        label: bldgId,
+        floor: null,
+        bars,
+        isBuilding: true,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }
+
+  // Building mode: group by floor
+  return makeFloorGroups(visibleBars.value)
+})
+
+// Title bar text
+const drawerTitle = computed(() => {
+  if (props.hoverBuildingId) {
+    const count = props.allBars.filter(b => String(b.building_id) === String(props.hoverBuildingId)).length
+    return `${props.hoverBuildingId} \u2014 ${count} bar${count !== 1 ? 's' : ''}`
+  }
+  if (props.allBarsMode) {
+    return `Golden Gai \u2014 ${visibleBars.value.length} bar${visibleBars.value.length !== 1 ? 's' : ''}`
+  }
+  if (!props.buildingId) {
+    const count = props.bars?.length ?? 0
+    return `Search Results \u2014 ${count} bar${count !== 1 ? 's' : ''}`
+  }
+  const count = props.bars?.length ?? 0
+  return `${props.buildingId} \u2014 ${count} bar${count !== 1 ? 's' : ''}`
 })
 
 const tagMap = computed(() => {
@@ -141,21 +200,28 @@ function getOpenStatus(bar) {
   <Transition name="drawer">
     <div class="bar-drawer">
       <div class="bar-drawer-titlebar">
-        <span class="bar-drawer-title">{{ buildingId }} &mdash; {{ bars.length }} bar{{ bars.length !== 1 ? 's' : '' }}</span>
+        <WinButton v-if="!allBarsMode && !hoverBuildingId && buildingId" small class="back-btn" @click="emit('back-to-all')" title="All bars">&#9664;</WinButton>
+        <span class="bar-drawer-title">{{ drawerTitle }}</span>
         <button class="win-ctrl-btn" @click="emit('close')" title="Close">
           <span class="win-ctrl-icon">&#10005;</span>
         </button>
       </div>
       <div class="bar-drawer-body">
         <WinScrollContainer><div class="bar-drawer-body-inner">
-        <div v-if="visibleBars.length === 0" class="drawer-empty">
+        <div v-if="!hoverBuildingId && visibleBars.length === 0" class="drawer-empty">
           No bars match the current filter.
         </div>
-        <template v-for="group in floorGroups" :key="group.floor">
-          <div class="drawer-floor-header" :style="{ borderLeftColor: floorColor(group.floor) }">
-            {{ group.floorLabel }}
+        <template v-for="group in displayedGroups" :key="group.key">
+          <div
+            class="drawer-floor-header"
+            :style="{ borderLeftColor: group.isBuilding ? '#4a3010' : floorColor(group.floor) }"
+          >
+            {{ group.label }}
           </div>
-          <div v-for="bar in group.bars" :key="bar.id" class="drawer-bar-card">
+          <div v-for="bar in group.bars" :key="bar.id" class="drawer-bar-card"
+            @mouseenter="emit('hover-bar', String(bar.id))"
+            @mouseleave="emit('unhover-bar')"
+          >
             <div v-if="bar.photo" class="drawer-bar-photo">
               <img :src="`/uploads/${bar.photo}`" :alt="getDisplayName(bar)" />
             </div>
@@ -301,6 +367,11 @@ function getOpenStatus(bar) {
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-left: 2px;
+}
+
+.back-btn {
+  flex-shrink: 0;
+  margin-right: 2px;
 }
 
 .win-ctrl-btn {

@@ -11,8 +11,8 @@ const emit = defineEmits(['accepted', 'tour-navigate', 'tour-highlight', 'tour-m
 // ── Script ──────────────────────────────────────────────────────────────────
 const SCRIPT = [
   {
-    text_en: "Welcome to Golden Gai! I'm your guide. Before you explore, I need to walk you through the rules. Ready?",
-    text_jp: "ようこそゴールデン街へ！アタシが案内してあげる。でもその前に、ここのルールを教えてあげる。準備はいい？",
+    text_en: "Welcome to Golden Gai! I'm your guide, Gai-chan! First, a few things to know:",
+    text_jp: "ゴールデンガイドへようこそ！私は街（ガイ）ちゃんだよ！最初に、この街について説明するわ！",
     image: null,
   },
   {
@@ -26,28 +26,28 @@ const SCRIPT = [
     image: '/gaichan/camera.png',
   },
   {
-    text_en: "These buildings are OLD and made of wood. No smoking outside.",
-    text_jp: "建物は古い木造よ。絶対禁煙！",
-    image: '/gaichan/smoking.png',
+    text_en: "Don't talk to the touts at the entrance, they're here to rip you off!",
+    text_jp: "街の入口にいる客引きとは話さない方がいいわ。気をつけて！",
+    image: null,
   },
   {
     text_en: "Most bars have a table charge. Think of it like a cover fee — it gets you your seat.",
-    text_jp: "ほとんどのお店にはチャージ料金がある。席料だと思って！",
+    text_jp: "ほとんどのお店にはチャージ料金があるわよ！",
     image: '/gaichan/yen.png',
   },
   {
     text_en: "Watch your bags! Luggage thieves operate here. Keep your things close.",
-    text_jp: "荷物には気をつけて！置き引きが多いの。荷物は常に手元に！",
+    text_jp: "荷物には気をつけて！置き引きがいるの。荷物は常に手元に！",
     image: '/gaichan/luggage.png',
   },
   {
-    text_en: "Now for the BIG list of things you absolutely CANNOT do here. Pay attention.",
-    text_jp: "さて、絶対やってはいけないことのリストよ。ちゃんと聞いてよね。",
+    text_en: "Now, a few rules to keep in mind!",
+    text_jp: "さて、この街のルールを教えてあげるね！",
     image: null,
   },
   {
-    text_en: "No smoking outside. I already said it — but it's important enough to say again.",
-    text_jp: "路上での喫煙は禁止！もう一回言うくらい大事なのよ。",
+    text_en: "Don't smoke outside! The buildings here are old and made of wood.",
+    text_jp: "路上での喫煙は禁止！建物は古く木造わよ。",
     image: '/gaichan/smoking.png',
   },
   {
@@ -57,17 +57,17 @@ const SCRIPT = [
   },
   {
     text_en: "No drinking on the street. Take it inside a bar. That's literally what they're here for.",
-    text_jp: "路上飲酒も禁止よ。バーの中で飲んで！そのためにあるんだから。",
+    text_jp: "路上飲酒も禁止よ。目の前にお店があるんだから、お店の中で飲んで！",
     image: '/gaichan/drinking.png',
   },
   {
-    text_en: "No photography without consent. People come here for privacy. Respect that.",
-    text_jp: "無断撮影も絶対ダメ！みんな、プライバシーを守りたいから来てるの。",
+    text_en: "No photos without consent! You don't want me taking pictures of you at work, right?",
+    text_jp: "街やお店の許可なしに撮影はしちゃダメよ！",
     image: '/gaichan/photo.png',
   },
   {
-    text_en: "Keep your voice DOWN. No shouting, no group singing in the streets.",
-    text_jp: "声は絶対に小さくして。大声や大合唱は禁止よ。",
+    text_en: "Try to keep your voice down. No shouting or group singing in the streets.",
+    text_jp: "声は絶対に小さくして。大声や大合唱は邪魔だよ！",
     image: '/gaichan/shouting.png',
   },
   {
@@ -81,17 +81,17 @@ const SCRIPT = [
     image: '/gaichan/drugs.png',
   },
   {
-    text_en: "No urinating, vomiting or spitting on the streets. Handle your business inside.",
+    text_en: "No urinating, vomiting or spitting on the streets. There's public toilets for that!",
     text_jp: "立ちション・嘔吐・ツバを吐くの禁止！お店の中でちゃんとして。",
     image: '/gaichan/vomit.png',
   },
   {
-    text_en: "Don't block the streets or loiter. It's narrow here — keep moving.",
+    text_en: "Don't block the streets or loiter. It's narrow, so please keep moving!",
     text_jp: "通行妨害禁止よ。道が狭いから、たむろしないでね。",
     image: '/gaichan/blocking.png',
   },
   {
-    text_en: "No bicycles or skateboards. Walk. This isn't a skatepark.",
+    text_en: "No bicycles or skateboards, walk! One kickflip and I'll break your board...",
     text_jp: "自転車・スケボーの乗り入れ禁止！ちゃんと歩いてね。",
     image: '/gaichan/skateboard.png',
   },
@@ -106,8 +106,8 @@ const SCRIPT = [
     image: null,
   },
   {
-    text_en: "That's everything! Now go enjoy Golden Gai.",
-    text_jp: "以上よ！ゴールデン街を楽しんでね。",
+    text_en: "That's everything! Now go enjoy Golden Gai. If you need any more help, click me on the desktop!",
+    text_jp: "以上よ！ゴールデン街を楽しんでね。何があれば、デスクトップにいるアタシに聞いてね！",
     image: null,
     isLast: true,
   },
@@ -117,18 +117,18 @@ const SCRIPT = [
 const INTERACTIVE_DIALOGUE = {
   'menu': {
     text_en: "How can I GAI-de you today?",
-    text_jp: "今日はどんなことをお手伝いしましょうか？",
+    text_jp: "私に”街ド”できることある？",
     choices: [
-      { id: 'tour-1', label_en: 'Give me a tour!', label_jp: 'ツアーして！' },
-      { id: 'recommend-1', label_en: 'Recommend a bar', label_jp: 'バーを紹介して' },
-      { id: 'cute-1', label_en: "You're so cute!", label_jp: 'かわいい！' },
+      { id: 'tour-1', label_en: 'Give me a tour!', label_jp: 'サイトの使い方教えて！' },
+      { id: 'recommend-1', label_en: 'Recommend a bar!', label_jp: 'バーを紹介して！' },
+      { id: 'cute-1', label_en: "You're so cute!", label_jp: '街ちゃん好きだよ…' },
     ],
   },
 
   // ── TOUR TREE ──────────────────────────────────────────────────────────────
   'tour-1': {
     text_en: "You got it! First, let's take a look at the taskbar.",
-    text_jp: "わかった！まずはタスクバーを見てみましょう！",
+    text_jp: "わかった！まずはタスクバーを見てみよう！",
     next: 'tour-2',
     action: { type: 'highlight', target: 'taskbar' },
   },
@@ -140,13 +140,13 @@ const INTERACTIVE_DIALOGUE = {
   },
   'tour-3': {
     text_en: "Using this filter section, you can narrow down bars by tags, price range, and more!",
-    text_jp: "このフィルターセクションを使うと、タグや価格帯でバーを絞り込めるわ！",
+    text_jp: "このフィルターを使うと、タグや価格帯でバーを絞り込めるわ！",
     next: 'tour-4',
     action: { type: 'highlight', target: 'map-filter' },
   },
   'tour-4': {
     text_en: "This button here shows your location in Golden Gai!",
-    text_jp: "このボタンでゴールデン街内の自分の位置を確認できるの！",
+    text_jp: "このボタンで街内での自分の位置を確認できるの！",
     next: 'tour-5',
     action: { type: 'highlight', target: 'map-location' },
   },
@@ -170,7 +170,7 @@ const INTERACTIVE_DIALOGUE = {
   },
   'tour-8': {
     text_en: "The desktop is my favorite, because… I live here! Ahaha!!",
-    text_jp: "デスクトップはアタシのお気に入り…だって、ここに住んでるんだもん！アハハ！！",
+    text_jp: "デスクトップはアタシのお気に入り…だって、ここに住んでるんだもん！！！",
     next: 'tour-9',
     action: { type: 'navigate+highlight', view: 'desktop', target: 'taskbar-desktop' },
   },
@@ -206,7 +206,7 @@ const INTERACTIVE_DIALOGUE = {
   },
   'tour-14': {
     text_en: "That's about everything! Now repeat it all back… just kidding. Enjoy!",
-    text_jp: "以上で全部よ！じゃあ全部繰り返して…冗談よ。楽しんでね！",
+    text_jp: "以上で全部よ！じゃあ始めからもう一度…なんちって…　楽しんでね！",
     next: 'menu',
     isLast: true,
     action: { type: 'highlight', target: null },
@@ -232,7 +232,7 @@ const INTERACTIVE_DIALOGUE = {
     text_jp: "喫煙しますか？または喫煙可能なバーでも大丈夫？",
     choices: [
       { id: 'rf-smoke-yes', label_en: "Yes / that's fine", label_jp: 'はい／大丈夫' },
-      { id: 'rf-smoke-no', label_en: "No smoking please", label_jp: '禁煙希望' },
+      { id: 'rf-smoke-no', label_en: "No smoking, please", label_jp: '禁煙希望' },
     ],
   },
   'rf-smoke-yes': {

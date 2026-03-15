@@ -1,6 +1,27 @@
 import { Router } from 'express'
+import { randomUUID } from 'crypto'
+import { mkdirSync } from 'fs'
+import { extname, resolve, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import multer from 'multer'
 import pool from '../db.js'
 import admin from '../middleware/admin.js'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const UPLOADS_DIR = resolve(__dirname, '..', 'uploads')
+
+const annotationStorage = multer.diskStorage({
+  destination(req, file, cb) {
+    const dir = resolve(UPLOADS_DIR, 'annotations')
+    mkdirSync(dir, { recursive: true })
+    cb(null, dir)
+  },
+  filename(req, file, cb) {
+    const ext = extname(file.originalname)
+    cb(null, `${randomUUID()}${ext}`)
+  },
+})
+const uploadAnnotation = multer({ storage: annotationStorage, limits: { fileSize: 10 * 1024 * 1024 } })
 
 const router = Router()
 
@@ -30,10 +51,26 @@ router.post('/', admin, async (req, res) => {
   }
 })
 
+router.post('/:id/icon', admin, uploadAnnotation.single('icon'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
+    const imageUrl = `annotations/${req.file.filename}`
+    const result = await pool.query(
+      'UPDATE annotations SET image_url = $1 WHERE id = $2 RETURNING *',
+      [imageUrl, req.params.id]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Annotation not found' })
+    res.json({ image_url: imageUrl })
+  } catch (err) {
+    console.error('POST /api/annotations/:id/icon error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 router.patch('/:id', admin, async (req, res) => {
   try {
-    const { text_en, text_jp, x, y, font_size, color, rotation } = req.body
-    const allowed = { text_en, text_jp, x, y, font_size, color, rotation }
+    const { text_en, text_jp, x, y, font_size, color, rotation, image_width, image_height } = req.body
+    const allowed = { text_en, text_jp, x, y, font_size, color, rotation, image_width, image_height }
     const updates = []
     const values = []
     let idx = 1

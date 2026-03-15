@@ -197,6 +197,23 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_reviews_created ON reviews(created_at DESC);
     `,
   },
+  {
+    name: '013-building-partitions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS building_partitions (
+        building_id TEXT PRIMARY KEY,
+        data        JSONB NOT NULL DEFAULT '{}'
+      );
+    `,
+  },
+  {
+    name: '014-annotation-images',
+    sql: `
+      ALTER TABLE annotations ADD COLUMN IF NOT EXISTS image_url TEXT;
+      ALTER TABLE annotations ADD COLUMN IF NOT EXISTS image_width REAL NOT NULL DEFAULT 200;
+      ALTER TABLE annotations ADD COLUMN IF NOT EXISTS image_height REAL NOT NULL DEFAULT 200;
+    `,
+  },
 ]
 
 export async function runMigrations() {

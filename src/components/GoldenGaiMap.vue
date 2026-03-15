@@ -10,6 +10,7 @@ import {
   createAnnotation as apiCreateAnnotation,
   updateAnnotation as apiUpdateAnnotation,
   deleteAnnotation as apiDeleteAnnotation,
+  uploadAnnotationIcon,
 } from '../api/index.js'
 import { OpenLocationCode } from 'open-location-code'
 
@@ -37,9 +38,10 @@ const props = defineProps({
   tourHighlight: { type: String, default: null },
   labelMode: { type: String, default: 'yoko' },
   tagMode: { type: String, default: 'or' }, // 'or' | 'and'
+  hoveredBarId: { type: String, default: null },
 })
 
-const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar'])
+const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'hoverBuilding', 'deselect'])
 
 const containerRef = ref(null)
 const svgRef = ref(null)
@@ -51,7 +53,7 @@ const { isFavorited, isVisited } = useVisited()
 // Zoom tracking — used to show/hide building labels
 const currentZoom = ref(0)
 const baseFitScale = ref(0)
-const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.5)
+const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.0)
 
 // User rotation applied via container transform (pinch-to-rotate on mobile)
 const userRotation = ref(0)
@@ -183,16 +185,47 @@ const buildingDominantStreet = computed(() => {
   return result
 })
 
-// Filter count badges: shown when zoomed out with active filters (2+ matching bars)
-const buildingFilterCountBadges = computed(() => {
-  if (!hasActiveFilters.value || showLabels.value) return {}
+// Bar count badges: always shown when zoomed out
+// With active filters: shows matching count (dimmed if 0); without filters: shows total
+// For independent-building partitions: one badge per partition slot
+const buildingBarCountBadges = computed(() => {
+  if (showLabels.value) return {}
   const result = {}
   for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
-    const count = barsInBldg.filter(barPassesFilters).length
-    if (count < 2) continue
     const bldg = buildingMap[bldgId]
     if (!bldg) continue
-    result[bldgId] = { cx: bldg.cx, cy: bldg.cy, count }
+
+    // Check if this building uses independent-building mode
+    if (props.partitions[bldgId]?.isIndependentBuilding) {
+      const pdata = partitionRects.value[bldgId]
+      if (!pdata) continue
+      const partData = props.partitions[bldgId] || {}
+      const bldgOffsetX = partData.labelOffsetX ?? 0
+      const bldgOffsetY = partData.labelOffsetY ?? 0
+      for (const rect of pdata.rects) {
+        if (!rect.barIds || rect.barIds.length === 0) continue
+        const bars = rect.barIds.map(id => barById.value[id]).filter(Boolean)
+        const filtered = hasActiveFilters.value ? bars.filter(barPassesFilters).length : bars.length
+        const key = `${bldgId}__${rect.partIndex}`
+        const partObj = (partData.partitions || [])[rect.partIndex] || {}
+        const offsetX = partObj.labelOffsetX ?? bldgOffsetX
+        const offsetY = partObj.labelOffsetY ?? bldgOffsetY
+        result[key] = {
+          cx: rect.visibleCenter.x + offsetX,
+          cy: rect.visibleCenter.y + offsetY,
+          count: filtered,
+          dimmed: hasActiveFilters.value && filtered === 0,
+          active: hasActiveFilters.value,
+        }
+      }
+      continue
+    }
+
+    const total = barsInBldg.length
+    const filtered = hasActiveFilters.value
+      ? barsInBldg.filter(barPassesFilters).length
+      : total
+    result[bldgId] = { cx: bldg.cx, cy: bldg.cy, count: filtered, dimmed: hasActiveFilters.value && filtered === 0, active: hasActiveFilters.value }
   }
   return result
 })
@@ -256,9 +289,9 @@ const unplacedBars = computed(() => {
   return props.bars.filter(b => !b.building_id)
 })
 
-// Return the primary floor color for a bar (used in tooltip swatch)
+// Return the primary color for a bar — uses its partition color if assigned
 function barFloorPrimaryColor(bar) {
-  return floorColors(bar.floor ?? 1)[0]
+  return barPartitionColor.value[String(bar.id)] || floorColors(bar.floor ?? 1)[0]
 }
 
 // Convert ASCII digits/letters to full-width Unicode equivalents.
@@ -269,11 +302,14 @@ function toFullWidth(str) {
 }
 
 // Build display text for a bar label (name + floor + icons)
-// Japanese-only label for 縦書き (tate) mode — uses JP name, full-width floor chars
+// 縦書き (tate) mode — JP: full-width chars; EN: plain ASCII stacked vertically
 function barLabelTextTate(bar) {
-  const name = bar.name_jp || bar.name_en || ''
+  const isJp = props.lang === 'jp'
+  const name = isJp ? (bar.name_jp || bar.name_en || '') : (bar.name_en || bar.name_jp || '')
   const f = bar.floor ?? 1
-  const floorLabel = f < 0 ? `Ｂ${Math.abs(f)}階` : `${toFullWidth(String(f))}階`
+  const floorLabel = isJp
+    ? (f < 0 ? `Ｂ${Math.abs(f)}階` : `${toFullWidth(String(f))}階`)
+    : (f < 0 ? `B${Math.abs(f)}F` : `${f}F`)
   const fav = isFavorited(bar.id) ? '♥' : ''
   const vis = isVisited(bar.id) ? '✓' : ''
   const prefix = [fav, vis].filter(Boolean).join('')
@@ -312,41 +348,11 @@ const buildingLabelData = computed(() => {
   const result = {}
   const PAD = 12
   const LINE_RATIO = 1.3
+  const charRatio = props.lang === 'jp' ? 1.0 : 0.55
 
-  for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
-    const bldg = buildingMap[bldgId]
-    if (!bldg || barsInBldg.length === 0) continue
-
-    const partData = props.partitions[bldgId] || {}
-    const orientOverride = partData.labelOrientation ?? 'auto'
-    const fontSizeOverride = partData.labelFontSize ? Number(partData.labelFontSize) : null
-    const offsetX = partData.labelOffsetX ?? 0
-    const offsetY = partData.labelOffsetY ?? 0
-    const adminRotation = partData.labelTextRotation ?? 0
-
-    const sortedBars = [...barsInBldg].sort((a, b) => {
-      const fd = (b.floor ?? 1) - (a.floor ?? 1)
-      return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
-    })
+  // Helper: compute label items for an array of bars within a given usable area
+  function makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride) {
     const n = sortedBars.length
-    const usableW = bldg.width - PAD * 2
-    const usableH = bldg.height - PAD * 2
-    const charRatio = props.lang === 'jp' ? 1.0 : 0.55
-
-    const autoOrient = bldg.width >= bldg.height ? 'horizontal' : 'vertical'
-    const isTate = orientOverride === 'tate'
-    const orientation = isTate ? 'tate' : (orientOverride === 'auto' ? autoOrient : orientOverride)
-
-    // Group anchor = building visual center in SVG space (+ admin offset)
-    const cx = bldg.minX + bldg.width / 2 + offsetX
-    const cy = bldg.minY + bldg.height / 2 + offsetY
-
-    // Counter-rotate the map's own rotation so labels are screen-aligned.
-    // +90° extra for side-by-side (horizontal and tate modes).
-    const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
-    const groupRotation = baseRotation + adminRotation
-
-    // Font size: constrained by the building's usable dimensions
     const texts = isTate
       ? sortedBars.map(bar => barLabelTextTate(bar))
       : sortedBars.map(bar => barLabelText(bar))
@@ -357,7 +363,6 @@ const buildingLabelData = computed(() => {
       const fByHeight = usableH / Math.max(1, n * LINE_RATIO)
       fontSize = fontSizeOverride ?? Math.max(6, Math.min(fByWidth, fByHeight, 45))
     } else if (orientation === 'tate') {
-      // Each bar gets a column; font size constrained by column width and building height per char
       const fByColWidth = (usableW / n) * 0.9
       const fByHeight = usableH / Math.max(1, maxLen)
       fontSize = fontSizeOverride ?? Math.max(6, Math.min(fByColWidth, fByHeight, 45))
@@ -368,10 +373,8 @@ const buildingLabelData = computed(() => {
       fontSize = fontSizeOverride ?? Math.max(6, Math.min(fBySlotW, fByHeight, 45))
     }
     const lineSpacing = fontSize * LINE_RATIO
-
-    const items = sortedBars.map((bar, i) => {
+    return sortedBars.map((bar, i) => {
       const text = texts[i]
-      // Offsets are relative to group center, in screen-aligned space
       let dx, dy
       if (orientation === 'vertical') {
         dx = 0
@@ -385,12 +388,10 @@ const buildingLabelData = computed(() => {
         dx = (i - (n - 1) / 2) * slotW
         dy = 0
       }
-
       const passes = !hasActiveFilters.value || barPassesFilters(bar)
       const isSearchHL = props.searchHighlightedBars.size > 0 && props.searchHighlightedBars.has(String(bar.id))
       const faved = isFavorited(bar.id)
       const visited = isVisited(bar.id)
-
       let fill, opacity
       if (isSearchHL) {
         fill = '#ffd700'; opacity = 1
@@ -405,10 +406,84 @@ const buildingLabelData = computed(() => {
       } else {
         fill = '#ffffff'; opacity = 0.9
       }
-
       return { barId: String(bar.id), text, dx, dy, fontSize, fill, opacity, writingMode: isTate ? 'vertical-rl' : undefined }
     })
+  }
 
+  for (const [bldgId, barsInBldg] of Object.entries(barsByBuilding.value)) {
+    const bldg = buildingMap[bldgId]
+    if (!bldg || barsInBldg.length === 0) continue
+
+    const partData = props.partitions[bldgId] || {}
+    const orientOverride = partData.labelOrientation ?? 'auto'
+    const fontSizeOverride = partData.labelFontSize ? Number(partData.labelFontSize) : null
+    const offsetX = partData.labelOffsetX ?? 0
+    const offsetY = partData.labelOffsetY ?? 0
+    const adminRotation = partData.labelTextRotation ?? 0
+
+    // Independent building mode: one label group per partition, positioned at its center
+    if (partData.isIndependentBuilding) {
+      const pdata = partitionRects.value[bldgId]
+      if (!pdata) continue
+      for (const rect of pdata.rects) {
+        const partBarIds = rect.barIds || []
+        const partBars = partBarIds.map(id => barById.value[id]).filter(Boolean)
+        if (partBars.length === 0) continue
+        const sortedBars = [...partBars].sort((a, b) => {
+          const fd = (b.floor ?? 1) - (a.floor ?? 1)
+          return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
+        })
+        // Estimate usable partition dimensions
+        const estW = pdata.dir === 'vertical'
+          ? (bldg.width / pdata.count) - PAD * 2
+          : bldg.width - PAD * 2
+        const estH = pdata.dir === 'horizontal'
+          ? (bldg.height / pdata.count) - PAD * 2
+          : bldg.height - PAD * 2
+        const usableW = Math.max(20, estW)
+        const usableH = Math.max(20, estH)
+        const autoOrient = usableW >= usableH ? 'horizontal' : 'vertical'
+        const partObj = (partData.partitions || [])[rect.partIndex] || {}
+        const partOrientOverride = partObj.labelOrientation ?? orientOverride
+        const partFontSizeOverride = partObj.labelFontSize != null
+          ? (Number(partObj.labelFontSize) || null)
+          : fontSizeOverride
+        const partOffsetX = partObj.labelOffsetX ?? offsetX
+        const partOffsetY = partObj.labelOffsetY ?? offsetY
+        const partAdminRotation = partObj.labelTextRotation ?? adminRotation
+        const isTate = partOrientOverride === 'tate'
+        const orientation = isTate ? 'tate' : (partOrientOverride === 'auto' ? autoOrient : partOrientOverride)
+        const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
+        const groupRotation = baseRotation + partAdminRotation
+        const cx = rect.visibleCenter.x + partOffsetX
+        const cy = rect.visibleCenter.y + partOffsetY
+        const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, partFontSizeOverride)
+        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, items }
+      }
+      continue
+    }
+
+    const sortedBars = [...barsInBldg].sort((a, b) => {
+      const fd = (b.floor ?? 1) - (a.floor ?? 1)
+      return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
+    })
+    const usableW = bldg.width - PAD * 2
+    const usableH = bldg.height - PAD * 2
+
+    const autoOrient = bldg.width >= bldg.height ? 'horizontal' : 'vertical'
+    const isTate = orientOverride === 'tate'
+    const orientation = isTate ? 'tate' : (orientOverride === 'auto' ? autoOrient : orientOverride)
+
+    // Group anchor = building visual center in SVG space (+ admin offset)
+    const cx = bldg.minX + bldg.width / 2 + offsetX
+    const cy = bldg.minY + bldg.height / 2 + offsetY
+
+    // Counter-rotate the map's own rotation so labels are screen-aligned.
+    // +90° extra for side-by-side (horizontal and tate modes).
+    const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
+    const groupRotation = baseRotation + adminRotation
+
+    const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride)
     result[bldgId] = { cx, cy, groupRotation, items }
   }
   return result
@@ -464,10 +539,14 @@ function showTooltip(buildingId, mouseEvent) {
   // getBoundingClientRect returns viewport coords; CSS positioning uses local (pre-zoom) coords.
   // Divide by the effective zoom so the tooltip tracks the cursor correctly.
   const zoom = rect.width / containerRef.value.offsetWidth || 1
+  const rawX = (mouseEvent.clientX - rect.left) / zoom + 12
+  const rawY = (mouseEvent.clientY - rect.top) / zoom - 8
+  const tooltipW = 220
+  const tooltipH = 120
   tooltip.value = {
     visible: true,
-    x: (mouseEvent.clientX - rect.left) / zoom + 12,
-    y: (mouseEvent.clientY - rect.top) / zoom - 8,
+    x: Math.min(rawX, containerRef.value.offsetWidth - tooltipW),
+    y: Math.min(rawY, containerRef.value.offsetHeight - tooltipH),
     bars: barsToShow,
   }
 }
@@ -514,12 +593,14 @@ function onSvgMouseMove(e) {
     if (newId && buildingsWithBars.value.has(newId)) {
       hoveredBuilding.value = newId
       if (target) target.classList.add('building-hover')
+      emit('hoverBuilding', newId)
       // Start 0.5s timer for tooltip
       hoverTimer = setTimeout(() => {
         showTooltip(newId, e)
       }, 150)
     } else {
       hoveredBuilding.value = null
+      emit('hoverBuilding', null)
     }
   }
 }
@@ -527,6 +608,7 @@ function onSvgMouseMove(e) {
 function onSvgMouseLeave() {
   clearHighlight()
   hideTooltip()
+  emit('hoverBuilding', null)
 }
 
 function clearHighlight() {
@@ -554,20 +636,22 @@ function updateBuildingColors() {
 
     const barsInBldg = barsByBuilding.value[path.id]
     if (barsInBldg && barsInBldg.length > 0) {
-      // Determine building fill color: admin override first, then street color
-      const overrideColor = props.partitions[path.id]?.buildingColor
-      const dominantStreet = buildingDominantStreet.value[path.id]
-      const color = overrideColor || STREET_COLORS[dominantStreet] || STREET_COLOR_DEFAULT
-      path.style.setProperty('--bldg-fill', color)
-
-      // Base class (cursor, stroke-width)
       path.classList.add('has-bars')
-
-      // Dim if filters active and no bar in this building matches
-      if (tagFilter !== null && !tagFilter.has(path.id)) {
-        path.classList.add('tag-dimmed')
-      } else {
+      const isPartitioned = !!(props.partitions[path.id]?.partitions?.length)
+      if (isPartitioned) {
+        // Partition rects handle per-rect coloring; use a neutral base and skip tag-dimmed
+        path.style.setProperty('--bldg-fill', '#111122')
         path.classList.remove('tag-dimmed')
+      } else {
+        const overrideColor = props.partitions[path.id]?.buildingColor
+        const dominantStreet = buildingDominantStreet.value[path.id]
+        const color = overrideColor || STREET_COLORS[dominantStreet] || STREET_COLOR_DEFAULT
+        path.style.setProperty('--bldg-fill', color)
+        if (tagFilter !== null && !tagFilter.has(path.id)) {
+          path.classList.add('tag-dimmed')
+        } else {
+          path.classList.remove('tag-dimmed')
+        }
       }
     } else {
       path.classList.remove('has-bars', 'tag-dimmed')
@@ -594,6 +678,17 @@ function fitToContainer(zoomMultiplier = 1) {
 function resetView() {
   userRotation.value = 0
   fitToContainer()
+}
+
+function centerOnPoint(mapX, mapY) {
+  if (!containerRef.value || !panzoomInstance) return
+  const rect = containerRef.value.getBoundingClientRect()
+  const scale = baseFitScale.value
+  const screenX = (mapX - VB_MIN_X) * scale
+  const screenY = (mapY - VB_MIN_Y) * scale
+  const offsetX = rect.width / 2 - screenX
+  const offsetY = rect.height / 2 - screenY
+  panzoomInstance.moveTo(offsetX, offsetY)
 }
 
 function resetZoom() {
@@ -644,6 +739,8 @@ function initPanzoom() {
   const { scale: initScale } = panzoomInstance.getTransform()
   currentZoom.value = initScale
   baseFitScale.value = initScale
+  // Center on bldg-5 area on initial load
+  centerOnPoint(1679.29, 2495.3)
   // Delay color update to ensure SVG is rendered
   setTimeout(updateBuildingColors, 100)
 }
@@ -730,6 +827,10 @@ function solveLinear3(M, b) {
   for (let r = 2; r >= 0; r--) {
     x[r] = v[r]
     for (let c = r + 1; c < 3; c++) x[r] -= m[r][c] * x[c]
+    if (Math.abs(m[r][r]) < 1e-10) {
+      console.warn('GPS calibration: singular matrix — calibration points may be collinear')
+      return null
+    }
     x[r] /= m[r][r]
   }
   return x
@@ -1003,8 +1104,20 @@ const selectedAnn = computed(() => {
   return annotations.value.find(a => a.id === selectedAnnotation.value) || null
 })
 
+async function onAnnotationIconUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file || !selectedAnnotation.value) return
+  try {
+    const { image_url } = await uploadAnnotationIcon(selectedAnnotation.value, file)
+    const ann = annotations.value.find(a => a.id === selectedAnnotation.value)
+    if (ann) ann.image_url = image_url
+  } catch (err) {
+    console.error('Failed to upload annotation icon:', err)
+  }
+}
+
 // === Partition rendering ===
-// Set of building IDs that have partitions (to skip CSS-based dimming on path)
+// Set of building IDs that have partitions
 const partitionedBuildings = computed(() => {
   const s = new Set()
   for (const [bldgId, data] of Object.entries(props.partitions)) {
@@ -1012,13 +1125,6 @@ const partitionedBuildings = computed(() => {
   }
   return s
 })
-
-// Display rule: should this bar's slot be visible?
-function slotShouldShow(bar) {
-  if (!bar) return false
-  if (!hasActiveFilters.value) return (bar.floor ?? 1) === 1
-  return barPassesFilters(bar)
-}
 
 const partitionRects = computed(() => {
   const result = {}
@@ -1030,50 +1136,46 @@ const partitionRects = computed(() => {
 
     const { minX, minY, maxX, maxY, width, height } = bldg
     const count = data.partitions.length
-    // 3 partitions always stack horizontally for better visibility
     const dir = count === 3 ? 'horizontal'
       : data.splitDirection === 'auto'
         ? (width > height ? 'vertical' : 'horizontal')
-        : data.splitDirection
-    const angle = data.splitAngle || 0
-    // Adjustable center point (percentage 0-100, default 50)
+        : (data.splitDirection || 'horizontal')
+
+    // SVG-space angle: user's splitAngle offset compensates for the map's own rotation
+    // so that splitAngle=0 means "aligned with the screen", not the raw SVG axes.
+    const svgAngle = (data.splitAngle || 0) - MAP_ROTATION
+
     const splitX = minX + (maxX - minX) * ((data.splitCenterX ?? 50) / 100)
     const splitY = minY + (maxY - minY) * ((data.splitCenterY ?? 50) / 100)
-    // Extend beyond bounding box to ensure full coverage after rotation
+    // Extend well beyond bounding box so rects fully cover the building after clipping
     const pad = Math.max(width, height) * 2
 
-    // Weighted partition sizes
     const weights = data.partitions.map(p => p.weight || 1)
     const totalWeight = weights.reduce((a, b) => a + b, 0)
 
-    // Pre-compute floor variant indices for this building
-    // (first bar on a given floor → primary color, second → variant, etc.)
-    const floorVariantCounter = {}
-    const barVariantIndexMap = {}
-    for (const p of data.partitions) {
-      const barId = p.barId ? String(p.barId) : null
-      if (!barId) continue
-      const bar = barById.value[barId]
-      if (!bar) continue
-      const floor = bar.floor ?? 1
-      if (floorVariantCounter[floor] === undefined) floorVariantCounter[floor] = 0
-      barVariantIndexMap[barId] = floorVariantCounter[floor] % 2
-      floorVariantCounter[floor]++
-    }
-
     const rects = data.partitions.map((p, i) => {
-      const barId = p.barId ? String(p.barId) : null
-      const bar = barId ? barById.value[barId] : null
+      // Support both barIds (array) and legacy barId (single string)
+      const barIds = p.barIds
+        ? p.barIds.map(String).filter(Boolean)
+        : (p.barId ? [String(p.barId)] : [])
+      const bars = barIds.map(id => barById.value[id]).filter(Boolean)
+      const firstBar = bars[0] ?? null
 
-      // Visibility: dimmed when no bar or slot should not show
-      const dimmed = !slotShouldShow(bar)
+      // Dimmed: no bar assigned, or filters active with no match in this partition
+      const dimmed = barIds.length === 0
+        ? true
+        : hasActiveFilters.value
+          ? !barIds.some(id => { const b = barById.value[id]; return b && barPassesFilters(b) })
+          : false
 
-      // Search highlight
-      const highlighted = searchSet.size > 0 && barId ? searchSet.has(barId) : false
+      // Highlighted if any bar in this partition is hovered or search-matched
+      const isHoveredBar = props.hoveredBarId != null
+        && barIds.includes(String(props.hoveredBarId))
+      const isSearchHL = searchSet.size > 0 && barIds.some(id => searchSet.has(id))
+      const highlighted = isHoveredBar || isSearchHL
 
       let x, y, w, h
       if (count === 4) {
-        // 2x2 grid — split at adjustable center
         const col = i % 2
         const row = Math.floor(i / 2)
         x = col === 0 ? splitX - pad : splitX
@@ -1083,38 +1185,50 @@ const partitionRects = computed(() => {
       } else if (dir === 'vertical') {
         const totalPad = pad * 2
         const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        const sliceStart = totalPad * weightBefore / totalWeight
-        const sliceW = totalPad * weights[i] / totalWeight
-        x = splitX - pad + sliceStart
+        x = splitX - pad + totalPad * weightBefore / totalWeight
         y = splitY - pad
-        w = sliceW
+        w = totalPad * weights[i] / totalWeight
         h = pad * 2
       } else {
         const totalPad = pad * 2
         const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        const sliceStart = totalPad * weightBefore / totalWeight
-        const sliceH = totalPad * weights[i] / totalWeight
         x = splitX - pad
-        y = splitY - pad + sliceStart
+        y = splitY - pad + totalPad * weightBefore / totalWeight
         w = pad * 2
-        h = sliceH
+        h = totalPad * weights[i] / totalWeight
       }
 
-      // Derive color from bar's floor
-      const floor = bar ? (bar.floor ?? 1) : 1
-      const variantIdx = barId && barVariantIndexMap[barId] !== undefined ? barVariantIndexMap[barId] : 0
-      const colors = floorColors(floor)
-      const color = colors[variantIdx] || colors[0]
+      // Color: use per-partition custom color first, then derive from first bar's floor
+      const color = p.color
+        || (firstBar ? floorColors(firstBar.floor ?? 1)[0] : STREET_COLOR_DEFAULT)
+
+      // Visible center: midpoint of this rect clamped to building bounding box
+      const vcx = Math.max(minX, Math.min(maxX, x + w / 2))
+      const vcy = Math.max(minY, Math.min(maxY, y + h / 2))
 
       return {
         x, y, width: w, height: h,
         color, dimmed, highlighted,
-        barId, partIndex: i,
+        barIds, partIndex: i,
+        visibleCenter: { x: vcx, y: vcy },
       }
     })
-    result[bldgId] = { rects, angle, cx: splitX, cy: splitY }
+    result[bldgId] = { rects, angle: svgAngle, cx: splitX, cy: splitY, dir, count }
   }
   return result
+})
+
+// Map bar ID → its partition color (for tooltip swatches)
+const barPartitionColor = computed(() => {
+  const map = {}
+  for (const pdata of Object.values(partitionRects.value)) {
+    for (const rect of pdata.rects) {
+      for (const id of rect.barIds) {
+        map[id] = rect.color
+      }
+    }
+  }
+  return map
 })
 
 // Find which partition was clicked by checking SVG coordinates
@@ -1221,6 +1335,7 @@ function handleMapClick(e) {
   const { id: buildingId } = resolveBuilding(e)
   if (!buildingId) {
     setSelectedBuilding(null)
+    emit('deselect')
     return
   }
 
@@ -1232,6 +1347,22 @@ function handleMapClick(e) {
 
   if (props.adminMode) {
     emit('selectBuildingForEdit', buildingId)
+  }
+
+  // Independent building mode: each partition acts as its own building
+  if (props.partitions[buildingId]?.isIndependentBuilding) {
+    const svgPt = getSvgPoint(e)
+    if (svgPt) {
+      const clickedPart = findClickedPartition(buildingId, svgPt.x, svgPt.y)
+      if (clickedPart?.barIds?.length) {
+        const bars = clickedPart.barIds.map(id => barById.value[String(id)]).filter(Boolean)
+        if (bars.length > 0) {
+          setSelectedBuilding(buildingId)
+          emit('selectBuilding', { buildingId, bars })
+          return
+        }
+      }
+    }
   }
 
   // Show all bars in the building (opens drawer)
@@ -1267,7 +1398,46 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       @touchend="onSvgTouchEnd"
     >
       <g :transform="`rotate(${MAP_ROTATION}, ${MAP_CX}, ${MAP_CY})`">
+      <!-- ClipPaths must live inside the rotation group so their coordinate space
+           matches the space of the elements being clipped (pre-map-rotation SVG coords). -->
+      <defs>
+        <clipPath
+          v-for="bldgId in partitionedBuildings"
+          :key="`pclip-${bldgId}`"
+          :id="`pclip-${bldgId}`"
+        >
+          <use :href="`#${bldgId}`" />
+        </clipPath>
+      </defs>
       <g v-html="mapContent" class="map-bg" />
+
+      <!-- Partition color overlays (clipped to each building shape).
+           IMPORTANT: clip-path is on the OUTER <g> (no transform) so the clip region
+           is in the building's coordinate space. The rotation (splitAngle) is on the
+           INNER <g> so the split line rotates while the clip boundary stays on the building. -->
+      <g class="partition-overlay">
+        <g
+          v-for="(pdata, bldgId) in partitionRects"
+          :key="bldgId"
+          :clip-path="`url(#pclip-${bldgId})`"
+          style="pointer-events: none"
+        >
+          <g :transform="pdata.angle !== 0 ? `rotate(${pdata.angle}, ${pdata.cx}, ${pdata.cy})` : undefined">
+            <rect
+              v-for="(rect, ri) in pdata.rects"
+              :key="ri"
+              :x="rect.x" :y="rect.y"
+              :width="rect.width" :height="rect.height"
+              :fill="rect.highlighted ? '#ffffff' : rect.color"
+              :opacity="
+                rect.dimmed
+                  ? ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.3 : 0.12)
+                  : (rect.highlighted ? 0.9 : ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.95 : 0.75))
+              "
+            />
+          </g>
+        </g>
+      </g>
 
       <!-- Bar name labels (visible when sufficiently zoomed in) -->
       <Transition name="labels-fade">
@@ -1294,10 +1464,10 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       </g>
       </Transition>
 
-      <!-- Filter count badges: shown when zoomed out with active filters -->
-      <g v-if="hasActiveFilters && !showLabels" class="filter-count-badges" style="pointer-events: none">
+      <!-- Bar count badges: always shown when zoomed out -->
+      <g v-if="!showLabels" class="filter-count-badges" style="pointer-events: none">
         <g
-          v-for="(badge, bldgId) in buildingFilterCountBadges"
+          v-for="(badge, bldgId) in buildingBarCountBadges"
           :key="bldgId"
           :transform="`translate(${badge.cx}, ${badge.cy}) rotate(${-MAP_ROTATION})`"
         >
@@ -1307,7 +1477,8 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
             dominant-baseline="central"
             font-size="80"
             font-weight="bold"
-            fill="#ffcc44"
+            :fill="badge.dimmed ? '#666' : (badge.active ? '#ffcc44' : '#ffffff')"
+            :opacity="badge.dimmed ? 0.3 : 1"
             stroke="#1a0800"
             stroke-width="14"
             paint-order="stroke"
@@ -1318,21 +1489,33 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
 
       <!-- Annotations -->
       <g class="annotations">
-        <text
-          v-for="ann in annotations"
-          :key="ann.id"
-          :x="ann.x"
-          :y="ann.y"
-          :fill="ann.color"
-          :font-size="ann.font_size"
-          :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
-          text-anchor="middle"
-          font-family="var(--win-font), monospace"
-          font-weight="bold"
-          :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
-          :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
-          @mousedown="onAnnotationMouseDown($event, ann)"
-        >{{ annotationText(ann) }}</text>
+        <template v-for="ann in annotations" :key="ann.id">
+          <image v-if="ann.image_url"
+            :href="`/uploads/${ann.image_url}`"
+            :x="ann.x - (ann.image_width || 200) / 2"
+            :y="ann.y - (ann.image_height || 200) / 2"
+            :width="ann.image_width || 200"
+            :height="ann.image_height || 200"
+            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
+            preserveAspectRatio="xMidYMid meet"
+            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
+            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
+            @mousedown="onAnnotationMouseDown($event, ann)"
+          />
+          <text v-else
+            :x="ann.x"
+            :y="ann.y"
+            :fill="ann.color"
+            :font-size="ann.font_size"
+            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
+            text-anchor="middle"
+            font-family="var(--win-font), monospace"
+            font-weight="bold"
+            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
+            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
+            @mousedown="onAnnotationMouseDown($event, ann)"
+          >{{ annotationText(ann) }}</text>
+        </template>
       </g>
       <!-- User GPS location marker -->
       <g v-if="userSvgPos" :transform="`translate(${userSvgPos.x}, ${userSvgPos.y})`" class="user-location-marker" style="pointer-events: none">
@@ -1376,7 +1559,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       </template>
     </div>
 
-    <div v-if="!isMobile" class="map-controls">
+    <div v-if="!isMobile" class="map-controls" style="right: 8px">
       <WinButton class="zoom-btn" title="Zoom in" @click="zoomIn">+</WinButton>
       <WinButton class="zoom-btn" title="Zoom out" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" title="Fit to view" @click="resetZoom">&#x27F3;</WinButton>
@@ -1449,12 +1632,29 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
         />
       </label>
       <input
+        v-if="!selectedAnn.image_url"
         type="color"
         :value="selectedAnn.color"
         @input="updateAnnotation(selectedAnn.id, 'color', $event.target.value)"
         class="ann-color"
         title="Color"
       />
+      <label v-if="selectedAnn.image_url" class="ann-field">
+        <span>W</span>
+        <input type="number" :value="selectedAnn.image_width || 200"
+          @input="updateAnnotation(selectedAnn.id, 'image_width', Number($event.target.value))"
+          class="ann-num" min="10" max="5000" />
+      </label>
+      <label v-if="selectedAnn.image_url" class="ann-field">
+        <span>H</span>
+        <input type="number" :value="selectedAnn.image_height || 200"
+          @input="updateAnnotation(selectedAnn.id, 'image_height', Number($event.target.value))"
+          class="ann-num" min="10" max="5000" />
+      </label>
+      <label v-if="!selectedAnn.image_url" class="ann-field">
+        <span>Icon</span>
+        <input type="file" accept="image/*" @change="onAnnotationIconUpload($event)" style="width:80px;font-size:9px" />
+      </label>
       <WinButton small @click="deleteAnnotation(selectedAnn.id)">&#10005;</WinButton>
     </div>
 

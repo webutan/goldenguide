@@ -26,7 +26,7 @@ import { useApi } from './composables/useApi.js'
 import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
-import { updateBar } from './api/index.js'
+import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 
 const { bars, tags, loading, error, reload } = useApi()
 const { visitedCount } = useVisited()
@@ -96,6 +96,7 @@ function handleFirstTimeAnswer(isFirst) {
 function handleRulesAccepted() {
   rulesAccepted.value = true
   localStorage.setItem('golden-gai-rules-accepted', '1')
+  activeView.value = 'map'
 }
 
 const effectiveLang = computed(() => lang.value || 'en')
@@ -133,16 +134,31 @@ function handleReorderTags(newOrder) {
   localStorage.setItem('golden-gai-tag-order', JSON.stringify(newOrder))
 }
 
-// Building partitions (persisted)
+// Building partitions (persisted to server; localStorage as initial cache)
 const partitions = ref(JSON.parse(localStorage.getItem('golden-gai-partitions') || '{}'))
 const selectedBuilding = ref(null)
 
-function handleUpdatePartitions({ buildingId, data }) {
+async function loadPartitionsFromServer() {
+  try {
+    const serverPartitions = await fetchPartitions()
+    // Merge: server wins over localStorage for any building that exists on server
+    partitions.value = { ...partitions.value, ...serverPartitions }
+    localStorage.setItem('golden-gai-partitions', JSON.stringify(partitions.value))
+  } catch (err) {
+    // Server unavailable — keep using localStorage cache
+    console.warn('Could not load partitions from server, using local cache:', err.message)
+  }
+}
+
+async function handleUpdatePartitions({ buildingId, data }) {
   const updated = { ...partitions.value }
-  // Keep entry even if empty (so auto-partition doesn't re-create)
   updated[buildingId] = data
   partitions.value = updated
   localStorage.setItem('golden-gai-partitions', JSON.stringify(updated))
+  // Persist to server (non-blocking — don't await so UI stays snappy)
+  savePartition(buildingId, data).catch(err => {
+    console.error('Failed to save partition to server:', err)
+  })
 }
 
 // Auto-create partitions for buildings with multiple bars.
@@ -202,12 +218,21 @@ function handleSearchMatches(matches) {
   }
   searchHighlightedBuildings.value = buildingIds
   searchHighlightedBars.value = barIds
+
+  if (matches.length > 0) {
+    drawerBuildingBars.value = matches
+    drawerBuildingId.value = null
+    drawerMode.value = 'building'
+  } else if (drawerMode.value === 'building' && drawerBuildingId.value === null) {
+    closeDrawer()
+  }
 }
 
 // Register windows
 onMounted(() => {
   wm.register('search', t('search'), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
   wm.register('explorer', 'Explorer', '&#128193;')
+  loadPartitionsFromServer()
 })
 
 // Keep search window title in sync with language
@@ -228,6 +253,15 @@ function onWindowResize() { isMobile.value = window.innerWidth <= 768 }
 onMounted(() => window.addEventListener('resize', onWindowResize))
 onUnmounted(() => window.removeEventListener('resize', onWindowResize))
 
+// Drawer mode: 'all' = all-bars default (desktop), 'building' = specific building
+const drawerMode = ref('all')
+// Fav/visited filter state (used by Explorer + map + BarDrawer)
+const favoritesFilter = ref(false)
+const visitedFilter = ref(false)
+// Hover sync between drawer cards ↔ map partitions
+const hoveredBarId = ref(null)
+const hoveredBuildingId = ref(null)
+
 // Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
 const labelMode = ref(localStorage.getItem('golden-gai-label-mode') || 'yoko')
 function setLabelMode(mode) {
@@ -236,14 +270,12 @@ function setLabelMode(mode) {
 }
 
 const mobileMapFiltersOpen = ref(false)
-const mapFavoritesFilter = ref(false)
-const mapVisitedFilter = ref(false)
 const hasActiveMapFilters = computed(() =>
   activeTags.value.length > 0 ||
   chargeMin.value != null || chargeMax.value != null ||
   drinkMin.value != null || drinkMax.value != null ||
   floorFilter.value != null || openNowFilter.value ||
-  mapFavoritesFilter.value || mapVisitedFilter.value
+  favoritesFilter.value || visitedFilter.value
 )
 function clearMapFilters() {
   activeTags.value = []
@@ -253,8 +285,8 @@ function clearMapFilters() {
   drinkMax.value = null
   floorFilter.value = null
   openNowFilter.value = false
-  mapFavoritesFilter.value = false
-  mapVisitedFilter.value = false
+  favoritesFilter.value = false
+  visitedFilter.value = false
 }
 
 // Explorer window: left edge, centered vertically after mount
@@ -333,11 +365,19 @@ function handleOpenApp(app) {
 function handleSelectBuilding({ buildingId, bars: barsInBuilding }) {
   drawerBuildingBars.value = barsInBuilding
   drawerBuildingId.value = buildingId
+  drawerMode.value = 'building'
 }
 
 function closeDrawer() {
-  drawerBuildingBars.value = null
-  drawerBuildingId.value = null
+  if (!isMobile.value) {
+    // Desktop: return to all-bars mode instead of closing
+    drawerMode.value = 'all'
+    drawerBuildingBars.value = null
+    drawerBuildingId.value = null
+  } else {
+    drawerBuildingBars.value = null
+    drawerBuildingId.value = null
+  }
   twitterBar.value = null
   if (mapRef.value) mapRef.value.clearSelection()
 }
@@ -403,7 +443,7 @@ async function handleUnplaceBar(bar) {
 </script>
 
 <template>
-  <BiosScreen v-if="showBios" @done="showBios = false" />
+  <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" @done="showBios = false" />
 
   <div v-if="loading" class="loading-screen">Loading...</div>
   <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
@@ -482,16 +522,19 @@ async function handleUnplaceBar(bar) {
           :partitions="partitions"
           :open-now-filter="openNowFilter"
           :open-bar-ids="openBarIds"
-          :favorites-filter="mapFavoritesFilter"
-          :visited-filter="mapVisitedFilter"
+          :favorites-filter="favoritesFilter"
+          :visited-filter="visitedFilter"
+          :hovered-bar-id="hoveredBarId"
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
           :label-mode="labelMode"
           :tag-mode="tagMode"
           @select-building="handleSelectBuilding"
+          @deselect="closeDrawer"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"
+          @hover-building="hoveredBuildingId = $event"
         />
 
         <!-- Mobile controls: search + filter bar -->
@@ -506,15 +549,15 @@ async function handleUnplaceBar(bar) {
           </div>
           <div class="mobile-map-filterbar">
             <button
-              :class="['mobile-map-filter-btn', { active: mapFavoritesFilter }]"
-              @click="mapFavoritesFilter = !mapFavoritesFilter"
+              :class="['mobile-map-filter-btn', { active: favoritesFilter }]"
+              @click="favoritesFilter = !favoritesFilter"
             >
               <img src="/icons/heart.ico" class="mobile-map-filter-icon" alt="" />
               {{ t('favorites') }}
             </button>
             <button
-              :class="['mobile-map-filter-btn', { active: mapVisitedFilter }]"
-              @click="mapVisitedFilter = !mapVisitedFilter"
+              :class="['mobile-map-filter-btn', { active: visitedFilter }]"
+              @click="visitedFilter = !visitedFilter"
             >
               <img src="/icons/desktop/trust0.png" class="mobile-map-filter-icon" alt="" />
               {{ t('visited') }}
@@ -594,6 +637,16 @@ async function handleUnplaceBar(bar) {
           @focus="wm.focus('explorer')"
           @minimize="wm.minimize('explorer')"
         >
+          <div class="explorer-quick-filters">
+            <button :class="['quickbar-btn', { active: favoritesFilter }]" @click="favoritesFilter = !favoritesFilter">
+              <img src="/icons/heart.ico" class="quickbar-icon" aria-hidden="true" />
+              Favorites
+            </button>
+            <button :class="['quickbar-btn', { active: visitedFilter }]" @click="visitedFilter = !visitedFilter">
+              <img src="/icons/desktop/trust0.png" class="quickbar-icon" aria-hidden="true" />
+              Visited
+            </button>
+          </div>
           <TagFilter
             v-model="activeTags"
             :tags="sortedTags"
@@ -609,9 +662,37 @@ async function handleUnplaceBar(bar) {
             @update:tag-mode="tagMode = $event"
           />
         </WinWindow>
-        <!-- Building drawer (map building clicks) -->
+        <!-- Desktop: always-visible BarDrawer (all-bars mode by default) -->
         <BarDrawer
-          v-if="drawerBuildingBars"
+          v-if="!isMobile && !isAdmin"
+          :all-bars-mode="drawerMode === 'all'"
+          :building-id="drawerBuildingId"
+          :bars="drawerMode === 'all' ? bars : (drawerBuildingBars || [])"
+          :active-tags="activeTags"
+          :charge-min="chargeMin"
+          :charge-max="chargeMax"
+          :drink-min="drinkMin"
+          :drink-max="drinkMax"
+          :floor-filter="floorFilter"
+          :open-now-filter="openNowFilter"
+          :open-bar-ids="openBarIds"
+          :tags="sortedTags"
+          :lang="effectiveLang"
+          :favorites-filter="favoritesFilter"
+          :visited-filter="visitedFilter"
+          :all-bars="bars"
+          :hover-building-id="hoveredBuildingId"
+          @close="closeDrawer"
+          @back-to-all="drawerMode = 'all'; drawerBuildingBars = null; drawerBuildingId = null"
+          @select-bar="openTwitterPanel"
+          @show-reviews="reviewPanelBar = $event"
+          @hover-bar="hoveredBarId = $event"
+          @unhover-bar="hoveredBarId = null"
+        />
+
+        <!-- Mobile: conditional BarDrawer (only when building selected) -->
+        <BarDrawer
+          v-if="isMobile && drawerBuildingBars"
           :building-id="drawerBuildingId"
           :bars="drawerBuildingBars"
           :active-tags="activeTags"
@@ -624,9 +705,13 @@ async function handleUnplaceBar(bar) {
           :open-bar-ids="openBarIds"
           :tags="sortedTags"
           :lang="effectiveLang"
+          :favorites-filter="favoritesFilter"
+          :visited-filter="visitedFilter"
           @close="closeDrawer"
           @select-bar="openTwitterPanel"
           @show-reviews="reviewPanelBar = $event"
+          @hover-bar="hoveredBarId = $event"
+          @unhover-bar="hoveredBarId = null"
         />
       </template>
 
@@ -862,6 +947,49 @@ async function handleUnplaceBar(bar) {
 @keyframes tour-pulse {
   0%, 100% { box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6); }
   50%       { box-shadow: 0 0 0 2px #ffcc44, 0 0 16px 4px rgba(255, 204, 68, 0.8); }
+}
+
+.explorer-quick-filters {
+  display: flex;
+  gap: 4px;
+  padding: 4px 4px 2px;
+  border-bottom: 1px solid var(--win-border-dark);
+}
+
+.explorer-quick-filters .quickbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  height: 22px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: var(--win-font);
+  font-size: var(--win-font-size);
+  color: var(--win-text);
+  user-select: none;
+}
+
+.explorer-quick-filters .quickbar-btn:hover {
+  border-color: var(--win-border-dark);
+  background: var(--win-bg);
+}
+
+.explorer-quick-filters .quickbar-btn.active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  background: var(--win-bg-dark);
+  border-color: transparent;
+}
+
+.explorer-quick-filters .quickbar-icon {
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  width: 15px;
+  height: 15px;
+  display: block;
 }
 
 .directory-container {

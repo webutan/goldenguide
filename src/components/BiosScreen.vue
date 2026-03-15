@@ -1,5 +1,10 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+
+const props = defineProps({
+  apiLoading: { type: Boolean, default: true },
+  apiError: { type: String, default: null },
+})
 
 const emit = defineEmits(['done'])
 
@@ -40,6 +45,19 @@ const promptBlink = ref(true)
 const assetsLoaded = ref(false)
 const typingDone = ref(false)
 
+// Keyed on actual API load — set by watcher below instead of setTimeout timers
+const loadKeyDone = { barlist: false, mapdata: false, tags: false, chat: false }
+
+watch(() => props.apiLoading, (loading) => {
+  if (!loading) {
+    loadKeyDone.barlist = true
+    loadKeyDone.mapdata = true
+    loadKeyDone.tags = true
+    // Chat is a Socket.IO connection that establishes shortly after the HTTP API responds
+    setTimeout(() => { loadKeyDone.chat = true }, 300)
+  }
+}, { immediate: true })
+
 let dismissed = false
 let blinkInterval = null
 
@@ -64,21 +82,15 @@ function preloadAssets() {
 }
 
 async function runBootSequence() {
-  const loadKeyDone = { barlist: false, mapdata: false, tags: false, chat: false }
-
-  setTimeout(() => { loadKeyDone.barlist = true }, 600)
-  setTimeout(() => { loadKeyDone.mapdata = true }, 900)
-  setTimeout(() => { loadKeyDone.tags = true }, 1100)
-  setTimeout(() => { loadKeyDone.chat = true }, 1300)
-
   for (const line of BOOT_LINES) {
     await sleep(line.delay)
 
     if (line.loadKey) {
       await waitFor(() => loadKeyDone[line.loadKey])
+      const failed = !!props.apiError && line.loadKey !== 'chat'
       displayedLines.value = [...displayedLines.value, {
-        text: line.text.replace('[LOADING]', '[OK]'),
-        color: '#00ff41',
+        text: line.text.replace('[LOADING]', failed ? '[FAILED]' : '[OK]'),
+        color: failed ? '#ff4444' : '#00ff41',
       }]
     } else {
       displayedLines.value = [...displayedLines.value, { text: line.text, color: line.color }]

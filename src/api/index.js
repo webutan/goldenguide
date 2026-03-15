@@ -133,6 +133,34 @@ export async function deleteAnnotation(id) {
   return res.json()
 }
 
+export async function uploadAnnotationIcon(annotationId, file) {
+  const form = new FormData()
+  form.append('icon', file)
+  const res = await fetch(`${BASE}/annotations/${encodeURIComponent(annotationId)}/icon`, {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: form,
+  })
+  if (!res.ok) throw new Error('Failed to upload annotation icon')
+  return res.json()
+}
+
+export async function fetchPartitions() {
+  const res = await fetch(`${BASE}/partitions`)
+  if (!res.ok) throw new Error('Failed to fetch partitions')
+  return res.json()
+}
+
+export async function savePartition(buildingId, data) {
+  const res = await fetch(`${BASE}/partitions/${encodeURIComponent(buildingId)}`, {
+    method: 'PUT',
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error('Failed to save partition')
+  return res.json()
+}
+
 export async function uploadPhoto(barId, file, type = 'general') {
   const form = new FormData()
   form.append('photo', file)

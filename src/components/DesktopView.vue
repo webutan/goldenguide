@@ -157,9 +157,17 @@ function handleDesktopClick() {
   50%       { outline-color: #ffdd88; filter: drop-shadow(0 0 12px rgba(255, 204, 68, 0.9)); }
 }
 
-/* Sign banner — hidden on desktop, shown on mobile */
+/* Sign banner — top-center on desktop, full-width on mobile */
 .desktop-sign-banner {
-  display: none;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 220px;
+  width: auto;
+  pointer-events: none;
+  z-index: 1;
 }
 
 @media (max-width: 768px) {
@@ -171,10 +179,12 @@ function handleDesktopClick() {
   }
 
   .desktop-sign-banner {
-    display: block;
+    position: static;
+    transform: none;
     width: 100%;
     height: auto;
     flex-shrink: 0;
+    pointer-events: auto;
   }
 
   .desktop-icons {

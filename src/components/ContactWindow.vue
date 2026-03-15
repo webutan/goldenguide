@@ -19,7 +19,7 @@ function handleSubmit() {
   const body = encodeURIComponent(
     `Name: ${form.value.name}\nEmail: ${form.value.email}\n\nMessage:\n${form.value.message}`
   )
-  window.open(`mailto:aaren@golden.guide?subject=${subject}&body=${body}`, '_blank')
+  window.open(`mailto:dev@golden.guide?subject=${subject}&body=${body}`, '_blank')
   submitted.value = true
 }
 </script>
@@ -55,12 +55,12 @@ function handleSubmit() {
           <p class="contact-text">
             <template v-if="jp">
               ご質問やご不明な点がございましたら、
-              <a href="mailto:aaren@golden.guide" class="contact-link">aaren@golden.guide</a>
+              <a href="mailto:dev@golden.guide" class="contact-link">aaren@golden.guide</a>
               までメールいただくか、以下のフォームよりお問い合わせください。ゴールデン街のバーで情報の修正をご希望の方もお気軽にご連絡ください。
             </template>
             <template v-else>
               If you have any questions or concerns, you can reach me at
-              <a href="mailto:aaren@golden.guide" class="contact-link">aaren@golden.guide</a>,
+              <a href="mailto:dev@golden.guide" class="contact-link">dev@golden.guide</a>,
               or by filling in the contact form below. You can also reach out if you are a bar in
               Golden Gai who wants to correct any information that may be incorrect.
             </template>

@@ -11,9 +11,18 @@ const bgColor = computed(() => COLORS[props.review.id % COLORS.length])
 const rotation = computed(() => (-3 + (props.review.id % 7) - 3))
 const barName = computed(() => props.review.name_en || props.review.name_jp || '')
 
-// Deterministic position based on review id
-const posX = computed(() => 200 + ((props.review.id * 137) % 500))
-const posY = computed(() => 60 + ((props.review.id * 193) % 300))
+// Deterministic position based on review id — two-zone layout to avoid center sign
+const isLeftZone = computed(() => props.review.id % 2 === 0)
+const posX = computed(() =>
+  isLeftZone.value
+    ? 20 + ((props.review.id * 137) % 160)   // 20–180px (left side, clear of center sign)
+    : 20 + ((props.review.id * 137) % 700)   // 20–720px (anywhere)
+)
+const posY = computed(() =>
+  isLeftZone.value
+    ? 30 + ((props.review.id * 193) % 380)   // 30–410px (fine on left side)
+    : 240 + ((props.review.id * 193) % 300)  // 240–540px (below sign)
+)
 </script>
 
 <template>

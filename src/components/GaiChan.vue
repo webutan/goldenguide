@@ -10,7 +10,7 @@ const props = defineProps({
 const emit = defineEmits(['select-lang', 'first-time-answer'])
 
 const DIALOG_TEXTS = {
-  'lang':       'Do you speak English or Japanese?\n英語と日本語、どちらがわかりますか？',
+  'lang':       'Do you speak English or Japanese?\n言語を選んでください。',
   'first-time': 'Is it your first time in Golden Gai?\n初めてゴールデン街に来ましたか？',
 }
 
@@ -91,8 +91,8 @@ onUnmounted(() => clearInterval(typingTimer))
                   </button>
                 </template>
                 <template v-else-if="bubbleType === 'first-time'">
-                  <WinButton @click="emit('first-time-answer', false)">No / いいえ</WinButton>
                   <WinButton @click="emit('first-time-answer', true)">Yes / はい</WinButton>
+                  <WinButton @click="emit('first-time-answer', false)">No / いいえ</WinButton>
                 </template>
               </div>
             </Transition>
