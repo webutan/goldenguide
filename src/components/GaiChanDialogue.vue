@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, reactive, watch, onUnmounted, nextTick } from 'vue'
+import GaiChanModel from './GaiChanModel.vue'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -14,101 +15,121 @@ const SCRIPT = [
     text_en: "Welcome to Golden Gai! I'm your guide, Gai-chan! First, a few things to know:",
     text_jp: "ゴールデンガイドへようこそ！私は街（ガイ）ちゃんだよ！最初に、この街について説明するわ！",
     image: null,
+    mood: 'wave',
   },
   {
     text_en: "First — these are PRIVATE streets. You're a guest here. Treat everyone around you with respect.",
     text_jp: "まず大事なこと — ここは全部私道よ。お客さんとして、周りのみんなを大切にしてね。",
     image: '/gaichan/gaichanidle.png',
+    mood: 'stern',
   },
   {
     text_en: "Security cameras are active throughout the area. Don't say I didn't warn you.",
     text_jp: "防犯カメラがあちこちで作動してる。念のため言っておくわ。",
     image: '/gaichan/camera.png',
+    mood: 'smug', prop: 'camera',
   },
   {
     text_en: "Don't talk to the touts at the entrance, they're here to rip you off!",
     text_jp: "街の入口にいる客引きとは話さない方がいいわ。気をつけて！",
     image: null,
+    mood: 'angry',
   },
   {
     text_en: "Most bars have a table charge. Think of it like a cover fee — it gets you your seat.",
     text_jp: "ほとんどのお店にはチャージ料金があるわよ！",
     image: '/gaichan/yen.png',
+    mood: 'happy', prop: 'yen',
   },
   {
     text_en: "Watch your bags! Luggage thieves operate here. Keep your things close.",
     text_jp: "荷物には気をつけて！置き引きがいるの。荷物は常に手元に！",
     image: '/gaichan/luggage.png',
+    mood: 'surprised', prop: 'suitcase',
   },
   {
     text_en: "Now, a few rules to keep in mind!",
     text_jp: "さて、この街のルールを教えてあげるね！",
     image: null,
+    mood: 'neutral',
   },
   {
     text_en: "Don't smoke outside! The buildings here are old and made of wood.",
     text_jp: "路上での喫煙は禁止！建物は古く木造わよ。",
     image: '/gaichan/smoking.png',
+    mood: 'stern', prop: 'cigarette',
   },
   {
     text_en: "No littering. No cigarette butts, no trash on the street. Take it with you.",
     text_jp: "ゴミのポイ捨て禁止！タバコの吸い殻も、全部持って帰って。",
     image: '/gaichan/trash.png',
+    mood: 'stern',
   },
   {
     text_en: "No drinking on the street. Take it inside a bar. That's literally what they're here for.",
     text_jp: "路上飲酒も禁止よ。目の前にお店があるんだから、お店の中で飲んで！",
     image: '/gaichan/drinking.png',
+    mood: 'stern', prop: 'can',
   },
   {
     text_en: "No photos without consent! You don't want me taking pictures of you at work, right?",
     text_jp: "街やお店の許可なしに撮影はしちゃダメよ！",
     image: '/gaichan/photo.png',
+    mood: 'embarrassed', prop: 'camera',
   },
   {
     text_en: "Try to keep your voice down. No shouting or group singing in the streets.",
     text_jp: "声は絶対に小さくして。大声や大合唱は邪魔だよ！",
     image: '/gaichan/shouting.png',
+    mood: 'thinking',
   },
   {
     text_en: "No graffiti. Touch a single wall and you'll answer to more than just me.",
     text_jp: "落書き禁止！壁に何か書いたら、アタシより怖い人に怒られるわよ。",
     image: '/gaichan/graffiti2.png',
+    mood: 'angry',
   },
   {
     text_en: "No drugs. Not ever. Zero tolerance — end of discussion.",
     text_jp: "ドラッグは絶対にダメ！完全アウト。これ以上言わない。",
     image: '/gaichan/drugs.png',
+    mood: 'angry',
   },
   {
     text_en: "No urinating, vomiting or spitting on the streets. There's public toilets for that!",
     text_jp: "立ちション・嘔吐・ツバを吐くの禁止！お店の中でちゃんとして。",
     image: '/gaichan/vomit.png',
+    mood: 'embarrassed',
   },
   {
     text_en: "Don't block the streets or loiter. It's narrow, so please keep moving!",
     text_jp: "通行妨害禁止よ。道が狭いから、たむろしないでね。",
     image: '/gaichan/blocking.png',
+    mood: 'thinking',
   },
   {
     text_en: "No bicycles or skateboards, walk! One kickflip and I'll break your board...",
     text_jp: "自転車・スケボーの乗り入れ禁止！ちゃんと歩いてね。",
     image: '/gaichan/skateboard.png',
+    mood: 'smug', prop: 'skateboard',
   },
   {
     text_en: "And don't climb anything — buildings, fences, signs. Hands off.",
     text_jp: "建物やフェンスによじ登るのも禁止！何にも触らないで。",
     image: '/gaichan/climbing.png',
+    mood: 'stern',
   },
   {
     text_en: "One last thing — you must be 20 or older to drink here. It's the law, no exceptions.",
     text_jp: "最後に — 20歳未満の飲酒は法律で禁止。例外はないわよ。",
     image: null,
+    mood: 'stern', prop: 'bottle',
   },
   {
     text_en: "That's everything! Now go enjoy Golden Gai. If you need any more help, click me on the desktop!",
     text_jp: "以上よ！ゴールデン街を楽しんでね。何があれば、デスクトップにいるアタシに聞いてね！",
     image: null,
+    mood: 'wave',
     isLast: true,
   },
 ]
@@ -116,6 +137,7 @@ const SCRIPT = [
 // ── Interactive dialogue nodes ───────────────────────────────────────────────
 const INTERACTIVE_DIALOGUE = {
   'menu': {
+    mood: 'happy',
     text_en: "How can I GAI-de you today?",
     text_jp: "私に”街ド”できることある？",
     choices: [
@@ -127,84 +149,98 @@ const INTERACTIVE_DIALOGUE = {
 
   // ── TOUR TREE ──────────────────────────────────────────────────────────────
   'tour-1': {
+    mood: 'happy',
     text_en: "You got it! First, let's take a look at the taskbar.",
     text_jp: "わかった！まずはタスクバーを見てみよう！",
     next: 'tour-2',
     action: { type: 'highlight', target: 'taskbar' },
   },
   'tour-2': {
+    mood: 'neutral', pose: 'point',
     text_en: "This is the map button! Here you can see an interactive map of Golden Gai and explore all the bars.",
     text_jp: "これがマップボタンよ！ゴールデン街のインタラクティブマップで、全部のバーを探索できるわ。",
     next: 'tour-3',
     action: { type: 'navigate+highlight', view: 'map', target: 'taskbar-map' },
   },
   'tour-3': {
+    mood: 'neutral', pose: 'point',
     text_en: "Using this filter section, you can narrow down bars by tags, price range, and more!",
     text_jp: "このフィルターを使うと、タグや価格帯でバーを絞り込めるわ！",
     next: 'tour-4',
     action: { type: 'highlight', target: 'map-filter' },
   },
   'tour-4': {
+    mood: 'neutral', pose: 'point',
     text_en: "This button here shows your location in Golden Gai!",
     text_jp: "このボタンで街内での自分の位置を確認できるの！",
     next: 'tour-5',
     action: { type: 'highlight', target: 'map-location' },
   },
   'tour-5': {
+    mood: 'neutral', pose: 'point',
     text_en: "When you click on a bar, all the information you need is written there!",
     text_jp: "バーをクリックすると、必要な情報が全部表示されるわよ！",
     next: 'tour-6',
     action: { type: 'highlight', target: null },
   },
   'tour-6': {
+    mood: 'neutral', pose: 'point',
     text_en: "This is the bar directory, for those who prefer a list view.",
     text_jp: "これはバーのディレクトリよ。リスト形式で見たい人向けね。",
     next: 'tour-7',
     action: { type: 'navigate+highlight', view: 'directory', target: 'taskbar-directory' },
   },
   'tour-7': {
+    mood: 'neutral', pose: 'point',
     text_en: "You can also filter bars here and view their social media feeds.",
     text_jp: "ここでもバーを絞り込んだり、SNSのフィードを見ることができるわ。",
     next: 'tour-8',
     action: { type: 'highlight', target: 'directory-filter' },
   },
   'tour-8': {
+    mood: 'happy',
     text_en: "The desktop is my favorite, because… I live here! Ahaha!!",
     text_jp: "デスクトップはアタシのお気に入り…だって、ここに住んでるんだもん！！！",
     next: 'tour-9',
     action: { type: 'navigate+highlight', view: 'desktop', target: 'taskbar-desktop' },
   },
   'tour-9': {
+    mood: 'neutral', pose: 'point',
     text_en: "Here you can access all the other applications, as well as a few more!",
     text_jp: "ここから他のアプリにもアクセスできるし、もう少し機能もあるの！",
     next: 'tour-10',
     action: { type: 'highlight', target: null },
   },
   'tour-10': {
+    mood: 'neutral', pose: 'point',
     text_en: "Here you can see the Twitter feeds of all the bars in Golden Gai!",
     text_jp: "ここでゴールデン街の全バーのTwitterフィードが見られるわ！",
     next: 'tour-11',
     action: { type: 'highlight', target: 'btn-feed' },
   },
   'tour-11': {
+    mood: 'neutral', pose: 'point',
     text_en: "Use the contact form if something is wrong or if you have suggestions.",
     text_jp: "何か問題があったり、提案があればコンタクトフォームを使ってね。",
     next: 'tour-12',
     action: { type: 'highlight', target: 'btn-contact' },
   },
   'tour-12': {
+    mood: 'neutral', pose: 'point',
     text_en: "If you want some helpful links or want to know more about Golden Gai, click here!",
     text_jp: "役立つリンクやゴールデン街について詳しく知りたいなら、ここをクリックして！",
     next: 'tour-13',
     action: { type: 'highlight', target: 'btn-about' },
   },
   'tour-13': {
+    mood: 'neutral', pose: 'point',
     text_en: "If you want to chat with other people in Golden Gai, use this one!",
     text_jp: "ゴールデン街の人たちとチャットしたいなら、これを使ってね！",
     next: 'tour-14',
     action: { type: 'highlight', target: 'btn-chatroom' },
   },
   'tour-14': {
+    mood: 'wave',
     text_en: "That's about everything! Now repeat it all back… just kidding. Enjoy!",
     text_jp: "以上で全部よ！じゃあ始めからもう一度…なんちって…　楽しんでね！",
     next: 'menu',
@@ -214,6 +250,7 @@ const INTERACTIVE_DIALOGUE = {
 
   // ── RECOMMEND TREE ─────────────────────────────────────────────────────────
   'recommend-1': {
+    mood: 'thinking',
     text_en: "You got it! Should I pick a random one or tailor it to your liking?",
     text_jp: "わかった！ランダムに選ぶ？それともあなた好みに絞る？",
     choices: [
@@ -222,12 +259,14 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'recommend-random': {
+    mood: 'happy',
     text_en: '', // filled dynamically
     text_jp: '',
     next: 'menu',
     isLast: true,
   },
   'recommend-filter-1': {
+    mood: 'thinking',
     text_en: "Do you smoke, or are you okay with smoking bars?",
     text_jp: "喫煙しますか？または喫煙可能なバーでも大丈夫？",
     choices: [
@@ -236,6 +275,7 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'rf-smoke-yes': {
+    mood: 'thinking',
     text_en: "Got it! Is a cash-only bar okay?",
     text_jp: "わかった！現金のみのバーでも大丈夫？",
     choices: [
@@ -244,6 +284,7 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'rf-smoke-no': {
+    mood: 'thinking',
     text_en: "Got it! Is a cash-only bar okay?",
     text_jp: "わかった！現金のみのバーでも大丈夫？",
     choices: [
@@ -252,6 +293,7 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'rf-cash-yes': {
+    mood: 'thinking',
     text_en: "Do you speak Japanese?",
     text_jp: "日本語は話せますか？",
     choices: [
@@ -260,6 +302,7 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'rf-cash-no': {
+    mood: 'thinking',
     text_en: "Do you speak Japanese?",
     text_jp: "日本語は話せますか？",
     choices: [
@@ -268,12 +311,14 @@ const INTERACTIVE_DIALOGUE = {
     ],
   },
   'rf-jp-yes': {
+    mood: 'happy',
     text_en: '', // filled dynamically
     text_jp: '',
     next: 'menu',
     isLast: true,
   },
   'rf-jp-no': {
+    mood: 'happy',
     text_en: '', // filled dynamically
     text_jp: '',
     next: 'menu',
@@ -282,6 +327,7 @@ const INTERACTIVE_DIALOGUE = {
 
   // ── CUTE TREE ───────────────────────────────────────────────────────────────
   'cute-1': {
+    mood: 'embarrassed',
     text_en: "Wh-wha! You can't just say things like that so suddenly!! You've only just met me...",
     text_jp: "ちょ、ちょっと！そんなこといきなり言わないでよ！！出会ったばかりじゃない...",
     next: 'menu',
@@ -305,6 +351,7 @@ let typingTimer = null
 
 // Mouth animation (mouthopen/mouthclosed alternation while typing)
 const mouthOpen = ref(false)
+const talking = ref(false)
 let mouthTimer = null
 
 // Terminal (opens once, stays open, updates in place)
@@ -344,20 +391,19 @@ const SPRITE_SETS = {
   embarrassed: { closed: '/gaichan/gaichanembarassed.png',       open: '/gaichan/gaichanembarassedmouthopen.png' },
 }
 
-const spriteSet = computed(() => {
-  // Interactive mode sprite selection
-  if (interactiveMode.value) {
-    if (interactiveNodeId.value === 'cute-1') return SPRITE_SETS.embarrassed
-    return SPRITE_SETS.regular
-  }
-  const i = stepIndex.value
-  if (i >= 1 && i <= 3)   return SPRITE_SETS.thinking
-  if (i === 5)             return SPRITE_SETS.surprised
-  if (i >= 7 && i <= 12)  return SPRITE_SETS.thinking
-  if (i === 13)            return SPRITE_SETS.surprised
-  if (i >= 14 && i <= 17) return SPRITE_SETS.thinking
-  return SPRITE_SETS.regular
+// Acting direction for the current line: mood (face + default pose), optional pose
+// override and held prop. See MOODS / PROPS in src/gaichan3d/GaiChanStage.js.
+const acting = computed(() => {
+  const src = interactiveMode.value ? (currentNode.value || {}) : currentStep.value
+  return { mood: src.mood || 'neutral', pose: src.pose || null, prop: src.prop || null }
 })
+
+// PNG sprites: shown while the 3D model loads, or instead of it without WebGL
+const MOOD_SPRITES = {
+  thinking: 'thinking', stern: 'thinking', angry: 'thinking', smug: 'thinking',
+  surprised: 'surprised', embarrassed: 'embarrassed',
+}
+const spriteSet = computed(() => SPRITE_SETS[MOOD_SPRITES[acting.value.mood]] || SPRITE_SETS.regular)
 
 const spriteImg = computed(() =>
   mouthOpen.value ? spriteSet.value.open : spriteSet.value.closed
@@ -378,6 +424,7 @@ const isTourNode = computed(() => interactiveNodeId.value.startsWith('tour-'))
 // ── Mouth animation ───────────────────────────────────────────────────────────
 function startMouthAnim() {
   clearInterval(mouthTimer)
+  talking.value = true
   mouthTimer = setInterval(() => {
     mouthOpen.value = !mouthOpen.value
   }, 140)
@@ -387,6 +434,7 @@ function stopMouthAnim() {
   clearInterval(mouthTimer)
   mouthTimer = null
   mouthOpen.value = false
+  talking.value = false
 }
 
 // ── Typewriter ────────────────────────────────────────────────────────────────
@@ -544,6 +592,7 @@ function handleSkip() {
   terminalTimer = null
   mouthTimer = null
   mouthOpen.value = false
+  talking.value = false
   terminalVisible.value = false
   emit('accepted')
   isTucked.value = true
@@ -772,13 +821,13 @@ watch(() => props.lang, () => {
     <Transition name="crt">
       <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick">
         <div class="crt-screen" :class="{ 'crt-screen--gaichan': !terminalImageVisible }">
-          <img
-            :src="spriteImg"
-            class="crt-gaichan-sprite"
+          <div
+            v-if="isMobile"
+            class="crt-gaichan-sprite crt-gaichan-model"
             :class="{ 'crt-gaichan-sprite--hidden': terminalImageVisible }"
-            alt="Gai-chan"
-            draggable="false"
-          />
+          >
+            <GaiChanModel v-bind="acting" :talking="talking" :fallback-src="spriteImg" :follow-pointer="false" />
+          </div>
           <div class="crt-lines">
             <div v-for="(line, i) in terminalLines" :key="i" class="crt-line">{{ line }}</div>
           </div>
@@ -820,12 +869,11 @@ watch(() => props.lang, () => {
             alt="Gai-chan"
             draggable="false"
           />
-          <img
-            v-else
-            :src="spriteImg"
-            class="screen-sprite"
-            alt="Gai-chan"
-            draggable="false"
+          <GaiChanModel
+            v-else-if="!isMobile"
+            v-bind="acting"
+            :talking="talking"
+            :fallback-src="spriteImg"
           />
           <div class="screen-scanlines" aria-hidden="true"></div>
         </div>
@@ -919,7 +967,9 @@ watch(() => props.lang, () => {
       class="small-terminal"
     >
       <div class="small-terminal-screen">
-        <img :src="spriteImg" class="small-terminal-sprite" alt="" draggable="false" />
+        <div class="small-terminal-sprite">
+          <GaiChanModel v-bind="acting" :talking="talking" :fallback-src="spriteImg" :follow-pointer="false" />
+        </div>
         <div class="small-terminal-scanlines" aria-hidden="true"></div>
       </div>
       <img src="/gaichan/smallterminaltp.png" class="small-terminal-mask" alt="" draggable="false" />
@@ -995,19 +1045,6 @@ watch(() => props.lang, () => {
   object-fit: cover;
   object-position: center 30%;
   image-rendering: auto;
-}
-
-/* Mouth sprite: 80% of screen width, face area centered */
-.screen-sprite {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  height: 112%;                    /* taller than screen → top is cropped */
-  object-fit: cover;
-  object-position: 50% 15%;       /* show the face, not the chest */
-  image-rendering: pixelated;
 }
 
 /* Moving CRT scanlines: above sprite (z=2), below window frame (screen-content is z=1 in body) */
@@ -1481,6 +1518,12 @@ watch(() => props.lang, () => {
   }
   .crt-gaichan-sprite--hidden {
     opacity: 0;
+  }
+  .crt-gaichan-model {
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
   }
 
   /* ── Mobile small terminal — fixed at top-left, shown during site tour only ─ */

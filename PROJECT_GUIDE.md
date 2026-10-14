@@ -25,6 +25,7 @@
 golden-gai-map/
 ├── public/
 │   ├── gaichan/          ← ALL Gai-chan assets (sprites, windows, terminal, rule images)
+│   │   └── model/        ← 3D Gai-chan (gaichan.glb + face/*.png) — generated, see scripts/blender/
 │   ├── icons/            ← Win2000 icons (.ico, .png), tag icons in icons/tags/
 │   ├── signs/            ← Street sign assets
 │   ├── cursors/          ← Custom .cur / .ani cursor files
@@ -36,6 +37,7 @@ golden-gai-map/
 │   ├── components/
 │   │   ├── GaiChan.vue           ← Corner sprite window + lang/first-time dialog modals
 │   │   ├── GaiChanDialogue.vue   ← VN-style rules walkthrough + interactive mode (main work area)
+│   │   ├── GaiChanModel.vue      ← 3D Gai-chan canvas (lazy-loads three.js, PNG fallback)
 │   │   ├── GoldenGaiMap.vue      ← SVG map with panzoom, building labels, touch rotation
 │   │   ├── BarDirectory.vue      ← Scrollable bar list
 │   │   ├── BarDrawer.vue         ← Slide-up drawer on map building click (mobile)
