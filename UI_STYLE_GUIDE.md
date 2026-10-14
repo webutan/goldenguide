@@ -133,15 +133,45 @@ On mobile during interactive mode, dialogue text appears in `.crt-dialogue-overl
 - Mobile: always open after first dialogue step; no slide animation; Gai-chan sprite inside screen
 - Images scan in via `clip-path: inset(0 0 100% 0)` → `inset(0 0 0% 0)`
 
-### Sprite Sets
+### 3D Gai-chan (GaiChanModel.vue)
+The monitor (desktop), CRT terminal and small tour terminal (mobile) render a real-time 3D Gai-chan
+instead of the PNG sprite. Each script line / interactive node carries its acting direction:
+
+```js
+{ text_en: '…', mood: 'stern', prop: 'cigarette' }   // optional: pose: 'think'
+```
+
+- **mood** → eyes + resting mouth + default pose: `neutral happy wave thinking surprised embarrassed stern angry smug`
+- **pose** (optional override) → `idle think surprised wave point shy present hips`
+- **prop** (optional, held in her right hand; implies `present` pose) → `camera can bottle cigarette yen suitcase skateboard lantern cup`
+
+Definitions live in `MOODS` / `PROPS` in `src/gaichan3d/GaiChanStage.js`. On top of the pose clips the
+runtime adds blinking, lip-flap while the typewriter runs (`talking`), breathing/sway, head + eyes following
+the pointer, and a hop when she's clicked (the click does not advance the dialogue).
+
+Rendering is deliberately low-res (`pixelHeight`, default 150px) and upscaled with `image-rendering: pixelated`.
+three.js (~150 KB gz) is lazy-loaded; until the model is ready, or if WebGL is unavailable, the PNG sprite
+below is shown (`fallbackSrc`).
+
+**Sandbox:** `npm run dev` → `/dev/gaichan-lab.html` (controls), `?view=grid` (all moods),
+`?view=props` (all props), `?view=dialogue` (the real dialogue component).
+
+**Re-exporting after editing the .blend** (`media/gaichan/Gaichan1.blend`, not in git):
+```bash
+blender -b media/gaichan/Gaichan1.blend -P scripts/blender/export_gaichan.py
+```
+Poses are defined in `POSES` in that script (or author a `pose.<name>` action in Blender).
+
+### Sprite Sets (PNG fallback)
 ```js
 SPRITE_SETS = {
   regular:   { closed: 'gaichanmouthclosed.png',        open: 'gaichanmouthopen.png' },
   thinking:  { closed: 'gaichanthinking.png',            open: 'gaichanthinkingmouthopen.png' },
   surprised: { closed: 'gaichansurprised.png',           open: 'gaichansurprisedmouthopen.png' },
+  embarrassed: { closed: 'gaichanembarassed.png',        open: 'gaichanembarassedmouthopen.png' },
 }
 ```
-`mouthOpen` ref toggles at 140ms intervals while typewriter is active.
+Chosen from the line's `mood` (`MOOD_SPRITES`). `mouthOpen` toggles at 140ms intervals while the typewriter is active.
 
 ---
 
