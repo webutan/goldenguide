@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Gai-chan VRChat preview</title>
+<style>
+  body{margin:0;background:#0d0b12;color:#ffe4a0;font:12px monospace;display:flex;gap:8px;padding:8px}
+  .v{display:flex;flex-direction:column;gap:4px} canvas{width:360px;height:480px;image-rendering:pixelated;background:#1b1724}
+  #hud{position:fixed;left:8px;bottom:8px;color:#fff;background:#0008;padding:3px 6px}
+</style></head>
+<body>
+  <div class="v"><div>PC — GaiChan/PS1 shader</div><canvas id="pc"></canvas></div>
+  <div class="v"><div>Android / iOS — VRChat/Mobile/Toon Lit (approx.)</div><canvas id="mobile"></canvas></div>
+  <div id="hud"></div>
+  <script type="module" src="./vrchat-preview.js"></script>
+</body></html>

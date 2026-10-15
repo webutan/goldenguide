@@ -1,0 +1,132 @@
+{
+  "viewPosition": [
+    -0.00045838914229534566,
+    1.1944310665130615,
+    0.18127979338169098
+  ],
+  "visemes": [
+    "vrc.v_sil",
+    "vrc.v_pp",
+    "vrc.v_ff",
+    "vrc.v_th",
+    "vrc.v_dd",
+    "vrc.v_kk",
+    "vrc.v_ch",
+    "vrc.v_ss",
+    "vrc.v_nn",
+    "vrc.v_rr",
+    "vrc.v_aa",
+    "vrc.v_e",
+    "vrc.v_ih",
+    "vrc.v_oh",
+    "vrc.v_ou"
+  ],
+  "blink": "Blink",
+  "expressions": [
+    {
+      "name": "Happy",
+      "shapes": [
+        "Eyes_Raised",
+        "Mouth_Open"
+      ]
+    },
+    {
+      "name": "Joy",
+      "shapes": [
+        "Eyes_Happy",
+        "Mouth_Open"
+      ]
+    },
+    {
+      "name": "Thinking",
+      "shapes": [
+        "Eyes_LookLeft",
+        "Mouth_Closed"
+      ]
+    },
+    {
+      "name": "Surprised",
+      "shapes": [
+        "Eyes_Surprised",
+        "Mouth_O"
+      ]
+    },
+    {
+      "name": "Embarrassed",
+      "shapes": [
+        "Eyes_Embarrassed",
+        "Mouth_Eww",
+        "Sweat"
+      ]
+    },
+    {
+      "name": "Stern",
+      "shapes": [
+        "Eyes_Narrow",
+        "Mouth_Closed"
+      ]
+    },
+    {
+      "name": "Angry",
+      "shapes": [
+        "Eyes_Angry",
+        "Mouth_Toothy"
+      ]
+    },
+    {
+      "name": "Smug",
+      "shapes": [
+        "Eyes_Narrow"
+      ]
+    }
+  ],
+  "props": [
+    "Camera",
+    "Can",
+    "Bottle",
+    "Cigarette",
+    "Yen",
+    "Lantern",
+    "Cup"
+  ],
+  "faceShapes": [
+    "Eyes_Raised",
+    "Eyes_Narrow",
+    "Eyes_Angry",
+    "Eyes_Embarrassed",
+    "Eyes_Surprised",
+    "Eyes_Happy",
+    "Eyes_LookLeft",
+    "Eyes_LookRight",
+    "Mouth_Closed",
+    "Mouth_Open",
+    "Mouth_Half",
+    "Mouth_O",
+    "Mouth_Toothy",
+    "Mouth_Eww",
+    "Sweat"
+  ],
+  "humanBones": [
+    "Hips",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "LeftShoulder",
+    "LeftUpperArm",
+    "LeftLowerArm",
+    "LeftHand",
+    "RightShoulder",
+    "RightUpperArm",
+    "RightLowerArm",
+    "RightHand",
+    "LeftUpperLeg",
+    "LeftLowerLeg",
+    "LeftFoot",
+    "RightUpperLeg",
+    "RightLowerLeg",
+    "RightFoot"
+  ],
+  "triangles": 6036,
+  "height": 1.5
+}

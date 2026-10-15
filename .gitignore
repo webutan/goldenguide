@@ -33,3 +33,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Dev preview build of the VRChat avatar (scripts/blender/export_vrchat.py --preview-glb)
+dev/gaichan-vrchat-preview.glb
