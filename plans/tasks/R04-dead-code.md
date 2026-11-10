@@ -52,3 +52,11 @@ Also (found in G01): `src/components/MapBarPanel.vue` is not imported anywhere (
 Also (found in B11): the `labelMode` prop of `GoldenGaiMap.vue` is declared and passed by `App.vue` but never read (tate only exists as a per-building `labelOrientation`); `labelOrientation: 'tate'` without `labelTextRotation` renders upside down; annotations cannot be dragged by touch (mousedown only); double-tap on a building never zooms on mobile because the first tap opens the drawer; Safari `gesturestart`/`gesturechange` (trackpad pinch) is not handled. The desktop-zoom items listed earlier in this file (fit 1.25x too large, buttons under the drawer) moved to B12.
 
 Also (found in G02): `fetchBar()` in `src/api/index.js` is unused; the client resets `document.title` to "Golden Gai Map" on `/map` and `/directory` after boot although the server sends specific titles; `<html lang>` is not updated when the language is switched in the app; an admin opening `/bar/<inactive-slug>` in the browser gets the not-found dialog (page navigations carry no admin header); a bar photo used as `og:image` has no width/height and may be cropped oddly; the default share image has no Japanese line (sharp cannot read the WOFF2 PixelMplus font).
+
+Also (found in B12):
+- `DRAWER_WIDTH = 300` in `GoldenGaiMap.vue` mirrors `.bar-drawer { width: 300px }` in `BarDrawer.vue`, and the map assumes the drawer is shown when `!isMobile && !adminMode`. Pass the inset from `App.vue` as a prop instead of duplicating both facts.
+- Arrow-key panning (panzoom's) is not clamped to the pan limits and its step uses viewport px.
+- The hover tooltip is clamped to the full container, so near the drawer it can open partly under it.
+- When the map is rotated, the container corners outside the rotated wrap don't respond to wheel/drag.
+- `+/−` and search-select centre on the container centre, which on desktop is right of the middle of the visible (drawer-free) area; consider the visible-area centre.
+- Deploy note for PROJECT_GUIDE: `web` and `api` must be updated together. A new `web` with an old `api` (no SEO routes) answers `/bar/<slug>` with Express's plain 404 page.

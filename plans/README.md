@@ -157,7 +157,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [B10](tasks/B10-map-geometry.md) | Partition badge centres; pan correct after rotation | M | 3 h | 30 m | R01 |
 | ✅ | [R02](tasks/R02-keep-map-alive.md) | Keep map alive between views | S–M | 2 h | 15 m | R01 |
 | ✅ | [B11](tasks/B11-map-touch-gestures.md) | Map touch gestures: rotate, drag and pinch when rotated (found in B10) | M | 3 h | 30 m | B10, R02 |
-| ☐ | [B12](tasks/B12-desktop-map-zoom.md) | Desktop map drag/wheel/fit under the 1.25 CSS zoom (found in B10/R02/B11) | S–M | 2 h | 20 m | B11 |
+| ✅ | [B12](tasks/B12-desktop-map-zoom.md) | Desktop map drag/wheel/fit under the 1.25 CSS zoom (found in B10/R02/B11) | S–M | 2 h | 20 m | B11 |
 | ✅ | [R03](tasks/R03-chat-scroll.md) | Chat: cheap watcher, don't yank scroll | S | 45 m | 10 m | – |
 | ☐ | [R04](tasks/R04-dead-code.md) | Dead code & data cleanup | S | 1 h | 15 m | late |
 | ✅ | [R05](tasks/R05-win95-dialogs.md) | Win95 dialog system (replace alert/confirm/prompt) | M | 3 h | 20 m | – |
