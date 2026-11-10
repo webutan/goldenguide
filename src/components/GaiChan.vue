@@ -105,7 +105,7 @@ onUnmounted(() => clearInterval(typingTimer))
     <div class="gaichan-window" :class="{ 'gaichan-window--hidden': hidden || bubbleType }">
       <div class="gaichan-titlebar">街ちゃん / Gai-chan</div>
       <div class="gaichan-imgwrap">
-        <img class="gaichan-bg" src="/gaichan/gaichanwindow.png" alt="" />
+        <img class="gaichan-bg" src="/gaichan/gaichanwindow.webp" alt="" />
         <img class="gaichan-sprite" :src="currentSprite" alt="Gai-chan" />
         <div class="gaichan-scanlines" aria-hidden="true"></div>
       </div>

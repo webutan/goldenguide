@@ -35,7 +35,7 @@ const App = {
           Object.keys(PROPS).map(p => cell(p, h(GaiChanModel, { onReady, mood: 'happy', prop: p, framing, followPointer: false }))))
       }
       if (view === 'dialogue') {
-        return h('div', { style: 'position:fixed;inset:0;background:url(/gaichan/gaichanbg.jpg) center/cover, #1a1420' }, [
+        return h('div', { style: 'position:fixed;inset:0;background:url(/gaichan/gaichanbg.webp) center/cover, #1a1420' }, [
           h(GaiChanDialogue, { lang: 'en', rulesAccepted: params.has('tucked'), bars: [] }),
         ])
       }
