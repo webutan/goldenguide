@@ -3,6 +3,7 @@ import { yen } from '../utils/barFilters.js'
 import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
+import { canNativeShare } from '../composables/useUrlState.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
@@ -16,9 +17,11 @@ const props = defineProps({
   openBarIds: { type: Set, default: () => new Set() },
   twitterOpen: { type: Boolean, default: false },
   autoTwitter: { type: Boolean, default: false },
+  // Which of buildingBars to show (deep links, Back/Forward); first one if absent
+  selectedBarId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['close', 'select-bar', 'show-reviews'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'change-bar', 'share-bar'])
 
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
@@ -26,11 +29,23 @@ const { t } = useI18n(computed(() => props.lang))
 const showReviewDialog = ref(false)
 
 // Which bar is selected within the building
-const selectedIndex = ref(0)
+function indexOfSelected() {
+  const i = (props.buildingBars || []).findIndex(b => b.id === props.selectedBarId)
+  return i === -1 ? 0 : i
+}
+const selectedIndex = ref(indexOfSelected())
 
-watch(() => props.buildingBars, (val) => {
-  if (val && val.length > 0) selectedIndex.value = 0
+watch([() => props.buildingBars, () => props.selectedBarId], ([val]) => {
+  if (val && val.length > 0) selectedIndex.value = indexOfSelected()
 })
+
+function selectTab(i) {
+  selectedIndex.value = i
+  emit('change-bar', props.buildingBars[i])
+}
+
+// "Share…" opens the phone's share sheet; elsewhere the link is copied
+const nativeShare = canNativeShare()
 
 const bar = computed(() => {
   if (!props.buildingBars || props.buildingBars.length === 0) return null
@@ -133,7 +148,7 @@ function openGoogleMaps() {
                 v-for="(b, i) in buildingBars"
                 :key="b.id"
                 :class="['bar-tab', { active: i === selectedIndex }]"
-                @click="selectedIndex = i"
+                @click="selectTab(i)"
               >
                 {{ lang === 'jp' ? (b.name_jp || b.name_en) : (b.name_en || b.name_jp) }}
               </button>
@@ -259,6 +274,9 @@ function openGoogleMaps() {
                   <template v-else>{{ t('markVisited') }}</template>
                 </WinButton>
                 <WinButton @click="emit('show-reviews', bar)">{{ t('reviews') }}</WinButton>
+                <WinButton class="share-btn" @click="emit('share-bar', { bar, anchor: $event.currentTarget })">
+                  <img src="/icons/tags/url1.ico" class="share-btn-icon" alt="" />{{ t(nativeShare ? 'shareBar' : 'copyLink') }}
+                </WinButton>
                 <WinButton @click="emit('close')">{{ t('close') }}</WinButton>
               </div>
             </template>
@@ -608,5 +626,26 @@ function openGoogleMaps() {
 .popup-enter-from,
 .popup-leave-to {
   opacity: 0;
+}
+
+/* Share / copy-link button */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.share-btn-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .share-btn {
+    min-height: 40px;
+  }
 }
 </style>
