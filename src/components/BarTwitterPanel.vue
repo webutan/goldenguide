@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { fetchBarFeed } from '../api/index.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOnline } from '../composables/usePwa.js'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -12,15 +13,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const { t } = useI18n(computed(() => props.lang))
-
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = String(url).trim().match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/@?([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
-}
 
 const handle = computed(() => parseTwitterHandle(props.bar?.sns))
 
