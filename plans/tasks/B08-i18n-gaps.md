@@ -9,7 +9,8 @@ The Explorer's "Favorites" / "Visited" buttons (`App.vue` ~643–647), the mobil
 1. Remove the duplicate key.
 2. Grep the templates for English literals between tags and in `title=`, `placeholder=` and `alt=` attributes in **user-facing** components (admin-only components can stay English). Move them into `t()`.
 3. Window titles registered with `wm.register` should update when the language changes. Generalise the existing `watch(effectiveLang, ...)` that only handles `search`.
-4. In dev only, make `t()` `console.warn` on missing keys.
+4. Known leftovers found during B01: `ReviewDialog.vue` ("Draw? (optional)", "Eraser", "Clear", "Skip"), and the `timeAgo` strings ("just now", "1m ago") in `ReviewPanel.vue` / `ReviewsWindow.vue`. Also make the review dialog ask before closing on an overlay click when there is unsaved text or drawing.
+5. In dev only, make `t()` `console.warn` on missing keys.
 
 ## Acceptance criteria
 - [ ] Switching to JP leaves no English on the user-facing desktop, map, directory or windows (screenshot both languages)
