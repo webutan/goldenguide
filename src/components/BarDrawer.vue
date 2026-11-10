@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useSuggestEdit } from '../composables/useSuggestEdit.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -35,6 +35,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'share-bar', 'hover-bar', 'unhover-bar', 'back-to-all'])
+
+// A card under the pointer never gets its mouseleave if the drawer is removed
+// (admin toggle, leaving the map): report it so the map highlight clears.
+onBeforeUnmount(() => emit('unhover-bar'))
 const { openSuggestEdit } = useSuggestEdit()
 // "Share…" opens the phone's share sheet; elsewhere the link is copied
 const nativeShare = canNativeShare()

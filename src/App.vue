@@ -613,6 +613,13 @@ watch(effectiveLang, (l) => { document.documentElement.lang = htmlLang(l) }, { i
 const dialog = useDialog()
 const shareBalloon = ref(null) // { text, x, y, below } | null
 let shareBalloonTimer = null
+let shareBalloonWatch = null
+
+function hideShareBalloon() {
+  clearTimeout(shareBalloonTimer)
+  clearInterval(shareBalloonWatch)
+  shareBalloon.value = null
+}
 
 function showShareBalloon(anchorEl, text) {
   const rect = anchorEl?.getBoundingClientRect?.()
@@ -625,9 +632,17 @@ function showShareBalloon(anchorEl, text) {
     below,
   }
   clearTimeout(shareBalloonTimer)
-  shareBalloonTimer = setTimeout(() => { shareBalloon.value = null }, 2000)
+  clearInterval(shareBalloonWatch)
+  shareBalloonTimer = setTimeout(hideShareBalloon, 2000)
+  // The balloon points at a button on a bar card: when the card goes away
+  // (closed, filtered out, another view) the balloon goes with it.
+  if (anchorEl) {
+    shareBalloonWatch = setInterval(() => {
+      if (!anchorEl.isConnected || anchorEl.getClientRects().length === 0) hideShareBalloon()
+    }, 100)
+  }
 }
-onUnmounted(() => clearTimeout(shareBalloonTimer))
+onUnmounted(hideShareBalloon)
 
 async function handleShareBar({ bar, anchor }) {
   if (!bar || !bar.slug) return
