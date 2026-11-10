@@ -14,7 +14,8 @@
 2. POST: use the same `allowedFields` list as PATCH (one shared constant), and generate a slug from `name_en`/`name_jp` if none is given.
 3. GET: filter `is_active` for non-admin requests.
 4. Chat: prune with `DELETE FROM chat_messages WHERE id < (SELECT id FROM chat_messages ORDER BY id DESC OFFSET 500 LIMIT 1)`, and only every 50th insert.
-5. Partitions: validate the body is an object, `partitions` an array (≤ 8 items), numeric fields finite, size ≤ 20 kB.
+5. Photos (found during S03): `GET /api/bars/:bar_id/photos` must validate `bar_id` as a positive integer (currently a 500 on non-numeric). Restrict the photo upload `type` field to an allow-list (`general`, `interior`, `exterior`, `menu`, `sign`; default `general`).
+6. Partitions: validate the body is an object, `partitions` an array (≤ 8 items), numeric fields finite, size ≤ 20 kB.
 
 ## Acceptance criteria
 - [ ] `PATCH /api/bars/abc` → 400
