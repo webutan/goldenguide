@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUpdated, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 
 const contentEl = ref(null)
 const trackEl = ref(null)
@@ -82,21 +82,34 @@ function stopHold() {
   holdInterval = null
 }
 
+// The metrics are read when a size actually changes (the scroll box, or any
+// direct child of it: the content) and on scroll. They are not read after
+// every re-render of the slot: that forced a layout each time, also when
+// nothing had moved.
 let ro = null
+let mo = null
+
+function observeSizes() {
+  const el = contentEl.value
+  if (!ro || !el) return
+  ro.disconnect()
+  ro.observe(el)
+  for (const child of el.children) ro.observe(child)
+}
 
 onMounted(() => {
   nextTick(() => {
+    if (!contentEl.value) return
     updateMetrics()
     ro = new ResizeObserver(updateMetrics)
-    if (contentEl.value) {
-      ro.observe(contentEl.value)
-      if (contentEl.value.firstElementChild) ro.observe(contentEl.value.firstElementChild)
-    }
+    observeSizes()
+    // The slot's root elements can be swapped (v-if): watch the new ones
+    mo = new MutationObserver(observeSizes)
+    mo.observe(contentEl.value, { childList: true })
   })
 })
 
-onUpdated(updateMetrics)
-onBeforeUnmount(() => { ro?.disconnect(); stopHold() })
+onBeforeUnmount(() => { ro?.disconnect(); mo?.disconnect(); stopHold() })
 </script>
 
 <template>
