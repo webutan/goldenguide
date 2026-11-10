@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fill an empty dev database with the bars in src/data/bars.json, through the
+// Fill an empty dev database with the bars in scripts/data/bars.json, through the
 // admin API (so it also exercises POST /api/bars). Dev only — never run this
 // against production. Buildings, prices, schedules and tags are made-up
 // placeholders so the map, filters and "Open Now" have something to show.
@@ -9,9 +9,9 @@ import { readFileSync } from 'node:fs'
 
 const API = process.env.API || 'http://localhost:3001'
 const headers = { 'Content-Type': 'application/json', 'X-Admin-Password': process.env.ADMIN_PASSWORD || '' }
-const read = p => JSON.parse(readFileSync(new URL(`../src/data/${p}`, import.meta.url)))
-const bars = read('bars.json')
-const buildings = read('buildings.json')
+const read = p => JSON.parse(readFileSync(new URL(p, import.meta.url)))
+const bars = read('./data/bars.json')
+const buildings = read('../src/data/buildings.json')
 const tags = await (await fetch(`${API}/api/tags`)).json()
 
 const existing = await (await fetch(`${API}/api/bars`, { headers })).json()

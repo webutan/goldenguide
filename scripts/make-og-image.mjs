@@ -199,7 +199,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
 
 // Gai-chan stands in the screen, cut off by its bottom edge
 const spriteH = 430
-const sprite = await sharp(resolve(root, 'public/gaichanidle.png'))
+const sprite = await sharp(resolve(root, 'scripts/assets/gaichanidle.png'))
   .trim()
   .resize({ height: spriteH, kernel: 'nearest' })
   .toBuffer({ resolveWithObject: true })

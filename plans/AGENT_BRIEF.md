@@ -40,7 +40,7 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 
 ## Local environment tips
 
-- **Database:** if `psql` is installed, a local Postgres works without Docker: create a `golden_gai` database and put `DATABASE_URL=postgres://...`, `ADMIN_PASSWORD=devpass` in `.env` (git-ignored; a worktree needs its own copy). `npm run dev:server` runs the migrations. For data, `ADMIN_PASSWORD=devpass node scripts/dev-seed.mjs` fills an empty DB from `src/data/bars.json` (placeholder buildings/prices/schedules, 4 inactive bars).
+- **Database:** if `psql` is installed, a local Postgres works without Docker: create a `golden_gai` database and put `DATABASE_URL=postgres://...`, `ADMIN_PASSWORD=devpass` in `.env` (git-ignored; a worktree needs its own copy). `npm run dev:server` runs the migrations. For data, `ADMIN_PASSWORD=devpass node scripts/dev-seed.mjs` fills an empty DB from `scripts/data/bars.json` (placeholder buildings/prices/schedules, 4 inactive bars).
 - **Don't share mutable state with other agents:** if your task writes to the DB (partitions, reviews, bars), copy the database (`createdb x && pg_dump golden_gai | psql x`) and run your own API on another `PORT`.
 - **Skipping onboarding in Playwright:** the `DEV` guard only applies to `npm run dev`. Against `npm run build && npx vite preview`, set these before the page loads (`context.addInitScript`): `golden-gai-lang=en`, `golden-gai-first-time=no`, `golden-gai-rules-accepted=1`, `golden-gai-booted=1`.
 - **Driving the UI:** desktop icons open on double-click; the taskbar buttons switch views on single click; the admin toggle is in the Start menu (first taskbar button).
