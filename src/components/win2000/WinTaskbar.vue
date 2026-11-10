@@ -185,7 +185,7 @@ onUnmounted(() => {
     <!-- System tray -->
     <div class="taskbar-tray">
       <span v-if="isAdmin" class="tray-admin">ADM</span>
-      <span class="tray-visited" :title="`${visitedCount} of ${totalBars} bars visited`">
+      <span class="tray-visited" :title="t('visitedTooltip', { visited: visitedCount, total: totalBars })">
         {{ visitedCount }}/{{ totalBars }}
       </span>
       <span

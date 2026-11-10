@@ -118,8 +118,8 @@ function openGoogleMaps() {
         <div class="win-dialog">
           <!-- Title bar -->
           <div class="win-dialog-titlebar">
-            <span class="win-dialog-title">{{ buildingId || 'Building' }} &mdash; {{ buildingBars.length }} bar{{ buildingBars.length > 1 ? 's' : '' }}</span>
-            <button class="win-ctrl-btn" @click="emit('close')" title="Close">
+            <span class="win-dialog-title">{{ buildingId || t('building') }} &mdash; {{ t(buildingBars.length === 1 ? 'barCountOne' : 'barCount', { n: buildingBars.length }) }}</span>
+            <button class="win-ctrl-btn" @click="emit('close')" :title="t('close')">
               <span class="win-ctrl-icon">&#10005;</span>
             </button>
           </div>
@@ -154,10 +154,10 @@ function openGoogleMaps() {
                   <button
                     v-if="twitterHandle"
                     class="icon-action-btn"
-                    title="Twitter/X"
+                    :title="t('twitterX')"
                     @click="emit('select-bar', bar)"
                   >
-                    <img src="/icons/twitter.png" alt="Twitter/X" class="icon-action-img" />
+                    <img src="/icons/twitter.png" :alt="t('twitterX')" class="icon-action-img" />
                   </button>
                   <button
                     v-if="googleMapsUrl"
@@ -165,7 +165,7 @@ function openGoogleMaps() {
                     :title="t('googleMaps')"
                     @click="openGoogleMaps"
                   >
-                    <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                    <img src="/icons/googlemaps.png" :alt="t('googleMaps')" class="maps-icon-img" />
                   </button>
                 </div>
               </div>

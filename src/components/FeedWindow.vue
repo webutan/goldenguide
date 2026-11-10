@@ -87,25 +87,25 @@ onMounted(load)
 
 <template>
   <div class="feed-win">
-    <button class="feed-close-btn" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="feed-close-btn" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <!-- Loading -->
     <div v-if="loading" class="feed-status">
       <img src="/icons/desktop/goldengaisprite.ico" class="feed-status-icon" alt="" />
-      Loading...
+      {{ t('loading') }}
     </div>
 
     <!-- No accounts -->
     <div v-else-if="accounts.length === 0" class="feed-status">
-      No Twitter/X accounts found in database.
+      {{ t('noTwitterAccounts') }}
     </div>
 
     <!-- API mode: merged tweet timeline -->
     <template v-else-if="tweets !== null">
       <div v-if="error" class="feed-error">{{ error }}</div>
-      <div v-if="tweets.length === 0" class="feed-status">No recent tweets found.</div>
+      <div v-if="tweets.length === 0" class="feed-status">{{ t('noRecentTweets') }}</div>
       <div v-else class="tweet-list">
         <a
           v-for="tweet in tweets"

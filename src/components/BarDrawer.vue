@@ -118,7 +118,7 @@ const displayedGroups = computed(() => {
     return Object.entries(groups)
       .map(([bldgId, bars]) => ({
         key: `bldg-${bldgId}`,
-        label: bldgId,
+        label: bldgId === 'unplaced' ? t('unplaced') : bldgId,
         floor: null,
         bars,
         isBuilding: true,
@@ -134,17 +134,18 @@ const displayedGroups = computed(() => {
 const drawerTitle = computed(() => {
   if (props.hoverBuildingId) {
     const count = props.allBars.filter(b => String(b.building_id) === String(props.hoverBuildingId)).length
-    return `${props.hoverBuildingId} \u2014 ${count} bar${count !== 1 ? 's' : ''}`
+    return `${props.hoverBuildingId} \u2014 ${t(count === 1 ? 'barCountOne' : 'barCount', { n: count })}`
   }
   if (props.allBarsMode) {
-    return `Golden Gai \u2014 ${visibleBars.value.length} bar${visibleBars.value.length !== 1 ? 's' : ''}`
+    const n = visibleBars.value.length
+    return `${t('goldenGai')} \u2014 ${t(n === 1 ? 'barCountOne' : 'barCount', { n })}`
   }
   if (!props.buildingId) {
     const count = props.bars?.length ?? 0
-    return `Search Results \u2014 ${count} bar${count !== 1 ? 's' : ''}`
+    return `${t('searchResults')} \u2014 ${t(count === 1 ? 'barCountOne' : 'barCount', { n: count })}`
   }
   const count = props.bars?.length ?? 0
-  return `${props.buildingId} \u2014 ${count} bar${count !== 1 ? 's' : ''}`
+  return `${props.buildingId} \u2014 ${t(count === 1 ? 'barCountOne' : 'barCount', { n: count })}`
 })
 
 const tagMap = computed(() => {
@@ -201,16 +202,16 @@ function getOpenStatus(bar) {
   <Transition name="drawer">
     <div class="bar-drawer">
       <div class="bar-drawer-titlebar">
-        <WinButton v-if="!allBarsMode && !hoverBuildingId && buildingId" small class="back-btn" @click="emit('back-to-all')" title="All bars">&#9664;</WinButton>
+        <WinButton v-if="!allBarsMode && !hoverBuildingId && buildingId" small class="back-btn" @click="emit('back-to-all')" :title="t('allBars')">&#9664;</WinButton>
         <span class="bar-drawer-title">{{ drawerTitle }}</span>
-        <button class="win-ctrl-btn" @click="emit('close')" title="Close">
+        <button class="win-ctrl-btn" @click="emit('close')" :title="t('close')">
           <span class="win-ctrl-icon">&#10005;</span>
         </button>
       </div>
       <div class="bar-drawer-body">
         <WinScrollContainer><div class="bar-drawer-body-inner">
         <div v-if="!hoverBuildingId && visibleBars.length === 0" class="drawer-empty">
-          No bars match the current filter.
+          {{ t('noBarsMatchFilter') }}
         </div>
         <template v-for="group in displayedGroups" :key="group.key">
           <div
@@ -243,10 +244,10 @@ function getOpenStatus(bar) {
                 <button
                   v-if="parseTwitterHandle(bar.sns)"
                   class="icon-action-btn"
-                  title="Twitter/X"
+                  :title="t('twitterX')"
                   @click="emit('select-bar', bar)"
                 >
-                  <img src="/icons/twitter.png" alt="Twitter/X" class="icon-action-img" />
+                  <img src="/icons/twitter.png" :alt="t('twitterX')" class="icon-action-img" />
                 </button>
                 <button
                   v-if="getGoogleMapsUrl(bar)"
@@ -254,7 +255,7 @@ function getOpenStatus(bar) {
                   :title="t('googleMaps')"
                   @click="openGoogleMaps(bar)"
                 >
-                  <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                  <img src="/icons/googlemaps.png" :alt="t('googleMaps')" class="maps-icon-img" />
                 </button>
               </div>
             </div>
