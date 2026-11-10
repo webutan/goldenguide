@@ -14,7 +14,7 @@ const { t } = useI18n(computed(() => props.lang))
 
 function parseTwitterHandle(url) {
   if (!url) return null
-  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/i)
+  const match = String(url).trim().match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/@?([A-Za-z0-9_]+)/i)
   if (!match) return null
   const skip = ['intent', 'search', 'hashtag', 'i', 'share']
   if (skip.includes(match[1].toLowerCase())) return null

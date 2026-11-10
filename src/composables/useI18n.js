@@ -165,6 +165,7 @@ const translations = {
   'partStaleMissing': { en: 'Slot {n}: bar {name} no longer exists', jp: 'スロット{n}：バー {name} は存在しません' },
   'partStaleMoved': { en: 'Slot {n}: {name} is no longer in this building', jp: 'スロット{n}：{name} はこの建物にありません' },
   'partStaleRemove': { en: 'Remove', jp: '削除' },
+  'rateLimited': { en: 'Slow down! Try again in a minute.', jp: 'ちょっと待って！1分ほどしてからもう一度お試しください。' },
 }
 
 export function useI18n(lang) {

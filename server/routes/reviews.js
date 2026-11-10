@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import pool from '../db.js'
+import { reviewLimiter } from '../middleware/rateLimits.js'
 
 const router = Router()
 
@@ -41,8 +42,9 @@ router.get('/bar/:barId', async (req, res) => {
   }
 })
 
-// POST /api/reviews — create a review
-router.post('/', async (req, res) => {
+// POST /api/reviews — create a review (rate-limited per IP; every attempt
+// counts, valid or not)
+router.post('/', reviewLimiter, async (req, res) => {
   const { barId, nickname, text, drawing } = req.body || {}
   if (!Number.isInteger(barId) || barId <= 0) return res.status(400).json({ error: 'barId must be a positive integer' })
   if (!nickname || typeof nickname !== 'string' || !nickname.trim()) return res.status(400).json({ error: 'nickname required' })

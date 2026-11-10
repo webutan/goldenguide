@@ -20,7 +20,9 @@ export async function postReview({ barId, nickname, text, drawing }) {
   })
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    throw new Error(data.error || `Failed to post review: ${res.status}`)
+    const err = new Error(data.error || `Failed to post review: ${res.status}`)
+    err.status = res.status // 429 = rate limited (see ReviewDialog)
+    throw err
   }
   return res.json()
 }

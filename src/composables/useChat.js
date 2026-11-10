@@ -23,6 +23,20 @@ const connected = ref(false)
 const nickname = ref(readString(NICKNAME_KEY) || generateGuestName())
 const checkinList = ref([])
 const myCheckinBarId = ref(null)
+// Set when the server drops a message / check-in for being too fast:
+// { kind: 'message' | 'checkin', text, seq }. `text` is the dropped message
+// so the window can put it back in the input. Cleared after a few seconds.
+const rateLimitNotice = ref(null)
+const RATE_LIMIT_NOTICE_MS = 6000
+let noticeTimer = null
+let noticeSeq = 0
+let lastSentText = ''
+
+function clearRateLimitNotice() {
+  clearTimeout(noticeTimer)
+  noticeTimer = null
+  rateLimitNotice.value = null
+}
 
 function setNickname(nick) {
   const clean = String(nick ?? '').trim().slice(0, 30) || generateGuestName()
@@ -99,6 +113,15 @@ function openSocket(io) {
     checkinList.value = list
   })
 
+  socket.on('chat:rate_limited', (info) => {
+    const kind = info?.kind === 'checkin' ? 'checkin' : 'message'
+    // A refused check-in never happened: go back to what the server holds.
+    if (kind === 'checkin') myCheckinBarId.value = info?.barId ?? null
+    rateLimitNotice.value = { kind, text: kind === 'message' ? lastSentText : '', seq: ++noticeSeq }
+    clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(clearRateLimitNotice, RATE_LIMIT_NOTICE_MS)
+  })
+
   if (!unloadRegistered) {
     window.addEventListener('beforeunload', handleBeforeUnload)
     unloadRegistered = true
@@ -117,6 +140,7 @@ function disconnectSocket() {
     socket = null
     connected.value = false
   }
+  clearRateLimitNotice()
 }
 
 export function useChat() {
@@ -134,6 +158,7 @@ export function useChat() {
   function sendMessage(text) {
     const msg = text.trim().slice(0, 500)
     if (!msg || !socket) return
+    lastSentText = msg
     socket.emit('chat:send', { nickname: nickname.value, message: msg })
   }
 
@@ -158,5 +183,7 @@ export function useChat() {
     myCheckinBarId,
     checkIn,
     checkOut,
+    rateLimitNotice,
+    clearRateLimitNotice,
   }
 }
