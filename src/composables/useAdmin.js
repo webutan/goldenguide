@@ -24,7 +24,7 @@ export function useAdmin() {
 
     if (!res.ok) {
       await dialog.alert(
-        res.status === 401 ? t('adminWrongPassword') : t('adminServerError'),
+        res.status === 401 ? t('adminWrongPassword') : res.status === 429 ? t('adminLockedOut') : t('adminServerError'),
         { title: t('adminLoginTitle'), icon: 'error' },
       )
       return

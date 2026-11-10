@@ -156,3 +156,15 @@ describe('createCachedFetcher', () => {
     expect(calls).toBe(1)
   })
 })
+
+describe('parseTwitterHandle host anchoring', () => {
+  it('only accepts twitter.com / x.com profile URLs', async () => {
+    const { parseTwitterHandle } = await import('../server/lib/feedCore.js')
+    expect(parseTwitterHandle('https://x.com/goldensport248?t=abc&s=09')).toBe('goldensport248')
+    expect(parseTwitterHandle('twitter.com/@some_bar')).toBe('some_bar')
+    expect(parseTwitterHandle(' https://mobile.twitter.com/some_bar ')).toBe('some_bar')
+    expect(parseTwitterHandle('https://netflix.com/foo')).toBeNull()
+    expect(parseTwitterHandle('https://www.google.com/url?q=https://x.com/foo')).toBeNull()
+    expect(parseTwitterHandle('https://www.instagram.com/x.com/foo')).toBeNull()
+  })
+})
