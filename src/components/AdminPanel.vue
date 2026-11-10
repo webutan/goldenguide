@@ -324,7 +324,7 @@ async function saveCreateBar() {
 
 async function deleteBarEntry(bar) {
   const ok = await dialog.confirm(
-    dialog.t('adminConfirmDeleteBar').replace('{name}', bar.name_jp),
+    dialog.t('adminConfirmDeleteBar', { name: bar.name_jp }),
     { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
   )
   if (!ok) return
@@ -368,7 +368,7 @@ async function addTag() {
 
 async function removeTag(tagId) {
   const ok = await dialog.confirm(
-    dialog.t('adminConfirmDeleteTag').replace('{name}', tagId),
+    dialog.t('adminConfirmDeleteTag', { name: tagId }),
     { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
   )
   if (!ok) return

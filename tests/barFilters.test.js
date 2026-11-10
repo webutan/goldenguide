@@ -9,6 +9,12 @@ describe('parsePrice', () => {
     expect(parsePrice(1500)).toBe(1500)
     expect(parsePrice('¥1,000')).toBe(1000)
     expect(parsePrice(' 1,200円 ')).toBe(1200)
+    expect(parsePrice('１０００円')).toBe(1000)
+  })
+  it('uses the first number of a range instead of gluing the digits together', () => {
+    expect(parsePrice('1000-1500')).toBe(1000)
+    expect(parsePrice('¥1,000～2,000')).toBe(1000)
+    expect(parsePrice('500 (1000 on weekends)')).toBe(500)
   })
   it('returns null for unknown or unparseable', () => {
     expect(parsePrice(null)).toBeNull()

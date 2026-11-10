@@ -2,15 +2,18 @@
 // Keep this the single source of truth so every view shows the same bars.
 
 /**
- * Parse a price field (stored as TEXT) into a number.
- * "¥1,000" → 1000, "800" → 800, 1500 → 1500. Unknown / unparseable → null.
+ * Parse a price field (stored as free TEXT) into a number.
+ * "¥1,000" → 1000, "800" → 800, 1500 → 1500, "１０００円" → 1000.
+ * For a range or anything with several numbers ("1000-1500", "1,000～2,000")
+ * the first number is used — the lowest price is what the filters compare.
+ * Unknown / no number → null.
  */
 export function parsePrice(v) {
   if (v == null) return null
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
-  const cleaned = String(v).replace(/[^\d.]/g, '')
-  if (cleaned === '') return null
-  const n = Number(cleaned)
+  const m = String(v).normalize('NFKC').match(/\d[\d,]*(?:\.\d+)?/)
+  if (!m) return null
+  const n = Number(m[0].replace(/,/g, ''))
   return Number.isFinite(n) ? n : null
 }
 
