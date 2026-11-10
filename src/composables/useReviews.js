@@ -5,6 +5,7 @@ import {
 } from '../api/reviews.js'
 import { useDialog } from './useDialog.js'
 import { readJSON, writeJSON, isNumberArray } from '../utils/storage.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 
 const REPORTED_KEY = 'golden-gai-reported-reviews'
 const REPORTED_MAX = 200
@@ -71,7 +72,7 @@ async function reportReview(review) {
   try {
     await apiReportReview(review.id)
   } catch (err) {
-    await dialog.alert(err.status === 429 ? t('rateLimited') : t('reviewReportFailed'), { title, icon: 'error' })
+    await dialog.alert(err.status === 429 ? rateLimitMessage(t, err.retryAfter) : t('reviewReportFailed'), { title, icon: 'error' })
     return false
   }
   if (!hasReported(review.id)) {

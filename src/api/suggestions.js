@@ -1,13 +1,16 @@
 import { adminHeaders } from './index.js'
+import { retryAfterOf } from '../utils/retryAfter.js'
 
 const BASE = import.meta.env.VITE_API_BASE || ''
 
-// Throws an Error carrying the HTTP status (429 = rate limited, 401 = not admin).
+// Throws an Error carrying the HTTP status (429 = rate limited, 401 = not admin)
+// and, when the server sent Retry-After, the seconds to wait.
 async function expectOk(res, what) {
   if (res.ok) return res.json()
   const data = await res.json().catch(() => ({}))
   const err = new Error(data.error || `Failed to ${what}: ${res.status}`)
   err.status = res.status
+  err.retryAfter = retryAfterOf(res)
   throw err
 }
 

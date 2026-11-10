@@ -4,6 +4,7 @@ import { useChat, isNearBottom } from '../composables/useChat.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOnline } from '../composables/usePwa.js'
 import { readString } from '../utils/storage.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 import WinButton from './win2000/WinButton.vue'
 
 const props = defineProps({
@@ -234,7 +235,7 @@ function formatTime(ts) {
     <!-- Rate-limit notice -->
     <div v-if="rateLimitNotice" class="chat-notice" role="alert">
       <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
-      <span class="chat-notice-text">{{ t('rateLimited') }}</span>
+      <span class="chat-notice-text">{{ rateLimitMessage(t, rateLimitNotice.retryAfter) }}</span>
       <WinButton class="chat-notice-btn" @click="clearRateLimitNotice">{{ t('ok') }}</WinButton>
     </div>
 

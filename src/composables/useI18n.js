@@ -174,8 +174,13 @@ const translations = {
   'partStaleMissing': { en: 'Slot {n}: bar {name} no longer exists', jp: 'スロット{n}：バー {name} は存在しません' },
   'partStaleMoved': { en: 'Slot {n}: {name} is no longer in this building', jp: 'スロット{n}：{name} はこの建物にありません' },
   'partStaleRemove': { en: 'Remove', jp: '削除' },
-  'rateLimited': { en: 'Slow down! Try again in a few minutes.', jp: 'ちょっと待って！数分してからもう一度お試しください。' },
-  'adminLockedOut': { en: 'Too many failed attempts. Try again in 15 minutes.', jp: '失敗回数が多すぎます。15分後にもう一度お試しください。' },
+  // Rate limits: {retry} is one of the retry* lines (src/utils/retryAfter.js)
+  'rateLimited': { en: 'Slow down! {retry}', jp: 'ちょっと待って！{retry}' },
+  'adminLockedOut': { en: 'Too many failed attempts. {retry}', jp: '失敗回数が多すぎます。{retry}' },
+  'retryLater': { en: 'Try again later.', jp: 'しばらくしてからもう一度お試しください。' },
+  'retryMoment': { en: 'Try again in a moment.', jp: '少し待ってからもう一度お試しください。' },
+  'retryMinute': { en: 'Try again in about 1 minute.', jp: '約1分後にもう一度お試しください。' },
+  'retryMinutes': { en: 'Try again in about {n} minutes.', jp: '約{n}分後にもう一度お試しください。' },
 
   // Review moderation
   'reviewReport': { en: '⚑ Report', jp: '⚑ 通報' },

@@ -13,6 +13,7 @@ import { DAY_NAMES } from '../utils/openNow.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOnline } from '../composables/usePwa.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -51,6 +52,7 @@ const website = ref('') // honeypot: hidden from people, bots fill it in
 
 const sending = ref(false)
 const errorKey = ref(null)
+const retryAfter = ref(null) // seconds the server asked us to wait (429), if it said
 
 const built = computed(() => (isNewBar.value ? { items: [], error: null } : buildSuggestionItems(props.bar, form)))
 const canSend = computed(() => {
@@ -92,6 +94,7 @@ async function submit(items) {
     })
     emit('sent')
   } catch (err) {
+    retryAfter.value = err.retryAfter ?? null
     errorKey.value = err.status === 429 ? 'rateLimited' : offline.value ? 'offlineSend' : 'suggestSendFailed'
   } finally {
     sending.value = false
@@ -267,7 +270,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             </div>
           </div>
 
-          <p v-if="errorKey" class="se-error" role="alert">{{ t(errorKey) }}</p>
+          <p v-if="errorKey" class="se-error" role="alert">{{ errorKey === 'rateLimited' ? rateLimitMessage(t, retryAfter) : t(errorKey) }}</p>
         </div>
 
         <div class="se-footer">
