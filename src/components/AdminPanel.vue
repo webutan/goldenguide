@@ -4,6 +4,7 @@ import WinTabs from './win2000/WinTabs.vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
+import { useDialog } from '../composables/useDialog.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
 const props = defineProps({
@@ -15,6 +16,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'open-db'])
+const dialog = useDialog()
 
 const mainTab = ref('placement')
 const mainTabOptions = [
@@ -321,7 +323,11 @@ async function saveCreateBar() {
 }
 
 async function deleteBarEntry(bar) {
-  if (!confirm(`Delete "${bar.name_jp}"? This cannot be undone.`)) return
+  const ok = await dialog.confirm(
+    dialog.t('adminConfirmDeleteBar').replace('{name}', bar.name_jp),
+    { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
   try {
     await apiDeleteBar(bar.id)
     if (editingBar.value?.id === bar.id) editingBar.value = null
@@ -361,7 +367,11 @@ async function addTag() {
 }
 
 async function removeTag(tagId) {
-  if (!confirm(`Delete tag "${tagId}"?`)) return
+  const ok = await dialog.confirm(
+    dialog.t('adminConfirmDeleteTag').replace('{name}', tagId),
+    { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
   try {
     await deleteTag(tagId)
     emit('reload')

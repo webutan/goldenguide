@@ -83,6 +83,20 @@ const translations = {
   // Taskbar clock
   'clockTokyo': { en: 'Tokyo', jp: '東京' },
   'clockYourTime': { en: 'Your time', jp: '現地時間' },
+
+  // Dialogs (useDialog / WinDialog) + admin dialogs
+  'dialogTitle': { en: 'Golden Gai Map', jp: 'ゴールデン街マップ' },
+  'dialogOk': { en: 'OK', jp: 'OK' },
+  'dialogCancel': { en: 'Cancel', jp: 'キャンセル' },
+  'dialogYes': { en: 'Yes', jp: 'はい' },
+  'dialogNo': { en: 'No', jp: 'いいえ' },
+  'adminLoginTitle': { en: 'Admin Login', jp: '管理者ログイン' },
+  'adminPasswordPrompt': { en: 'Enter the admin password:', jp: '管理者パスワードを入力してください：' },
+  'adminWrongPassword': { en: 'Incorrect password.', jp: 'パスワードが違います。' },
+  'adminServerError': { en: 'Server error — check ADMIN_PASSWORD is configured.', jp: 'サーバーエラー — ADMIN_PASSWORD の設定を確認してください。' },
+  'adminConfirmDeleteTitle': { en: 'Confirm Delete', jp: '削除の確認' },
+  'adminConfirmDeleteBar': { en: 'Delete "{name}"? This cannot be undone.', jp: '「{name}」を削除しますか？元に戻せません。' },
+  'adminConfirmDeleteTag': { en: 'Delete tag "{name}"?', jp: 'タグ「{name}」を削除しますか？' },
 }
 
 export function useI18n(lang) {

@@ -9,6 +9,7 @@ import MapSearch from './components/MapSearch.vue'
 import AdminPanel from './components/AdminPanel.vue'
 import WinWindow from './components/win2000/WinWindow.vue'
 import WinTaskbar from './components/win2000/WinTaskbar.vue'
+import WinDialog from './components/win2000/WinDialog.vue'
 import DesktopView from './components/DesktopView.vue'
 import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
@@ -451,6 +452,7 @@ async function handleUnplaceBar(bar) {
 
 <template>
   <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" :fast="biosFastBoot" @done="handleBiosDone" />
+  <WinDialog :lang="effectiveLang" />
 
   <div v-if="loading" class="loading-screen">Loading...</div>
   <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
