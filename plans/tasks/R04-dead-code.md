@@ -15,3 +15,8 @@ Verify every deletion with `grep -rn <name> src scripts server public index.html
 ## Acceptance criteria
 - [ ] Build passes; the app runs; the scripts that used moved data still resolve their paths
 - [ ] Bundle size is unchanged or smaller
+
+Also (found in R07, small window bugs, fix here):
+- `App.vue` centres the Explorer window with `window.innerHeight - 32`, ignoring the 1.25 CSS zoom on `#app`, so it sits below centre on desktop.
+- A window dragged to the far right in Map view can hide under the bar drawer (fixed, z-index 150), and one parked bottom-right on the desktop hides under Gai-chan. Have those publish a right/bottom inset that `WinWindow`'s clamp subtracts.
+- Window z-indexes only ever increment and can eventually pass the drawer's 150; renormalise them.

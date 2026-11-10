@@ -160,7 +160,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ☐ | [R04](tasks/R04-dead-code.md) | Dead code & data cleanup | S | 1 h | 15 m | late |
 | ✅ | [R05](tasks/R05-win95-dialogs.md) | Win95 dialog system (replace alert/confirm/prompt) | M | 3 h | 20 m | – |
 | ✅ | [R06](tasks/R06-code-split.md) | Lazy-load heavy windows | S | 1 h | 10 m | – |
-| ☐ | [R07](tasks/R07-window-drag.md) | Pointer-event window drag + keep on screen | S | 1.5 h | 10 m | – |
+| ✅ | [R07](tasks/R07-window-drag.md) | Pointer-event window drag + keep on screen | S | 1.5 h | 10 m | – |
 
 ### Phase 4: Growth (~19 agent-h)
 | ✓ | ID | Task | Size | Agent | Review | Depends on |
