@@ -1,5 +1,4 @@
 import { ref, onUnmounted } from 'vue'
-import { io } from 'socket.io-client'
 
 const NICKNAME_KEY = 'golden-gai-chat-nickname'
 
@@ -11,6 +10,11 @@ function generateGuestName() {
 // Module-level singleton so the socket persists while the window is open
 let socket = null
 let refCount = 0
+// socket.io-client is loaded on demand so it stays out of the main bundle.
+// `connecting` is the in-flight import; `generation` lets a disconnect that
+// happens before the import resolves cancel the pending connection.
+let connecting = null
+let generation = 0
 
 const messages = ref([])
 const userCount = ref(0)
@@ -20,7 +24,22 @@ const checkinList = ref([])
 const myCheckinBarId = ref(null)
 
 function ensureSocket() {
-  if (socket) return
+  if (socket || connecting) return
+  const gen = generation
+  connecting = import('socket.io-client')
+    .then(({ io }) => {
+      if (gen !== generation || socket) return
+      openSocket(io)
+    })
+    .catch((err) => {
+      console.warn('[chat] failed to load socket.io-client', err)
+    })
+    .finally(() => {
+      if (gen === generation) connecting = null
+    })
+}
+
+function openSocket(io) {
   socket = io('/chat', {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
@@ -55,6 +74,8 @@ function ensureSocket() {
 }
 
 function disconnectSocket() {
+  generation++
+  connecting = null
   if (socket) {
     socket.disconnect()
     socket = null
