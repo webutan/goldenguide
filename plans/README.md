@@ -135,7 +135,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ☐ | [B03](tasks/B03-unify-filters.md) | One shared filter function (map/drawer/directory agree) | M | 3 h | 30 m | Q00 |
 | ☐ | [B04](tasks/B04-search.md) | Search: no 8-cap on highlights, kana/full-width matching | S–M | 2 h | 20 m | Q00 |
 | ✅ | [B05](tasks/B05-bios.md) | BIOS double-blink + fast boot for regulars | S | 1 h | 10 m | – |
-| ☐ | [B06](tasks/B06-safe-storage.md) | Safe localStorage helper | S | 1 h | 10 m | – |
+| ✅ | [B06](tasks/B06-safe-storage.md) | Safe localStorage helper | S | 1 h | 10 m | – |
 | ✅ | [B07](tasks/B07-jst-clock.md) | Taskbar clock in Tokyo time | S | 45 m | 5 m | – |
 | ☐ | [B08](tasks/B08-i18n-gaps.md) | i18n gaps / duplicate keys | S | 1 h | 15 m | – |
 | ☐ | [B09](tasks/B09-partition-sync.md) | New bars missing from partitions; stale cache | S–M | 2 h | 20 m | B06 |
@@ -148,7 +148,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ☐ | [S02](tasks/S02-rate-limits-feed.md) | Rate limits on public writes; feed abuse + refresh schedule | M | 3 h | 30 m | S01 |
 | ✅ | [S03](tasks/S03-upload-hardening.md) | Upload type checks, safe filenames, nosniff | S | 1.5 h | 15 m | – |
 | ☐ | [S04](tasks/S04-review-moderation.md) | Review moderation (delete/hide/report) | M | 3 h | 30 m | S02 |
-| ☐ | [S05](tasks/S05-bars-route-correctness.md) | Bars route transactions/validation; chat prune | S | 1.5 h | 15 m | – |
+| ✅ | [S05](tasks/S05-bars-route-correctness.md) | Bars route transactions/validation; chat prune | S | 1.5 h | 15 m | – |
 
 ### Phase 3: Performance & refactors (~18 agent-h)
 | ✓ | ID | Task | Size | Agent | Review | Depends on |

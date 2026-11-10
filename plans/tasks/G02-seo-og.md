@@ -17,6 +17,8 @@ Crawlers and link-preview bots (X, LINE, WhatsApp, Discord, Slack) don't run JS.
 - `GET /sitemap.xml`: `/`, `/map`, `/directory`, and every active `/bar/<slug>` with `lastmod = updated_at`.
 - `index.html`: improve the default title, description and OG tags for `/`, add `theme-color`, and set `lang` properly.
 
+Also (found in S05): `GET /api/bars/:slug` still returns inactive bars to anyone. Treat inactive bars as 404 for public deep links, OG pages and the sitemap, unless the request is admin.
+
 ## Acceptance criteria
 - [ ] `curl -A "Twitterbot" https://host/bar/<slug>` shows bar-specific `og:*` tags
 - [ ] The same URL in a browser is the normal app (G01 behaviour)

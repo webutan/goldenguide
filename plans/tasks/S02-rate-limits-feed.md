@@ -21,7 +21,8 @@
    - Single-flight: keep an in-memory `Map<key, Promise>` so concurrent misses share one fetch.
    - Schedule `refreshFeedCache()` at startup and every 30 min (`setInterval`, skipped if no token). Log errors but never crash.
    - On Twitter errors, serve the stale cache if there is one (`expires_at` ignored) with `stale: true`.
-4. Return `429` JSON `{ error: 'rate_limited' }`, and make the frontend show a Win95 message ("Slow down! Try again in a minute.") in ReviewDialog and ChatWindow.
+4. Admin password check (found in S05): compare with `crypto.timingSafeEqual` (on equal-length buffers) in both `server/middleware/admin.js` and its `isAdminRequest` helper.
+5. Return `429` JSON `{ error: 'rate_limited' }`, and make the frontend show a Win95 message ("Slow down! Try again in a minute.") in ReviewDialog and ChatWindow.
 
 ## Acceptance criteria
 - [ ] The 6th review within 10 min from one IP gets 429 and the UI shows a friendly message
