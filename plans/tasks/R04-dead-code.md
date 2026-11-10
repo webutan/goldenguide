@@ -69,3 +69,12 @@ Also (found in G04):
 - Admin main tabs are under 40px high on mobile.
 
 Also (found in G05): on the sticker's Japanese status bar one separator renders as a small dot and the other as a square (W95FA has no "·"; PixelMplus does) — draw both the same way; a few bar names fall back to system fonts in print (characters outside W95FA/PixelMplus10: find which and decide); the admin UI uses "×" and "—", which W95FA lacks; the "Six main tabs have to fit" comment in `AdminPanel.vue` is stale (the strip now wraps).
+
+Also (found in G03):
+- `public/wallpaper.jpg` (243 kB) and root `public/gaichanidle.png` (356 kB) appear unused.
+- `FeedWindow` shows "no Twitter accounts" when the feed request fails while online (the empty-accounts branch hides the error).
+- `GaiChanDialogue` shows broken-image icons when its art fails to load (e.g. offline for a visitor who never saw the rules online): hide failed images.
+- The offline tray icon stacks above the clock on mobile, each ~20 px tall (under the 40 px touch rule).
+- The manifest theme colour is purple `#4a3065` but `<meta name="theme-color">` is `#0a0810`: pick one.
+- `npm test` needs `npm ci` in `server/` as well (one suite imports server code that needs its dependencies): say so in the brief or make the root install cover it.
+- The service worker must be kept in mind by later tasks: any new public GET that should work offline needs a rule in `src/utils/swRules.js`; anything admin or per-visitor must stay out of it.

@@ -169,7 +169,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 |---|----|------|------|-------|--------|-----------|
 | ✅ | [G01](tasks/G01-deep-links.md) | Shareable deep links `/bar/<slug>` + Share button | M | 4 h | 30 m | B03, R02 |
 | ✅ | [G02](tasks/G02-seo-og.md) | Link previews, sitemap, hreflang, JSON-LD | M–L | 5 h | 45 m | G01, S01 |
-| ☐ | [G03](tasks/G03-pwa-offline.md) | Offline mode + "GAI OS Setup Wizard" install | M | 4 h | 30 m | P01, R06 |
+| ✅ | [G03](tasks/G03-pwa-offline.md) | Offline mode + "GAI OS Setup Wizard" install | M | 4 h | 30 m | P01, R06 |
 | ✅ | [G04](tasks/G04-edit-suggestions.md) | "Suggest an edit" + admin inbox | M | 4 h | 30 m | S02, R05 |
 | ✅ | [G05](tasks/G05-door-sticker-qr.md) | Printable door sticker / QR per bar | S | 2 h | 15 m | G01 |
 

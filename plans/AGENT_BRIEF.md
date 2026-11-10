@@ -46,6 +46,10 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 - **Driving the UI:** desktop icons open on double-click; the taskbar buttons switch views on single click; the admin toggle is in the Start menu (first taskbar button).
 - A `locator.click` on an element under a Teleported dropdown often needs `dispatchEvent('mousedown')`, because several menus act on mousedown.
 
+## Service worker (after G03)
+
+Production builds register a service worker (`src/sw.js`, rules in `src/utils/swRules.js`). Navigations are network-first; only a fixed list of public GETs is cached. A new public GET endpoint that should work offline needs a rule there (and a test in `tests/pwa.test.js`); admin, per-visitor and write endpoints must never be cached. The worker is off in `npm run dev`. When testing a production build in Playwright, a stale worker from an earlier build can serve old files: use a fresh browser context.
+
 ## Git
 
 - Work on the branch you are given. Keep commits scoped to your task ID, e.g. `fix(B02): open-now uses yesterday's hours after midnight`.
