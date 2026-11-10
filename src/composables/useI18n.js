@@ -84,6 +84,9 @@ const translations = {
   // Taskbar clock
   'clockTokyo': { en: 'Tokyo', jp: '東京' },
   'clockYourTime': { en: 'Your time', jp: '現地時間' },
+
+  // Lazy-loaded window placeholder
+  'loading': { en: 'Loading…', jp: '読み込み中…' },
 }
 
 export function useI18n(lang) {

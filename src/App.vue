@@ -1,25 +1,19 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineAsyncComponent } from 'vue'
+import WinLoading from './components/win2000/WinLoading.vue'
 import GoldenGaiMap from './components/GoldenGaiMap.vue'
 import BarDirectory from './components/BarDirectory.vue'
 import TagFilter from './components/TagFilter.vue'
 import BarPopup from './components/BarPopup.vue'
 import BarDrawer from './components/BarDrawer.vue'
 import MapSearch from './components/MapSearch.vue'
-import AdminPanel from './components/AdminPanel.vue'
 import WinWindow from './components/win2000/WinWindow.vue'
 import WinTaskbar from './components/win2000/WinTaskbar.vue'
 import DesktopView from './components/DesktopView.vue'
 import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
-import ContactWindow from './components/ContactWindow.vue'
-import FeedWindow from './components/FeedWindow.vue'
-import ChatWindow from './components/ChatWindow.vue'
-import BarTwitterPanel from './components/BarTwitterPanel.vue'
-import DatabaseTable from './components/DatabaseTable.vue'
 import BiosScreen from './components/BiosScreen.vue'
 import ReviewPanel from './components/ReviewPanel.vue'
-import ReviewsWindow from './components/ReviewsWindow.vue'
 import { useI18n } from './composables/useI18n.js'
 import { useVisited } from './composables/useVisited.js'
 import { useApi } from './composables/useApi.js'
@@ -28,6 +22,18 @@ import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
+
+// Heavy, rarely-opened windows are split into their own chunks (R06).
+function lazyWindow(loader) {
+  return defineAsyncComponent({ loader, loadingComponent: WinLoading, delay: 150 })
+}
+const AdminPanel = lazyWindow(() => import('./components/AdminPanel.vue'))
+const ContactWindow = lazyWindow(() => import('./components/ContactWindow.vue'))
+const FeedWindow = lazyWindow(() => import('./components/FeedWindow.vue'))
+const ChatWindow = lazyWindow(() => import('./components/ChatWindow.vue'))
+const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vue'))
+const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
+const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
 
 const { bars, tags, loading, error, reload } = useApi()
 const { visitedCount } = useVisited()
