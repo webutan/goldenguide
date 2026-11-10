@@ -1,11 +1,23 @@
 import { ref, computed } from 'vue'
-import { readJSON, writeJSON, isNumberArray } from '../utils/storage.js'
+import { readJSON, writeJSON } from '../utils/storage.js'
 
 const VISITED_KEY = 'golden-gai-visited'
 const FAVORITES_KEY = 'golden-gai-favorites'
 
+// Keep the valid entries instead of discarding a user's whole history when
+// one entry is malformed. Numeric strings (e.g. "12") are coerced to numbers.
+export function sanitizeIds(value) {
+  if (!Array.isArray(value)) return []
+  const out = []
+  for (const v of value) {
+    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
+    if (typeof n === 'number' && Number.isInteger(n) && !out.includes(n)) out.push(n)
+  }
+  return out
+}
+
 function loadIds(key) {
-  return readJSON(key, [], isNumberArray)
+  return sanitizeIds(readJSON(key, [], Array.isArray))
 }
 
 const visitedIds = ref(loadIds(VISITED_KEY))
