@@ -32,3 +32,5 @@
 
 ## Note: client IP (already fixed, don't redo)
 `nginx.conf` now resolves the real visitor address with the realip module (trusting `X-Forwarded-For` only from private/loopback peers) and forwards exactly one address, so `req.ip` (with `trust proxy = 1`) is per visitor even when a NAS proxy or cloudflared tunnel sits in front. Key every limiter on `req.ip`; for Socket.io use the `x-real-ip` handshake header as `chat.js` already does. The chat message limit is currently per socket id, so reconnecting resets it: key it on the IP as part of this task.
+
+Also (found in R03): in `server/routes/chat.js` the `chat:send` handler awaits `pool.connect()` outside its `try`, so a DB outage during a send is an unhandled rejection. Move it inside the `try` while you are reworking that handler.

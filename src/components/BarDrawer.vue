@@ -312,7 +312,7 @@ function getOpenStatus(bar) {
               </div>
             </div>
             <div class="drawer-bar-actions">
-              <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id, () => { reviewDialogBar.value = bar })">
+              <WinButton small :pressed="isVisited(bar.id)" @click="toggleVisited(bar.id, () => { reviewDialogBar = bar })">
                 <template v-if="isVisited(bar.id)">&#10003; {{ t('visited') }}</template>
                 <template v-else>{{ t('markVisited') }}</template>
               </WinButton>
@@ -334,7 +334,7 @@ function getOpenStatus(bar) {
     v-if="reviewDialogBar"
     :bar="reviewDialogBar"
     :lang="lang"
-    @done="reviewDialogBar.value = null"
+    @done="reviewDialogBar = null"
   />
 </template>
 
