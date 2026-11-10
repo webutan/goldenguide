@@ -64,7 +64,6 @@ const props = defineProps({
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
   tourHighlight: { type: String, default: null },
-  labelMode: { type: String, default: 'yoko' },
   tagMode: { type: String, default: 'or' }, // 'or' | 'and'
   hoveredBarId: { type: String, default: null },
   // false while another view is shown: the map stays mounted but hidden
@@ -191,9 +190,6 @@ const mapFilters = computed(() => ({
 // Whether any filter is active (includes floor filter)
 const hasActiveFilters = computed(() => hasAnyFilter(mapFilters.value))
 
-// Whether floor filter is active (separate from tag/price filters)
-const hasFloorFilter = computed(() => props.floorFilter != null)
-
 // The one place the filter function runs: IDs (as strings) of the bars that
 // pass the active filters, or null when no filter is active. Badges, dimming,
 // labels and the tooltip all read this set.
@@ -265,15 +261,6 @@ const barById = computed(() => {
   const map = {}
   for (const bar of props.bars) {
     map[String(bar.id)] = bar
-  }
-  return map
-})
-
-// Lookup bar floor by ID
-const barFloorMap = computed(() => {
-  const map = {}
-  for (const bar of props.bars) {
-    map[String(bar.id)] = bar.floor ?? 1
   }
   return map
 })

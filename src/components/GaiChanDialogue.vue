@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, reactive, watch, onUnmounted, nextTick } from 'vue'
 import GaiChanModel from './GaiChanModel.vue'
+import { shuffle } from '../utils/shuffle.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -605,7 +606,7 @@ function getRecommendedBars(count = 3) {
   if (filterState.cash === false)     filtered = filtered.filter(b => !b.tags?.includes('cash-only'))
   if (filterState.japanese === false) filtered = filtered.filter(b => b.tags?.includes('english-ok'))
   // Shuffle and take count
-  return filtered.sort(() => Math.random() - 0.5).slice(0, count)
+  return shuffle(filtered).slice(0, count)
 }
 
 function buildRecommendText(bars) {

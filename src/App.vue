@@ -342,13 +342,6 @@ const visitedFilter = ref(false)
 // over the map does not re-render this component.)
 const hoveredBarId = ref(null)
 
-// Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
-const labelMode = ref(readString('golden-gai-label-mode', 'yoko'))
-function setLabelMode(mode) {
-  labelMode.value = mode
-  writeString('golden-gai-label-mode', mode)
-}
-
 const mobileMapFiltersOpen = ref(false)
 const hasActiveMapFilters = computed(() =>
   activeTags.value.length > 0 ||
@@ -847,7 +840,6 @@ async function handleUnplaceBar(bar) {
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
-          :label-mode="labelMode"
           :tag-mode="tagMode"
           @select-building="handleSelectBuilding"
           @deselect="closeDrawer"
