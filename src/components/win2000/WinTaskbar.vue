@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useWindowManager } from '../../composables/useWindowManager.js'
 import { useI18n } from '../../composables/useI18n.js'
 
@@ -33,13 +33,69 @@ function switchView(view) {
   closeStart()
 }
 
-const time = ref('')
-function updateTime() {
-  const now = new Date()
-  time.value = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+// Clock: always Tokyo time (matches "Open Now"); local time in the tooltip.
+const TOKYO_TZ = 'Asia/Tokyo'
+const hhmm = (date, timeZone) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)
+
+const now = ref(new Date())
+const tokyoTime = computed(() => hhmm(now.value, TOKYO_TZ))
+const localTime = computed(() => hhmm(now.value))
+// Same UTC offset as JST (+9) means the visitor's clock already reads Tokyo time
+const isLocalJst = computed(() => now.value.getTimezoneOffset() === -540)
+const localWeekday = computed(() =>
+  now.value.toLocaleDateString(props.lang === 'jp' ? 'ja-JP' : 'en-US', { weekday: 'short' })
+)
+const clockTip = computed(() => {
+  const tokyo = `${t('clockTokyo')} ${tokyoTime.value}`
+  if (isLocalJst.value) return tokyo
+  return `${tokyo} · ${t('clockYourTime')} ${localTime.value} (${localWeekday.value})`
+})
+
+// Tooltip: hover with a mouse, tap to toggle on touch
+const clockRef = ref(null)
+const clockHover = ref(false)
+const clockPinned = ref(false)
+const showClockTip = computed(() => clockHover.value || clockPinned.value)
+const clockTipStyle = ref({})
+function placeClockTip() {
+  const rect = clockRef.value?.getBoundingClientRect()
+  if (!rect) return
+  clockTipStyle.value = {
+    right: `${Math.max(4, window.innerWidth - rect.right - 4)}px`,
+    bottom: `${window.innerHeight - rect.top + 6}px`,
+  }
 }
-updateTime()
-setInterval(updateTime, 30000)
+watch(showClockTip, (shown) => { if (shown) placeClockTip() })
+let lastPointerType = 'mouse'
+function onClockPointerEnter(e) {
+  if (e.pointerType === 'mouse') clockHover.value = true
+}
+function onClockPointerLeave() {
+  clockHover.value = false
+}
+function onClockPointerDown(e) {
+  lastPointerType = e.pointerType
+}
+function onClockClick() {
+  if (lastPointerType !== 'mouse') clockPinned.value = !clockPinned.value
+}
+function onDocPointerDown(e) {
+  if (clockPinned.value && clockRef.value && !clockRef.value.contains(e.target)) {
+    clockPinned.value = false
+  }
+}
+
+let clockTimer = null
+onMounted(() => {
+  now.value = new Date()
+  clockTimer = setInterval(() => { now.value = new Date() }, 15000)
+  document.addEventListener('pointerdown', onDocPointerDown)
+})
+onUnmounted(() => {
+  clearInterval(clockTimer)
+  document.removeEventListener('pointerdown', onDocPointerDown)
+})
 </script>
 
 <template>
@@ -132,7 +188,25 @@ setInterval(updateTime, 30000)
       <span class="tray-visited" :title="`${visitedCount} of ${totalBars} bars visited`">
         {{ visitedCount }}/{{ totalBars }}
       </span>
-      <span class="tray-clock">{{ time }}</span>
+      <span
+        ref="clockRef"
+        class="tray-clock"
+        role="button"
+        tabindex="0"
+        :aria-label="clockTip"
+        @pointerenter="onClockPointerEnter"
+        @pointerleave="onClockPointerLeave"
+        @pointerdown="onClockPointerDown"
+        @click="onClockClick"
+        @focus="clockHover = true"
+        @blur="clockHover = false"
+      >
+        {{ tokyoTime }}<span v-if="!isLocalJst" class="tray-clock-tz">JST</span>
+      </span>
+      <!-- Teleported so it sits above Gai-chan (z 1050+) instead of inside the taskbar's stacking context -->
+      <Teleport to="body">
+        <div v-if="showClockTip" class="tray-clock-tip" role="tooltip" :style="clockTipStyle">{{ clockTip }}</div>
+      </Teleport>
     </div>
   </div>
 </template>
@@ -408,7 +482,30 @@ setInterval(updateTime, 30000)
 }
 
 .tray-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
   color: var(--win-text-disabled);
+  cursor: default;
+  outline: none;
+}
+
+.tray-clock-tz {
+  font-size: 8px;
+}
+
+/* Win95 info tip: pale yellow, 1px black border, no shadow */
+.tray-clock-tip {
+  position: fixed;
+  z-index: 1300;
+  padding: 2px 4px;
+  background: #ffffe1;
+  border: 1px solid #000000;
+  color: #000000;
+  font-family: var(--win-font);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* Tour highlight pulse */
@@ -466,8 +563,18 @@ setInterval(updateTime, 30000)
     min-width: 44px;
   }
 
+  /* Tray: only the clock on mobile, tall enough to tap */
   .taskbar-tray {
+    height: 42px;
+    padding: 0 4px;
+  }
+  .tray-admin,
+  .tray-visited {
     display: none;
+  }
+  .tray-clock {
+    align-self: stretch;
+    align-items: center;
   }
 }
 </style>
