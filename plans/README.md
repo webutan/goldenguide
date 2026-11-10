@@ -132,7 +132,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [Q00](tasks/Q00-test-harness.md) | Vitest test harness | S | 1 h | 15 m | – |
 | ✅ | [B01](tasks/B01-review-submit.md) | Drawing-only reviews fail silently | S | 1 h | 15 m | – |
 | ✅ | [B02](tasks/B02-open-now-midnight.md) | "Open Now" wrong after midnight | S | 1.5 h | 15 m | Q00 |
-| ☐ | [B03](tasks/B03-unify-filters.md) | One shared filter function (map/drawer/directory agree) | M | 3 h | 30 m | Q00 |
+| ✅ | [B03](tasks/B03-unify-filters.md) | One shared filter function (map/drawer/directory agree) | M | 3 h | 30 m | Q00 |
 | ☐ | [B04](tasks/B04-search.md) | Search: no 8-cap on highlights, kana/full-width matching | S–M | 2 h | 20 m | Q00 |
 | ✅ | [B05](tasks/B05-bios.md) | BIOS double-blink + fast boot for regulars | S | 1 h | 10 m | – |
 | ✅ | [B06](tasks/B06-safe-storage.md) | Safe localStorage helper | S | 1 h | 10 m | – |
