@@ -7,6 +7,7 @@ import TagIcon from './TagIcon.vue'
 import AdminReviews from './AdminReviews.vue'
 import AdminInbox from './AdminInbox.vue'
 import { useSuggestionInbox } from '../composables/useSuggestEdit.js'
+import { slotBarIds, removeSlotAt } from '../utils/partitions.js'
 const StickerSheet = defineAsyncComponent(() => import('./admin/StickerSheet.vue')) // G05, with the QR encoder
 const showStickers = ref(false)
 import { useDialog } from '../composables/useDialog.js'
@@ -24,7 +25,9 @@ const props = defineProps({
   lang: { type: String, default: 'en' },
 })
 
-const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'open-db'])
+// 'resetPartitions' (buildingId): delete the building's stored split.
+// 'openBar' (bar): show the bar's card (on the map when it is placed).
+const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'resetPartitions', 'openBar', 'open-db'])
 const dialog = useDialog()
 const { t } = useI18n(computed(() => props.lang))
 
@@ -567,6 +570,39 @@ function removePartition() {
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
+// Remove one slot, wherever it is. The other slots keep their bars, sizes
+// and colours; the removed slot's bars show up under "Unassigned".
+async function removeSlot(index) {
+  const buildingId = props.selectedBuilding
+  const config = currentPartition.value
+  if (!buildingId || !config || !config.partitions[index]) return
+  if (slotBarIds(config.partitions[index]).length > 0) {
+    const ok = await dialog.confirm(
+      t('partRemoveSlotConfirm', { n: index + 1 }),
+      { title: t('partRemoveSlot'), icon: 'question', yesNo: true },
+    )
+    if (!ok) return
+  }
+  // Only if it is still the same slot (the dialog may have been up for a while)
+  const latest = props.partitions[buildingId]
+  const slot = latest && Array.isArray(latest.partitions) ? latest.partitions[index] : null
+  if (props.selectedBuilding !== buildingId || !slot) return
+  if (JSON.stringify(slot) !== JSON.stringify(config.partitions[index])) return
+  emit('updatePartitions', { buildingId, data: removeSlotAt(latest, index) })
+}
+
+// Forget everything stored for this building's split (slots, sizes, colours,
+// label settings): the server row is deleted and the automatic split returns.
+async function resetSplit() {
+  const buildingId = props.selectedBuilding
+  if (!buildingId) return
+  const ok = await dialog.confirm(
+    t('partResetConfirm', { id: buildingId }),
+    { title: t('partResetSplit'), icon: 'warning', yesNo: true, defaultButton: 1 },
+  )
+  if (ok) emit('resetPartitions', buildingId)
+}
+
 // Bars placed in this building that no slot references, and slot references
 // to bars that were deleted or moved elsewhere (computed in App.vue).
 const selectedIssues = computed(() => props.partitionIssues[props.selectedBuilding] || null)
@@ -973,9 +1009,20 @@ function setLabelOffset(axis, val) {
                 class="bar-list-item"
               >
                 <div class="bar-list-content" @click="startEditBar(bar)">
-                  <div class="bar-list-name">{{ bar.name_jp }}</div>
+                  <div class="bar-list-name">
+                    {{ bar.name_jp }}
+                    <span v-if="!bar.is_active" class="bar-inactive-tag" data-testid="bar-inactive">{{ t('adminInactive') }}</span>
+                  </div>
                   <div v-if="bar.name_en" class="bar-list-sub">{{ bar.name_en }}</div>
                 </div>
+                <!-- Also the way to look at an inactive bar: its public link is a 404 -->
+                <button
+                  class="unplace-btn open-bar-btn"
+                  data-testid="open-bar"
+                  :title="t(bar.building_id ? 'adminOpenOnMap' : 'adminOpenCard')"
+                  :aria-label="t(bar.building_id ? 'adminOpenOnMap' : 'adminOpenCard')"
+                  @click.stop="emit('openBar', bar)"
+                ><img src="/icons/desktop/search_web.png" alt="" /></button>
                 <button
                   class="unplace-btn"
                   title="Delete bar"
@@ -1123,6 +1170,12 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
 
+            <div class="partition-issues" data-testid="partition-reset">
+              <div class="partition-issues-title">{{ t('partResetSplit') }}</div>
+              <div class="partition-issues-hint">{{ t('partResetHint') }}</div>
+              <WinButton small data-testid="partition-reset-btn" @click="resetSplit">{{ t('partResetSplit') }}</WinButton>
+            </div>
+
             <div v-if="unassignedBars.length > 0" class="partition-issues" data-testid="partition-unassigned">
               <div class="partition-issues-title">{{ t('partUnassignedTitle') }}</div>
               <div class="partition-issues-hint">{{ t('partUnassignedHint') }}</div>
@@ -1256,6 +1309,12 @@ function setLabelOffset(axis, val) {
                     @click="setPartitionColor(i, null)"
                     title="Auto color from bar floor"
                   >Auto</button>
+                  <button
+                    class="reset-color-btn slot-remove-btn"
+                    data-testid="slot-remove"
+                    :title="t('partRemoveSlot')"
+                    @click="removeSlot(i)"
+                  >&#10005; {{ t('partStaleRemove') }}</button>
                 </div>
                 <div class="partition-bars-label">Bars in this slot:</div>
                 <div class="partition-bars-list">
@@ -1565,6 +1624,40 @@ function setLabelOffset(axis, val) {
 }
 .unplace-btn:active {
   box-shadow: inset 1px 1px 0 var(--win-border-dark), inset -1px -1px 0 var(--win-border-light);
+}
+
+/* "Open bar card" in the Edit Bar list */
+.open-bar-btn { margin-right: 3px; }
+.open-bar-btn img {
+  width: 12px;
+  height: 12px;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.bar-inactive-tag {
+  font-size: 9px;
+  font-weight: normal;
+  padding: 0 3px;
+  margin-left: 4px;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+  box-shadow: inset 1px 1px 0 var(--win-border-dark), inset -1px -1px 0 var(--win-border-light);
+}
+.bar-list-item:hover .bar-inactive-tag { color: var(--win-highlight-text); }
+
+/* Per-slot "Remove", pushed to the end of the slot's first row */
+.slot-remove-btn {
+  margin-left: auto;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .open-bar-btn { width: 40px; height: 40px; }
+  .open-bar-btn img { width: 24px; height: 24px; }
+  .slot-remove-btn { min-height: 40px; min-width: 40px; padding: 1px 8px; }
+  [data-testid="partition-reset"] > .win-btn { min-height: 40px; }
 }
 
 .bar-list-empty { padding: 12px; text-align: center; color: var(--win-text-disabled); }

@@ -3,7 +3,8 @@ import { setAdminPassword } from '../api/index.js'
 import { useDialog } from './useDialog.js'
 import { rateLimitMessage, retryAfterOf } from '../utils/retryAfter.js'
 
-const isAdmin = ref(false)
+// Exported for plain modules (useReviews) that only need to read the mode
+export const isAdmin = ref(false)
 
 export function useAdmin() {
   const dialog = useDialog()

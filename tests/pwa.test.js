@@ -40,6 +40,21 @@ describe('service worker rules', () => {
     expect(isPublicApiRequest(...req('/api/tags', { Authorization: 'Bearer x' }))).toBe(false)
   })
 
+  it('never caches the admin review endpoints (R09), with or without the header', () => {
+    for (const path of [
+      '/api/reviews/admin',
+      '/api/reviews/admin?status=all&limit=50',
+      '/api/reviews/admin?status=hidden&barId=3',
+      '/api/reviews/admin?status=all&cursor=2026-01-01T00:00:00.000000Z_5',
+      '/api/reviews/admin/12/drawing',
+    ]) {
+      expect(isPublicApiRequest(...req(path, { 'X-Admin-Password': 'secret' })), path).toBe(false)
+      expect(isPublicApiRequest(...req(path)), path).toBe(false)
+      expect(isAppNavigationPath(new URL(path, 'https://example.test').pathname), path).toBe(false)
+      expect(runtimeCacheFor(new URL(path, 'https://example.test').pathname), path).toBeNull()
+    }
+  })
+
   it('finds the entry script of a shell', () => {
     const html = '<head><link rel="stylesheet" crossorigin href="/assets/index-abc.css"><script type="module" crossorigin src="/assets/index-C9N-jq_a.js"></script></head>'
     expect(entryScriptOf(html)).toBe('/assets/index-C9N-jq_a.js')

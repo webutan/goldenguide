@@ -167,6 +167,16 @@ export async function savePartition(buildingId, data) {
   return res.json()
 }
 
+/** Admin: forget a building's stored split (it falls back to the automatic one). */
+export async function deletePartition(buildingId) {
+  const res = await fetch(`${BASE}/partitions/${encodeURIComponent(buildingId)}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to reset partition')
+  return res.json()
+}
+
 export async function uploadPhoto(barId, file, type = 'general') {
   const form = new FormData()
   form.append('photo', file)

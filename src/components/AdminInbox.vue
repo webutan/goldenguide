@@ -1,12 +1,11 @@
 <script setup>
 // AdminPanel "Inbox" tab: edit suggestions sent by visitors, each shown as a
 // diff (old -> new) against the bar's current values, with Apply / Dismiss.
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import WinTabs from './win2000/WinTabs.vue'
 import WinButton from './win2000/WinButton.vue'
-import { fetchSuggestions, setSuggestionStatus } from '../api/suggestions.js'
-import { updateBar } from '../api/index.js'
-import { suggestionChanges, changesToPatch, formatSchedule } from '../utils/suggestions.js'
+import { fetchSuggestions, setSuggestionStatus, applySuggestion } from '../api/suggestions.js'
+import { suggestionChanges, formatSchedule } from '../utils/suggestions.js'
 import { useSuggestionInbox } from '../composables/useSuggestEdit.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -32,6 +31,15 @@ const items = ref([])
 const loading = ref(false)
 const loadError = ref(false)
 const busyId = ref(null)
+// What the server did with the last Apply: { text } | null
+const notice = ref(null)
+const noticeRef = ref(null)
+// The notice sits above the list, which may be scrolled far down: bring it into view
+watch(notice, async (value) => {
+  if (!value) return
+  await nextTick()
+  noticeRef.value?.scrollIntoView?.({ block: 'nearest' })
+}, { flush: 'post' })
 let loadSeq = 0
 
 async function load() {
@@ -86,6 +94,8 @@ function diffRowsFor(changes) {
   }))
 }
 
+const diffLines = changes => diffRowsFor(changes).map(r => `${r.label}: ${r.from} → ${r.to}`).join('\n')
+
 // Diff rows against the bar as it is now: [{ label, from, to }]
 const diffRows = s => diffRowsFor(suggestionChanges(s, s.bar))
 
@@ -116,35 +126,39 @@ async function failed(err) {
 async function apply(suggestion) {
   if (busyId.value != null) return
   busyId.value = suggestion.id
+  notice.value = null
   try {
-    // Fetch again first: the bar or the suggestion may have changed since the list was loaded
-    const fresh = (await fetchSuggestions('open')).find(s => s.id === suggestion.id)
-    if (!fresh || !fresh.bar) {
-      await dialog.alert(t('inboxGone'), { title: t('adminTabInboxPlain'), icon: 'info' })
-      return
-    }
-    const changes = suggestionChanges(fresh, fresh.bar)
-    if (changes.length === 0) {
-      await dialog.alert(t('inboxNoChanges'), { title: t('adminTabInboxPlain'), icon: 'info' })
-      return
-    }
-    const name = barName(fresh)
-    const closing = changes.some(c => c.field === 'is_active')
-    const lines = diffRowsFor(changes).map(r => `${r.label}: ${r.from} → ${r.to}`).join('\n')
+    // The confirmation shows the diff from the list in hand. The server then
+    // works the change out again against the bar as it is at that moment,
+    // applies it together with the status change (one request, one
+    // transaction) and reports what it did.
+    const name = barName(suggestion)
+    const closing = suggestion.kind === 'closed'
     const ok = closing
       ? await dialog.confirm(t('inboxApplyClosedConfirm', { name }), {
         title: t('inboxApplyClosedTitle'), icon: 'warning', yesNo: true, defaultButton: 1,
       })
-      : await dialog.confirm(`${t('inboxApplyConfirm', { name })}\n\n${lines}`, {
+      : await dialog.confirm(`${t('inboxApplyConfirm', { name })}\n\n${diffLines(suggestionChanges(suggestion, suggestion.bar))}`, {
         title: t('inboxApply'), icon: 'question', yesNo: true,
       })
     if (!ok) return
-    // Same endpoint (and field whitelist) the rest of the admin UI uses
-    await updateBar(fresh.bar.id, changesToPatch(changes))
-    await setSuggestionStatus(fresh.id, 'applied')
-    emit('reload')
+    const { result, changes } = await applySuggestion(suggestion.id)
+    if (result === 'applied') {
+      notice.value = { text: `${t('inboxResultApplied', { name })}\n${diffLines(changes)}` }
+      emit('reload')
+    } else {
+      // Not an error: someone else got there first, or the bar was edited
+      // since and already says what the suggestion asks for
+      const why = result === 'no_changes' ? t('inboxNoChanges') : t('inboxGone')
+      notice.value = { text: `${name}: ${why}\n${t('inboxNothingChanged')}` }
+    }
   } catch (err) {
-    await failed(err)
+    if (err.status === 404) {
+      // The suggestion went away with its bar
+      notice.value = { text: `${t('inboxGone')}\n${t('inboxNothingChanged')}` }
+    } else {
+      await failed(err)
+    }
   } finally {
     busyId.value = null
     await load()
@@ -171,6 +185,11 @@ async function setStatus(suggestion, next) {
       <div class="ai-toolbar">
         <span class="ai-count">{{ loading ? t('adminReviewsLoading') : t('inboxCount', { n: items.length }) }}</span>
         <WinButton small :disabled="loading" @click="load">{{ t('adminReviewsRefresh') }}</WinButton>
+      </div>
+
+      <div v-if="notice" ref="noticeRef" class="ai-notice" role="status" data-testid="inbox-notice">
+        <span class="ai-notice-text">{{ notice.text }}</span>
+        <button class="ai-notice-close" :title="t('close')" :aria-label="t('close')" @click="notice = null">&#10005;</button>
       </div>
 
       <div v-if="loadError" class="ai-empty">{{ t('inboxLoadFailed') }}</div>
@@ -251,6 +270,44 @@ async function setStatus(suggestion, next) {
 .ai-count {
   font-size: 10px;
   color: var(--win-text-disabled);
+}
+
+/* Result of the last Apply, as reported by the server */
+.ai-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 6px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  background: var(--win-bg-dark);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.ai-notice-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-notice-close {
+  flex-shrink: 0;
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--win-text);
+  background: var(--win-bg);
+  border: none;
+  cursor: pointer;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
 }
 
 .ai-empty {

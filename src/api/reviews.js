@@ -20,12 +20,25 @@ export async function reportReview(id) {
   return expectOk(res, 'report review')
 }
 
-/** Admin: moderation list. status = 'reported' | 'hidden' | 'all'. */
-export async function fetchAdminReviews(status = 'reported') {
-  const res = await fetch(`${BASE}/api/reviews/admin?status=${encodeURIComponent(status)}`, {
-    headers: adminHeaders(),
-  })
+/**
+ * Admin: one page of the moderation list, without drawings (`has_drawing`
+ * says a review has one; see fetchReviewDrawing).
+ * @param {{ status?: 'reported'|'hidden'|'all', barId?: number, cursor?: string, limit?: number }} options
+ * @returns {Promise<{ items: Array, nextCursor: string|null, total: number }>}
+ */
+export async function fetchAdminReviews({ status = 'reported', barId = null, cursor = null, limit = null } = {}) {
+  const query = new URLSearchParams({ status })
+  if (barId != null) query.set('barId', String(barId))
+  if (cursor) query.set('cursor', cursor)
+  if (limit) query.set('limit', String(limit))
+  const res = await fetch(`${BASE}/api/reviews/admin?${query}`, { headers: adminHeaders() })
   return expectOk(res, 'fetch reviews')
+}
+
+/** Admin: a review's drawing (PNG data URL), fetched when it is looked at. */
+export async function fetchReviewDrawing(id) {
+  const res = await fetch(`${BASE}/api/reviews/admin/${id}/drawing`, { headers: adminHeaders() })
+  return (await expectOk(res, 'fetch drawing')).drawing
 }
 
 /** Admin: hide or un-hide a review. Resolves with the updated review. */

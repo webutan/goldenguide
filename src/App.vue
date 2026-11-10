@@ -26,7 +26,7 @@ import { useOpenNow } from './composables/useOpenNow.js'
 import { useDialog } from './composables/useDialog.js'
 import { usePwa } from './composables/usePwa.js'
 import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
-import { updateBar, fetchPartitions, savePartition } from './api/index.js'
+import { updateBar, fetchPartitions, savePartition, deletePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
 import { recordVisit, shouldOfferInstall, isVisitState } from './utils/installOffer.js'
@@ -265,6 +265,22 @@ async function handleUpdatePartitions({ buildingId, data }) {
   })
 }
 
+// "Reset split": the building's stored entry is deleted on the server, then
+// dropped here, so the building falls back to the automatic split
+// (withDefaultPartitions). Nothing changes locally unless the server did.
+async function handleResetPartitions(buildingId) {
+  try {
+    await deletePartition(buildingId)
+  } catch (err) {
+    console.error('Failed to reset partition on server:', err)
+    dialog.alert(t('partResetFailed'), { title: t('partResetSplit'), icon: 'error' })
+    return
+  }
+  const { [buildingId]: _removed, ...rest } = storedPartitions.value
+  storedPartitions.value = rest
+  writeJSON('golden-gai-partitions', rest)
+}
+
 function handleSelectBuildingForEdit(buildingId) {
   selectedBuilding.value = buildingId
 }
@@ -391,14 +407,45 @@ async function handleToggleAdmin() {
   await toggleAdmin()
   if (isAdmin.value) {
     wm.register('admin', t(WINDOW_TITLE_KEYS.admin), '&#128295;')
+    // Search stays (R09). The Explorer window is hidden in admin mode: it sits
+    // where the Admin Console opens, and its filters would hide bars from the
+    // map an admin is placing bars on.
     wm.minimize('explorer')
   } else {
     wm.unregister('admin')
     wm.unregister('database')
     wm.restore('explorer')
     placingBar.value = null
+    // A card of an inactive bar is for admins only
+    if (openBar.value && !openBar.value.is_active) closePopup()
   }
 }
+
+// ── Inactive bars for admins (R09) ───────────────────────────────────────────
+// Opens a bar's card: on the map when the bar is placed, else over the
+// current view. Used by the Admin Console's bar list.
+function openBarCard(bar) {
+  if (!bar) return
+  reviewPanelBar.value = null
+  if (bar.building_id) {
+    handleSearchSelect({ bar, buildingId: bar.building_id })
+  } else {
+    twitterBar.value = null
+    handleSelectBarFromDirectory(bar)
+  }
+}
+
+// The page was opened on /bar/<slug> and the slug was not in the public list
+// (see applyRoute). If it is an inactive bar, it resolves once an admin logs
+// in: the bar list is then fetched again with the admin header.
+let pendingDeepLinkSlug = null
+watch(bars, () => {
+  if (!pendingDeepLinkSlug || !isAdmin.value) return
+  const bar = bars.value.find(b => b.slug === pendingDeepLinkSlug)
+  if (!bar) return
+  pendingDeepLinkSlug = null
+  openBarCard(bar)
+})
 
 function handleOpenDb() {
   if (!dbWin.value) {
@@ -567,6 +614,9 @@ function applyRoute(route, historyState) {
     drinkMin.value = f.drinkMin
     drinkMax.value = f.drinkMax
   }
+
+  // Only the link the page was opened with can resolve after an admin login
+  pendingDeepLinkSlug = opening && route.slug && !bar ? route.slug : null
 
   if (!bar) {
     closePopup()
@@ -931,9 +981,12 @@ async function handleUnplaceBar(bar) {
           </div>
         </div>
 
-        <!-- Search window (desktop only) -->
+        <!-- Search window (desktop only). Also there in admin mode (R09), so a
+             bar's card and reviews can be reached without leaving it. While a
+             bar is being placed, picking a result only moves the map to that
+             bar's building: no card opens over the map being clicked on. -->
         <WinWindow
-          v-if="searchWin && !isAdmin && !isMobile"
+          v-if="searchWin && !isMobile"
           :title="searchWin.title"
           icon="&#128269;"
           :width="200"
@@ -949,7 +1002,7 @@ async function handleUnplaceBar(bar) {
           <MapSearch
             :bars="bars"
             :lang="effectiveLang"
-            @select-bar="handleSearchSelect"
+            @select-bar="isAdmin && placingBar ? ($event.buildingId && panToBuildingWhenReady($event.buildingId)) : handleSearchSelect($event)"
             @search-matches="handleSearchMatches"
           />
         </WinWindow>
@@ -1053,14 +1106,15 @@ async function handleUnplaceBar(bar) {
         />
       </template>
 
-      <!-- Admin window (visible in both views) -->
+      <!-- Admin window (visible in both views). On desktop it opens beside
+           the Search window (8..208px) instead of on top of it. -->
       <WinWindow
         v-if="adminWin && isAdmin"
         :title="adminWin.title"
         icon="&#128295;"
         :width="280"
         :height="550"
-        :initial-x="8"
+        :initial-x="isMobile ? 8 : 216"
         :initial-y="8"
         :active="wm.isActive('admin')"
         :minimized="adminWin.minimized"
@@ -1082,6 +1136,8 @@ async function handleUnplaceBar(bar) {
           @reload="reload"
           @reorder-tags="handleReorderTags"
           @update-partitions="handleUpdatePartitions"
+          @reset-partitions="handleResetPartitions"
+          @open-bar="openBarCard"
           @open-db="handleOpenDb"
         />
       </WinWindow>

@@ -21,7 +21,18 @@ const { t } = useI18n(computed(() => props.lang))
 
 const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang', 'install'])
 
-const { windows, toggle, isActive } = useWindowManager()
+const { windows, toggle, isActive, minimize, restore } = useWindowManager()
+
+// The Admin Console's button at phone width: one tap hides the window, the
+// next brings it back. (`toggle` would first only focus it whenever another
+// registered window, shown or not, was focused last.)
+const adminWin = computed(() => windows.value.find(w => w.id === 'admin') || null)
+function toggleAdminWindow() {
+  if (!adminWin.value) return
+  if (adminWin.value.minimized) restore('admin')
+  else minimize('admin')
+  closeStart()
+}
 
 const startOpen = ref(false)
 const { openMissingBar } = useSuggestEdit()
@@ -160,7 +171,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="win-taskbar" @click.self="closeStart">
+  <div :class="['win-taskbar', { 'has-admin-btn': !!adminWin }]" @click.self="closeStart">
     <!-- Start button -->
     <button
       :class="['taskbar-start', { pressed: startOpen }]"
@@ -233,6 +244,21 @@ onUnmounted(() => {
         <span class="taskbar-win-text">{{ win.title }}</span>
       </button>
     </div>
+
+    <!-- Phone width only (R09): the window buttons above are hidden there, but
+         the Admin Console is a floating window that covers the desktop and
+         the map, so it gets an icon button to minimise and restore it. -->
+    <button
+      v-if="adminWin"
+      type="button"
+      :class="['taskbar-admin-btn', { active: !adminWin.minimized }]"
+      :title="adminWin.title"
+      :aria-label="adminWin.title"
+      :aria-pressed="!adminWin.minimized"
+      @click="toggleAdminWindow"
+    >
+      <span class="taskbar-admin-icon" v-html="adminWin.icon"></span>
+    </button>
 
     <!-- Language toggle (anchored right) -->
     <button
@@ -474,6 +500,30 @@ onUnmounted(() => {
   image-rendering: pixelated;
   display: block;
   object-fit: contain;
+}
+
+/* Admin Console button for phone width (the media query below shows it);
+   on desktop the window has its ordinary button in .taskbar-windows */
+.taskbar-admin-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  color: var(--win-text);
+}
+
+.taskbar-admin-btn.active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  background: var(--win-bg-dark);
 }
 
 .taskbar-windows {
@@ -746,6 +796,27 @@ onUnmounted(() => {
   /* Hide window buttons — not useful on mobile */
   .taskbar-windows {
     display: none;
+  }
+
+  /* ...except the Admin Console's: a 42px icon button. The bar is full at
+     390px, so while it is there (admin mode only) the gaps and the padding
+     of the start and view buttons shrink to make room; every button stays
+     at least 40px wide. */
+  .taskbar-admin-btn {
+    display: flex;
+    height: 42px;
+    width: 42px;
+  }
+  .taskbar-admin-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .win-taskbar.has-admin-btn {
+    gap: 2px;
+  }
+  .win-taskbar.has-admin-btn .taskbar-start,
+  .win-taskbar.has-admin-btn .taskbar-view-btn {
+    padding: 4px 8px;
   }
 
   /* Lang buttons */

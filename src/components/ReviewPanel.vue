@@ -3,6 +3,8 @@ import { computed, onMounted, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
 import ReviewActions from './ReviewActions.vue'
+import AdminDrawing from './AdminDrawing.vue'
+import { isAdmin } from '../composables/useAdmin.js'
 import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
@@ -11,8 +13,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-const { reviews, loadBarReviews } = useReviews()
+// `barReviews`: the public list; in admin mode the bar's hidden reviews are
+// merged in (from the admin endpoint) so they can be un-hidden in place.
+const { barReviews: reviews, loadBarReviews } = useReviews()
 const { t } = useI18n(computed(() => props.lang))
+// Entering or leaving admin mode changes what the panel may show
+watch(isAdmin, () => loadBarReviews(props.bar.id))
 
 const displayName = computed(() => {
   if (!props.bar) return ''
@@ -54,13 +60,23 @@ function timeAgo(dateStr) {
 
     <div class="rp-body">
       <div v-if="reviews.length === 0" class="rp-empty">{{ offline ? t('offlineReviews') : t('noReviews') }}</div>
-      <div v-for="review in reviews" :key="review.id" class="rp-card">
+      <div
+        v-for="review in reviews"
+        :key="review.id"
+        :class="['rp-card', { 'rp-card-hidden': review.hidden }]"
+        :data-hidden="review.hidden ? 'true' : null"
+      >
         <div class="rp-card-header">
           <span class="rp-nickname">{{ review.nickname }}</span>
+          <span v-if="review.hidden" class="rp-hidden-badge">{{ t('adminReviewsHiddenBadge') }}</span>
           <span class="rp-time">{{ timeAgo(review.created_at) }}</span>
         </div>
-        <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
-        <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" :alt="t('reviewDrawing')" />
+        <div class="rp-card-content">
+          <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
+          <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" :alt="t('reviewDrawing')" />
+          <!-- Hidden reviews come from the admin list, which leaves the drawing to be fetched -->
+          <AdminDrawing v-else-if="review.has_drawing" :review-id="review.id" :lang="lang" class="rp-drawing rp-drawing-lazy" />
+        </div>
         <ReviewActions :review="review" :lang="lang" />
       </div>
     </div>
@@ -177,7 +193,31 @@ function timeAgo(dateStr) {
 .rp-card-header {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
   margin-bottom: 4px;
+}
+
+/* Admin mode: a hidden review stays in place, greyed out, with its badge */
+.rp-card-hidden .rp-card-content,
+.rp-card-hidden .rp-nickname {
+  opacity: 0.5;
+}
+
+.rp-hidden-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  margin-right: auto;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+/* Placeholder until a hidden review's drawing has been fetched */
+button.rp-drawing-lazy {
+  min-height: 48px;
 }
 
 .rp-nickname {
