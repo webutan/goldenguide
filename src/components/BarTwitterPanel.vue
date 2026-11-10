@@ -25,7 +25,7 @@ const barName = computed(() => {
 
 const tweets = ref(null)   // null = no API key / no tweets field, array = tweets
 const loading = ref(false)
-const error = ref(null)
+const error = ref(false) // the request failed, or the server reported an upstream error
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -44,15 +44,15 @@ function formatDate(dateStr) {
 async function loadFeed(h) {
   if (!h) return
   loading.value = true
-  error.value = null
+  error.value = false
   tweets.value = null
   try {
     const data = await fetchBarFeed(h)
     // The response may have no `tweets` field at all (e.g. error-only payloads)
     tweets.value = Array.isArray(data?.tweets) ? data.tweets : null
-    if (data?.error) error.value = data.error
-  } catch (err) {
-    error.value = err.message
+    if (data?.error) error.value = true
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
@@ -85,7 +85,7 @@ watch(offline, (isOffline) => { if (!isOffline && error.value && handle.value) l
       <div v-if="loading" class="btp-status">{{ t('loading') }}</div>
 
       <!-- Error banner -->
-      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : error }}</div>
+      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : t('feedLoadFailed') }}</div>
 
       <!-- No API key — show link fallback -->
       <div v-else-if="tweets == null && !loading" class="btp-no-api">

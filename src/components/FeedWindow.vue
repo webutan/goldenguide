@@ -15,7 +15,7 @@ const { t } = useI18n(computed(() => props.lang))
 const tweets = ref(null)   // null = no API key, use embedded mode
 const accounts = ref([])
 const loading = ref(true)
-const error = ref(null)
+const error = ref(false) // the request failed, or the server reported an upstream error
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -66,18 +66,18 @@ function loadTwitterWidgets() {
 
 async function load() {
   loading.value = true
-  error.value = null
+  error.value = false
   try {
     const data = await fetchFeed()
     tweets.value = data.tweets
     accounts.value = data.accounts || []
-    if (data.error) error.value = data.error
+    if (data.error) error.value = true
     if (data.tweets === null && accounts.value.length > 0) {
       await nextTick()
       loadTwitterWidgets()
     }
-  } catch (err) {
-    error.value = err.message
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
@@ -107,6 +107,11 @@ watch(offline, (isOffline) => { if (!isOffline && error.value) load() })
       {{ t('offlineFeed') }}
     </div>
 
+    <!-- The request failed: nothing to show, and not the same as "no accounts" -->
+    <div v-else-if="error && accounts.length === 0" class="feed-status">
+      {{ t('feedLoadFailed') }}
+    </div>
+
     <!-- No accounts -->
     <div v-else-if="accounts.length === 0" class="feed-status">
       {{ t('noTwitterAccounts') }}
@@ -114,7 +119,7 @@ watch(offline, (isOffline) => { if (!isOffline && error.value) load() })
 
     <!-- API mode: merged tweet timeline -->
     <template v-else-if="tweets !== null">
-      <div v-if="error" class="feed-error">{{ error }}</div>
+      <div v-if="error" class="feed-error">{{ t('feedLoadFailed') }}</div>
       <div v-if="tweets.length === 0" class="feed-status">{{ t('noRecentTweets') }}</div>
       <div v-else class="tweet-list">
         <a
@@ -156,7 +161,7 @@ watch(offline, (isOffline) => { if (!isOffline && error.value) load() })
 
     <!-- Embedded mode: one Twitter timeline per account -->
     <template v-else>
-      <div v-if="error" class="feed-error">{{ error }}</div>
+      <div v-if="error" class="feed-error">{{ t('feedLoadFailed') }}</div>
       <div class="embed-list" ref="embedListRef">
         <div v-for="account in accounts" :key="account.handle" class="embed-item">
           <div class="embed-label">

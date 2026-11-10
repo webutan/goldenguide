@@ -2,6 +2,7 @@
 // Hover tooltip listing the bars of the hovered building.
 import { computed } from 'vue'
 import { useVisited } from '../../composables/useVisited.js'
+import { useI18n } from '../../composables/useI18n.js'
 import { floorColors } from '../../utils/mapGeometry.js'
 import { devTrackRenders } from '../../utils/devPerf.js'
 
@@ -17,6 +18,7 @@ const props = defineProps({
 devTrackRenders('MapTooltip')
 
 const { isFavorited, isVisited } = useVisited()
+const { t } = useI18n(computed(() => props.lang))
 
 // Tooltip bars grouped by floor, sorted descending
 const floorGroups = computed(() => {
@@ -67,7 +69,7 @@ function barColor(bar) {
             {{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}
           </div>
           <div v-if="bar.name_en && bar.name_jp" class="tooltip-sub">{{ lang === 'jp' ? bar.name_en : bar.name_jp }}</div>
-          <div v-if="bar.charge" class="tooltip-meta">&#165;{{ bar.charge }} cover</div>
+          <div v-if="bar.charge" class="tooltip-meta">{{ t('tooltipCover', { price: `¥${bar.charge}` }) }}</div>
           <div v-if="bar.hours" class="tooltip-meta">{{ bar.hours }}</div>
         </div>
       </div>

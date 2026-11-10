@@ -1724,7 +1724,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
       <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
       <WinButton class="zoom-btn" :title="t('zoomOut')" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" :title="t('fitToView')" @click="resetZoom">&#x27F3;</WinButton>
-      <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
+      <WinButton v-if="adminMode" class="zoom-btn" :title="t('annAddLabel')" @click="addAnnotation">Aa+</WinButton>
       <WinButton
         class="zoom-btn"
         :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError, 'tour-highlight': tourHighlight === 'map-location' }"
@@ -1757,7 +1757,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           :value="selectedAnn.text_en || selectedAnn.text || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_en', $event.target.value)"
           class="ann-input"
-          placeholder="English text"
+          :placeholder="t('annTextEn')"
         />
       </label>
       <label class="ann-field">
@@ -1767,11 +1767,11 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           :value="selectedAnn.text_jp || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_jp', $event.target.value)"
           class="ann-input"
-          placeholder="Japanese text"
+          :placeholder="t('annTextJp')"
         />
       </label>
       <label class="ann-field">
-        <span>Size</span>
+        <span>{{ t('annSize') }}</span>
         <input
           type="number"
           :value="selectedAnn.font_size"
@@ -1782,7 +1782,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
         />
       </label>
       <label class="ann-field">
-        <span>Rot</span>
+        <span>{{ t('annRotation') }}</span>
         <input
           type="number"
           :value="selectedAnn.rotation"
@@ -1798,7 +1798,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
         :value="selectedAnn.color"
         @input="updateAnnotation(selectedAnn.id, 'color', $event.target.value)"
         class="ann-color"
-        title="Color"
+        :title="t('annColor')"
       />
       <label v-if="selectedAnn.image_url" class="ann-field">
         <span>W</span>
@@ -1813,7 +1813,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           class="ann-num" min="10" max="5000" />
       </label>
       <label v-if="!selectedAnn.image_url" class="ann-field">
-        <span>Icon</span>
+        <span>{{ t('annIcon') }}</span>
         <input type="file" accept="image/*" @change="onAnnotationIconUpload($event)" style="width:80px;font-size:9px" />
       </label>
       <WinButton small @click="deleteAnnotation(selectedAnn.id)">&#10005;</WinButton>
