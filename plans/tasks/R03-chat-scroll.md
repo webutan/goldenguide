@@ -8,6 +8,8 @@
 - `useChat.js` adds a new `beforeunload` listener every time the socket is recreated.
 - `chat:history` uses `pool.connect().then(...)` with no `.catch` server-side, so if the DB is down that's an unhandled rejection. Fix this in `server/routes/chat.js`.
 
+Also (found in R06): `ReviewDialog.vue` calls `useChat()` only to read the nickname, which opens a chat socket (and downloads socket.io) whenever a review dialog is open. Export a socket-free `useNickname()` (or read via `readString`) and use it there.
+
 ## Steps
 1. Watch `messages.value.length` (or the last id) instead of deep.
 2. Auto-scroll only if the user was within ~40 px of the bottom. Otherwise show a Win95-style "▼ New messages" button at the bottom of the pane.
