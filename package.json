@@ -25,6 +25,11 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "sharp": "^0.35.5",
     "vite": "^6.0.0",
-    "vitest": "^3.2.7"
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^3.2.7",
+    "workbox-expiration": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
   }
 }

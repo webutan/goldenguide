@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useWindowManager } from '../../composables/useWindowManager.js'
 import { useI18n } from '../../composables/useI18n.js'
 import { useSuggestEdit } from '../../composables/useSuggestEdit.js'
@@ -11,11 +11,15 @@ const props = defineProps({
   activeView: { type: String, default: 'desktop' },
   lang: { type: String, default: 'en' },
   tourHighlight: { type: String, default: null },
+  // No connection: show the tray icon and the "saved data" balloon
+  offline: { type: Boolean, default: false },
+  // When the data on screen left the server (Date), for the balloon
+  dataTime: { type: Date, default: null },
 })
 
 const { t } = useI18n(computed(() => props.lang))
 
-const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang'])
+const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang', 'install'])
 
 const { windows, toggle, isActive } = useWindowManager()
 
@@ -88,6 +92,51 @@ function onDocPointerDown(e) {
   }
 }
 
+// Offline tray icon + balloon. The balloon opens by itself when the
+// connection drops, closes after a while, and toggles on a click or tap.
+const OFFLINE_BALLOON_MS = 8000
+const netRef = ref(null)
+const netBalloon = ref(false)
+const netBalloonStyle = ref({})
+let netBalloonTimer = null
+
+const savedDataText = computed(() => {
+  const at = props.dataTime
+  if (!at) return t('offlineNoData')
+  const sameDay = at.toDateString() === now.value.toDateString()
+  const time = new Intl.DateTimeFormat(props.lang === 'jp' ? 'ja-JP' : 'en-GB', sameDay
+    ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
+    : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
+  return t('offlineSavedData', { time })
+})
+
+function placeNetBalloon() {
+  const rect = netRef.value?.getBoundingClientRect()
+  if (!rect) return
+  netBalloonStyle.value = {
+    right: `${Math.max(4, window.innerWidth - rect.right - 4)}px`,
+    bottom: `${window.innerHeight - rect.top + 6}px`,
+  }
+}
+function showNetBalloon(autoHide) {
+  netBalloon.value = true
+  nextTick(placeNetBalloon)
+  clearTimeout(netBalloonTimer)
+  if (autoHide) netBalloonTimer = setTimeout(() => { netBalloon.value = false }, OFFLINE_BALLOON_MS)
+}
+function hideNetBalloon() {
+  clearTimeout(netBalloonTimer)
+  netBalloon.value = false
+}
+function toggleNetBalloon() {
+  if (netBalloon.value) hideNetBalloon()
+  else showNetBalloon(false)
+}
+watch(() => props.offline, (isOffline) => {
+  if (isOffline) showNetBalloon(true)
+  else hideNetBalloon()
+}, { immediate: true })
+
 let clockTimer = null
 onMounted(() => {
   now.value = new Date()
@@ -96,6 +145,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   clearInterval(clockTimer)
+  clearTimeout(netBalloonTimer)
   document.removeEventListener('pointerdown', onDocPointerDown)
 })
 </script>
@@ -117,6 +167,10 @@ onUnmounted(() => {
         <div class="start-menu-item" role="button" @click="openMissingBar()">
           <span class="start-menu-glyph">&#9998;</span>
           <span>{{ t('suggestMissingMenu') }}</span>
+        </div>
+        <div class="start-menu-item" role="button" @click="emit('install')">
+          <img src="/icons/gaios.ico" class="start-menu-icon" alt="" />
+          <span>{{ t('installMenu') }}</span>
         </div>
         <div class="start-menu-item" @click="emit('toggleAdmin')">
           <span>{{ isAdmin ? '&#9745;' : '&#9744;' }}</span>
@@ -189,7 +243,21 @@ onUnmounted(() => {
     </button>
 
     <!-- System tray -->
-    <div class="taskbar-tray">
+    <div :class="['taskbar-tray', { 'is-offline': offline }]">
+      <button
+        v-if="offline"
+        ref="netRef"
+        type="button"
+        class="tray-net"
+        :title="t('offlineTitle')"
+        :aria-label="`${t('offlineTitle')} ${savedDataText}`"
+        @click="toggleNetBalloon"
+      >
+        <span class="tray-net-icon">
+          <img src="/icons/desktop/network_internet_pcs.png" alt="" />
+          <span class="tray-net-x" aria-hidden="true">&#10005;</span>
+        </span>
+      </button>
       <span v-if="isAdmin" class="tray-admin">ADM</span>
       <span class="tray-visited" :title="t('visitedTooltip', { visited: visitedCount, total: totalBars })">
         {{ visitedCount }}/{{ totalBars }}
@@ -212,6 +280,15 @@ onUnmounted(() => {
       <!-- Teleported so it sits above Gai-chan (z 1050+) instead of inside the taskbar's stacking context -->
       <Teleport to="body">
         <div v-if="showClockTip" class="tray-clock-tip" role="tooltip" :style="clockTipStyle">{{ clockTip }}</div>
+        <!-- Offline balloon: on <body> for the same reason, and so the viewport
+             coordinates of the tray icon apply (#app is zoomed on desktop) -->
+        <div v-if="offline && netBalloon" class="tray-net-balloon" role="status" :style="netBalloonStyle" @click="hideNetBalloon">
+          <span class="tray-net-balloon-title">
+            <img src="/icons/msg_warning-1.png" alt="" />
+            {{ t('offlineTitle') }}
+          </span>
+          <span>{{ savedDataText }}</span>
+        </div>
       </Teleport>
     </div>
   </div>
@@ -326,6 +403,15 @@ onUnmounted(() => {
   width: 1em;
   text-align: center;
   flex-shrink: 0;
+}
+
+.start-menu-icon {
+  width: 16px;
+  height: 16px;
+  margin: 0 -2px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  object-fit: contain;
 }
 
 .start-menu-item:hover {
@@ -520,6 +606,75 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+/* Offline: the network icon with a red cross over it */
+.tray-net {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.tray-net-icon {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.tray-net-icon img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.tray-net-x {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  color: #ff2020;
+  font-family: var(--win-font);
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
+}
+
+/* Tray balloon: same pale yellow as the info tip */
+.tray-net-balloon {
+  position: fixed;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 8px;
+  background: #ffffe1;
+  border: 1px solid #000000;
+  color: #000000;
+  font-family: var(--win-font);
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: default;
+}
+
+.tray-net-balloon-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: bold;
+}
+
+.tray-net-balloon-title img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
 /* Tour highlight pulse */
 .tour-highlight {
   box-shadow: 0 0 0 2px #ffcc44, 0 0 10px 2px rgba(255, 204, 68, 0.6) !important;
@@ -596,6 +751,23 @@ onUnmounted(() => {
   .tray-clock {
     align-self: stretch;
     align-items: center;
+  }
+  /* No room beside the clock at phone width: the icon sits above it */
+  .taskbar-tray.is-offline {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+  }
+  .taskbar-tray.is-offline .tray-net {
+    align-self: stretch;
+    flex: 1;
+  }
+  .taskbar-tray.is-offline .tray-clock {
+    align-self: center;
+    padding-bottom: 3px;
+  }
+  .tray-net-balloon {
+    font-size: 12px;
   }
 }
 </style>

@@ -16,6 +16,7 @@ import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
 import BiosScreen from './components/BiosScreen.vue'
 import ReviewPanel from './components/ReviewPanel.vue'
+import InstallWizard from './components/InstallWizard.vue'
 import { useI18n } from './composables/useI18n.js'
 import { useVisited } from './composables/useVisited.js'
 import { useApi } from './composables/useApi.js'
@@ -23,10 +24,12 @@ import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { useDialog } from './composables/useDialog.js'
+import { usePwa } from './composables/usePwa.js'
 import { useUrlState, parseUrl, barShareUrl, barTitle, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
+import { recordVisit, shouldOfferInstall, isVisitState } from './utils/installOffer.js'
 
 // Heavy, rarely-opened windows are split into their own chunks (R06).
 function lazyWindow(loader) {
@@ -40,7 +43,7 @@ const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vu
 const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
 const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
 
-const { bars, tags, loading, error, reload } = useApi()
+const { bars, tags, loading, error, dataTime, reload, refreshQuietly } = useApi()
 const { visitedCount } = useVisited()
 const { isAdmin, toggleAdmin } = useAdmin()
 // The bar list differs by mode (admins also get inactive bars), so refetch on toggle
@@ -649,6 +652,87 @@ async function handleShareBar({ bar, anchor }) {
   }
 }
 
+// ── Offline mode / installable app (G03) ─────────────────────────────────────
+const pwa = usePwa()
+const offline = pwa.offline
+
+// Back online: fetch fresh data. While the API cannot be reached although the
+// device says it is connected (weak signal), try again every so often; the
+// service worker reports when a request got through.
+const OFFLINE_RETRY_MS = 30000
+let offlineRetryTimer = null
+function refreshData() {
+  refreshQuietly()
+  loadPartitionsFromServer()
+}
+watch(offline, (isOffline) => {
+  clearInterval(offlineRetryTimer)
+  if (isOffline) {
+    offlineRetryTimer = setInterval(() => { if (navigator.onLine !== false) refreshData() }, OFFLINE_RETRY_MS)
+  } else {
+    refreshData()
+  }
+})
+// The worker answered from its saved copy and has since stored a newer one
+const stopDataUpdates = pwa.onDataUpdated((path) => {
+  if (path === '/api/partitions') loadPartitionsFromServer()
+  else if (path === '/api/bars' || path === '/api/tags') refreshQuietly()
+})
+onUnmounted(() => {
+  clearInterval(offlineRetryTimer)
+  stopDataUpdates()
+})
+
+// "A new version of GAI OS is available": asked once per waiting version,
+// after the boot screen. "Later" keeps this version until the next start.
+watch([pwa.updateReady, showBios], async ([ready, booting]) => {
+  if (!ready || booting) return
+  pwa.updateReady.value = false
+  const restart = await dialog.confirm(t('updateAvailable'), {
+    title: t('updateTitle'),
+    icon: 'question',
+    okLabel: t('updateRestart'),
+    cancelLabel: t('updateLater'),
+  })
+  if (restart) pwa.restartIntoUpdate()
+})
+
+// Setup wizard: from the Start menu any time, and offered once by itself from
+// the second visit on (see utils/installOffer.js for when it stays quiet).
+const showInstallWizard = ref(false)
+const visits = recordVisit(readJSON('golden-gai-visits', null, isVisitState), Date.now())
+writeJSON('golden-gai-visits', visits)
+const installOffered = ref(!!readString('golden-gai-install-offered'))
+
+function openInstallWizard() {
+  showInstallWizard.value = true
+  // Seen once, by either route: do not bring it up again uninvited
+  installOffered.value = true
+  writeString('golden-gai-install-offered', '1')
+}
+
+const INSTALL_OFFER_DELAY_MS = 2500
+const wantInstallOffer = computed(() => shouldOfferInstall({
+  visits: visits.count,
+  offered: installOffered.value,
+  installMode: pwa.installMode.value,
+  onboarding: showBios.value || loading.value || !!error.value
+    || lang.value === null || firstVisit.value === null
+    || showRules.value || tourMode.value || showRulesHint.value,
+  deepLink: isDeepLink,
+  admin: isAdmin.value,
+  busy: !!popupBuildingBars.value || !!reviewPanelBar.value || showContact.value,
+}))
+let installOfferTimer = null
+watch(wantInstallOffer, (want) => {
+  clearTimeout(installOfferTimer)
+  if (!want) return
+  installOfferTimer = setTimeout(() => {
+    if (wantInstallOffer.value) openInstallWizard()
+  }, INSTALL_OFFER_DELAY_MS)
+}, { immediate: true })
+onUnmounted(() => clearTimeout(installOfferTimer))
+
 async function handlePlaceBar({ bar, buildingId }) {
   try {
     await updateBar(placingBar.value.id, { building_id: buildingId })
@@ -674,6 +758,8 @@ async function handleUnplaceBar(bar) {
   <WinDialog :lang="effectiveLang" />
   <!-- "Suggest an edit" dialog + thank-you balloon (opened via useSuggestEdit) -->
   <SuggestEditHost :lang="effectiveLang" />
+  <!-- "Install GAI OS" setup wizard -->
+  <InstallWizard v-if="showInstallWizard" :lang="effectiveLang" @close="showInstallWizard = false" />
 
   <div v-if="loading" class="loading-screen">{{ t('loading') }}</div>
   <div v-else-if="error" class="loading-screen">{{ t('errorPrefix') }} {{ error }}</div>
@@ -1196,6 +1282,9 @@ async function handleUnplaceBar(bar) {
       :active-view="activeView"
       :lang="effectiveLang"
       :tour-highlight="tourHighlight"
+      :offline="offline"
+      :data-time="dataTime"
+      @install="openInstallWizard"
       @toggle-admin="handleToggleAdmin"
       @switch-view="handleSwitchView"
       @update:lang="handleLangSelect"

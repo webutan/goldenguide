@@ -3,6 +3,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
 import ReviewActions from './ReviewActions.vue'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -20,6 +21,10 @@ const displayName = computed(() => {
 
 onMounted(() => loadBarReviews(props.bar.id))
 watch(() => props.bar.id, id => loadBarReviews(id))
+
+// Reviews are not saved for offline use: say so, and load them once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline) loadBarReviews(props.bar.id) })
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -48,7 +53,7 @@ function timeAgo(dateStr) {
     </button>
 
     <div class="rp-body">
-      <div v-if="reviews.length === 0" class="rp-empty">{{ t('noReviews') }}</div>
+      <div v-if="reviews.length === 0" class="rp-empty">{{ offline ? t('offlineReviews') : t('noReviews') }}</div>
       <div v-for="review in reviews" :key="review.id" class="rp-card">
         <div class="rp-card-header">
           <span class="rp-nickname">{{ review.nickname }}</span>
