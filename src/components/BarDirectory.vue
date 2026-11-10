@@ -6,6 +6,7 @@ import TagFilter from './TagFilter.vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOpenNow } from '../composables/useOpenNow.js'
+import { buildSearchIndex, searchBars } from '../utils/searchText.js'
 import { barPasses, hasActiveFilters as hasAnyFilter, hasUnknownFilteredPrice } from '../utils/barFilters.js'
 
 const props = defineProps({
@@ -76,16 +77,10 @@ const barPassesFilters = (bar) =>
 
 const priceUnknown = (bar) => hasUnknownFilteredPrice(bar, dirFilters.value)
 
+const searchIndex = computed(() => buildSearchIndex(props.bars))
+
 const filteredBars = computed(() => {
-  let list = props.bars || []
-  if (search.value) {
-    const q = search.value.toLowerCase()
-    list = list.filter(b =>
-      (b.name_jp && b.name_jp.toLowerCase().includes(q)) ||
-      (b.name_en && b.name_en.toLowerCase().includes(q)) ||
-      (b.street && b.street.toLowerCase().includes(q))
-    )
-  }
+  const list = search.value.trim() ? searchBars(searchIndex.value, search.value) : (props.bars || [])
   return list.filter(barPassesFilters)
 })
 

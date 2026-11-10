@@ -35,6 +35,7 @@ const translations = {
   // Search
   'search':     { en: 'Search',         jp: '検索' },
   'searchBars': { en: 'Search bars...', jp: 'バーを検索...' },
+  'searchMore': { en: '+{n} more…', jp: 'ほか{n}件…' },
 
   // Directory
   'allTags': { en: 'All Tags', jp: 'すべてのタグ' },

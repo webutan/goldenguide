@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import { useI18n } from '../composables/useI18n.js'
+import { buildSearchIndex, searchBars } from '../utils/searchText.js'
 
 const props = defineProps({
   bars: Array,
@@ -15,18 +16,19 @@ const emit = defineEmits(['selectBar', 'searchMatches'])
 const search = ref('')
 const showDropdown = ref(false)
 
-const filtered = computed(() => {
-  if (!search.value) return []
-  const q = search.value.toLowerCase()
-  return props.bars.filter(b =>
-    (b.name_jp && b.name_jp.toLowerCase().includes(q)) ||
-    (b.name_en && b.name_en.toLowerCase().includes(q)) ||
-    (b.street && b.street.toLowerCase().includes(q))
-  ).slice(0, 8)
-})
+const DROPDOWN_LIMIT = 8
 
-// Emit matching bars whenever search changes
-watch(filtered, (matches) => {
+// Normalised fields are computed once per bar list, not on every keystroke
+const searchIndex = computed(() => buildSearchIndex(props.bars))
+
+// Every match drives the map highlights and the results drawer
+const allMatches = computed(() => searchBars(searchIndex.value, search.value))
+
+// The dropdown itself stays short
+const filtered = computed(() => allMatches.value.slice(0, DROPDOWN_LIMIT))
+const moreCount = computed(() => Math.max(0, allMatches.value.length - DROPDOWN_LIMIT))
+
+watch(allMatches, (matches) => {
   emit('searchMatches', matches)
 })
 
@@ -39,6 +41,13 @@ function selectResult(bar) {
   emit('selectBar', { bar, buildingId: bar.building_id })
   search.value = ''
   showDropdown.value = false
+}
+
+// "+N more": every result is already listed in the drawer, so just get the
+// dropdown out of its way (the search text and highlights stay).
+function showAllResults() {
+  showDropdown.value = false
+  document.activeElement?.blur?.()
 }
 
 function onFocus() {
@@ -96,6 +105,13 @@ watch(showDropdown, async (val) => {
           <span class="result-name">{{ displayName(bar) }}</span>
           <span class="result-street">{{ bar.street }}</span>
         </div>
+        <div
+          v-if="moreCount > 0"
+          class="search-result search-more"
+          @mousedown.prevent="showAllResults"
+        >
+          {{ t('searchMore', { n: moreCount }) }}
+        </div>
       </div>
     </Teleport>
   </div>
@@ -138,6 +154,16 @@ watch(showDropdown, async (val) => {
 .search-result:hover .result-street {
   color: var(--win-highlight-text);
   opacity: 0.8;
+}
+
+.search-more {
+  justify-content: center;
+  color: var(--win-text-disabled);
+  border-top: 1px solid var(--win-border-dark);
+}
+
+.search-more:hover {
+  color: var(--win-highlight-text);
 }
 
 .result-name {
