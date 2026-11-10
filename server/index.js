@@ -20,8 +20,12 @@ import reviewsRouter from './routes/reviews.js'
 import partitionsRouter from './routes/partitions.js'
 import { registerChatNamespace } from './routes/chat.js'
 import admin from './middleware/admin.js'
+import pool from './db.js'
 
 const app = express()
+// Trust the first proxy hop (nginx) so req.ip comes from X-Forwarded-For
+// and rate limits are per client instead of shared by everyone.
+app.set('trust proxy', 1)
 const httpServer = createServer(app)
 const PORT = process.env.PORT || 3001
 
@@ -42,6 +46,18 @@ app.use('/uploads', express.static(resolve(__dirname, 'uploads')))
 
 // Admin auth check
 app.get('/api/admin/check', adminLimiter, admin, (req, res) => res.json({ ok: true }))
+
+// Health check (used by the docker compose healthcheck)
+app.get('/api/health', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  try {
+    await pool.query('SELECT 1')
+    res.json({ ok: true, db: 'ok' })
+  } catch (err) {
+    console.error('[health] db check failed', err.message)
+    res.status(503).json({ ok: false, db: 'error' })
+  }
+})
 
 // API routes
 app.use('/api/bars', barsRouter)

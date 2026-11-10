@@ -10,13 +10,15 @@
 ### CORS wildcard (Medium)
 `CORS_ORIGIN` now reads from env (`FIXED: 2026-03-15`) — but production deployments must set `CORS_ORIGIN` in `.env` for the restriction to take effect. Default `'*'` remains for local dev.
 
+**FIXED (S01):** `docker-compose.yml` previously never passed `CORS_ORIGIN` (or `TWITTER_BEARER_TOKEN`) to the `api` container, so production always ran with `'*'` and the feed refresh had no token. Both are now passed through. Set them in `.env`.
+
 ### Upload MIME validation missing (Medium)
 Photos are uploaded to `server/uploads/`. Files are stored with UUID names (no extension), which prevents direct execution. However, there is no server-side MIME signature check (magic bytes). A malicious file could still be stored and served.
 
 **Mitigation:** Add `fileFilter` to multer in `server/routes/photos.js` using a library like `file-type` to verify JPEG/PNG/WEBP magic bytes before accepting the upload.
 
-### Admin auth rate limiting (FIXED: 2026-03-15)
-`express-rate-limit` added to `/api/admin/check` (20 req/15 min window). Production deployments behind a reverse proxy may need `app.set('trust proxy', 1)` in `server/index.js` for accurate IP detection.
+### Admin auth rate limiting (FIXED: 2026-03-15, trust proxy FIXED in S01)
+`express-rate-limit` added to `/api/admin/check` (20 req/15 min window). Without `trust proxy` every request appeared to come from the nginx container, so the limit was shared by all users. `server/index.js` now sets `app.set('trust proxy', 1)`, so each client IP (from nginx's `X-Forwarded-For`) gets its own counter.
 
 ---
 
@@ -34,6 +36,14 @@ Back up existing named volume contents first:
 ```bash
 docker run --rm -v golden-gai-map_uploads:/src -v /mnt/md0/golden-gai-uploads:/dst alpine cp -r /src/. /dst/
 ```
+
+Status: still open by design. S01 deliberately left the `uploads` volume unchanged to avoid data loss; the owner should do this migration manually. Note the container path is `/app/uploads` (the server's working directory is `/app`), so the bind mount target should be `/app/uploads`, not `/app/server/uploads`.
+
+### DB container mounted the whole repo (FIXED: S01)
+The `db` service bind-mounted `./` at `/import`, putting `.env` inside the DB container. Nothing used it, so the mount was removed.
+
+### API crashed on Postgres restart (FIXED: S01)
+`pg.Pool` had no `error` listener, so an idle-client error crashed the API. A listener now logs `[pg] idle client error` and the pool reconnects. `GET /api/health` plus a compose `healthcheck` on `api` make DB connectivity visible.
 
 ---
 

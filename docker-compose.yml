@@ -9,7 +9,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data_v2:/var/lib/postgresql/data
-      - ./:/import:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U golden_gai -d golden_gai"]
       interval: 5s
@@ -24,11 +23,19 @@ services:
       DATABASE_URL: postgres://golden_gai:${DB_PASSWORD}@db:5432/golden_gai
       PORT: 3001
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      TWITTER_BEARER_TOKEN: ${TWITTER_BEARER_TOKEN:-}
     volumes:
       - uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
 
   web:
     build: .
