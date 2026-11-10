@@ -25,3 +25,8 @@ Nothing in the app has a URL, so you can't send a friend "this bar". Shareable l
 - [ ] Back/Forward move between opened bars
 - [ ] Filters survive a reload via the URL
 - [ ] Share button works on mobile (navigator.share) and desktop (clipboard)
+
+## Notes from the map track (read before starting)
+- The map now mounts on the first visit to the map view and stays mounted (`v-show`); `mapRef.whenReady()` resolves once it can pan. Use it for the `/bar/<slug>` boot path instead of timers. `panToBuilding` lands the building exactly at the map centre.
+- There is no search box on the Desktop or Directory views, so `handleSearchSelect`'s "not on the map" branch is only reachable from code: the deep-link boot will be its first real caller. Test it cold (map never mounted) and warm.
+- Inactive bars are hidden from the public list; a deep link to one should behave like an unknown slug.

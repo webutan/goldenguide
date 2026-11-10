@@ -155,7 +155,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 |---|----|------|------|-------|--------|-----------|
 | ✅ | [R01](tasks/R01-map-render-perf.md) | Map: hover separated from geometry; declarative colours | L | 6 h | 45 m | B03 |
 | ✅ | [B10](tasks/B10-map-geometry.md) | Partition badge centres; pan correct after rotation | M | 3 h | 30 m | R01 |
-| ☐ | [R02](tasks/R02-keep-map-alive.md) | Keep map alive between views | S–M | 2 h | 15 m | R01 |
+| ✅ | [R02](tasks/R02-keep-map-alive.md) | Keep map alive between views | S–M | 2 h | 15 m | R01 |
 | ☐ | [B11](tasks/B11-map-touch-gestures.md) | Map touch gestures: rotate, drag and pinch when rotated (found in B10) | M | 3 h | 30 m | B10, R02 |
 | ✅ | [R03](tasks/R03-chat-scroll.md) | Chat: cheap watcher, don't yank scroll | S | 45 m | 10 m | – |
 | ☐ | [R04](tasks/R04-dead-code.md) | Dead code & data cleanup | S | 1 h | 15 m | late |

@@ -37,3 +37,12 @@ Also (found in S04, admin usability):
 - Sticky notes overlap each other, the desktop icons and Gai-chan, and the lowest run under the taskbar.
 
 Also (found in B10): the 4-slot grid ignores weights; the badge glyph is a fixed size and overflows thin slots; the Start menu stays open after choosing Admin Mode; `centerOnPoint`, `fitToContainer`, `zoomIn`, `zoomOut` still use viewport-px math that ignores the 1.25 CSS zoom (left alone so the default view stayed identical).
+
+Also (found in R02):
+- **Drawer hover cost is now the whole hover cost** (~85 of ~95 ms per 50 moves): the drawer swaps its 182-card list for the hovered building's cards and rebuilds all 182 on leave (~60 ms each time the pointer moves from a building onto a road), and `WinScrollContainer` reads `scrollHeight` in `onUpdated`, forcing layout on every re-render. Keep the full list mounted and show the hover preview as a separate layer; measure with R01's method.
+- Desktop zoom / fit / locate buttons sit under the always-visible bar drawer and can't be clicked in non-admin mode.
+- "Fit" on desktop is 1.25x too large (`fitToContainer`, `initPanzoom`, `centerOnPoint` mix viewport px with layout px under the CSS zoom), so the minimum zoom doesn't show the whole map.
+- Releasing a map drag over a building selects it (a click fires after the drag).
+- `hoveredBarId` (drawer card → map) still goes through `App.vue`; it can stay set if the drawer unmounts on an admin toggle while a card is hovered.
+- Search highlights persist after leaving the map with a query typed (MapSearch remounts empty).
+- A failed `reload()` sets `error` and unmounts the whole app tree, map included: keep the last good data and show a Win95 error dialog instead.
