@@ -24,8 +24,9 @@ const nickname = ref(readString(NICKNAME_KEY) || generateGuestName())
 const checkinList = ref([])
 const myCheckinBarId = ref(null)
 // Set when the server drops a message / check-in for being too fast:
-// { kind: 'message' | 'checkin', text, seq }. `text` is the dropped message
-// so the window can put it back in the input. Cleared after a few seconds.
+// { kind: 'message' | 'checkin', text, retryAfter, seq }. `text` is the dropped
+// message so the window can put it back in the input; `retryAfter` is the
+// wait in seconds (null if the server did not say). Cleared after a few seconds.
 const rateLimitNotice = ref(null)
 const RATE_LIMIT_NOTICE_MS = 6000
 let noticeTimer = null
@@ -117,7 +118,13 @@ function openSocket(io) {
     const kind = info?.kind === 'checkin' ? 'checkin' : 'message'
     // A refused check-in never happened: go back to what the server holds.
     if (kind === 'checkin') myCheckinBarId.value = info?.barId ?? null
-    rateLimitNotice.value = { kind, text: kind === 'message' ? lastSentText : '', seq: ++noticeSeq }
+    const waitMs = info?.retryAfterMs
+    rateLimitNotice.value = {
+      kind,
+      text: kind === 'message' ? lastSentText : '',
+      retryAfter: typeof waitMs === 'number' && waitMs >= 0 ? waitMs / 1000 : null,
+      seq: ++noticeSeq,
+    }
     clearTimeout(noticeTimer)
     noticeTimer = setTimeout(clearRateLimitNotice, RATE_LIMIT_NOTICE_MS)
   })

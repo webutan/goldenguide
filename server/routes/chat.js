@@ -49,10 +49,12 @@ export function registerChatNamespace(io) {
     const ip = socketIpKey(socket.handshake)
     // Tells this client its last action was dropped, so the UI can say so.
     // `barId` is the check-in the server still holds for this socket, so the
-    // client can put its own state back in sync.
+    // client can put its own state back in sync; `retryAfterMs` is how long
+    // the limiter that refused it wants the client to wait.
     const rateLimited = (kind) => socket.emit('chat:rate_limited', {
       kind,
       barId: socket.data.checkedInBarId || null,
+      retryAfterMs: (kind === 'checkin' ? chatCheckinLimiter : chatMessageLimiter).retryAfterMs(ip),
     })
 
     // Send history on connect

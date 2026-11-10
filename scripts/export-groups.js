@@ -65,7 +65,7 @@ async function main() {
   }
 
   const output = { groups, barToGroup }
-  fs.writeFileSync('src/data/bar-groups.json', JSON.stringify(output, null, 2))
+  fs.writeFileSync('scripts/data/bar-groups.json', JSON.stringify(output, null, 2))
   console.log(`Exported ${groups.length} groups covering ${Object.keys(barToGroup).length} bars`)
 
   await pool.end()

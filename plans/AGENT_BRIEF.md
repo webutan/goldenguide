@@ -25,7 +25,7 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 
 ## Data and persistence rules
 
-- **Migrations:** append a new entry to the `MIGRATIONS` array in `server/migrate.js` with the next number (`015-...`, `016-...`). Never edit an existing migration. Migrations run automatically on API start. The `sql/` folder is stale; don't add files there.
+- **Migrations:** append a new entry to the `MIGRATIONS` array in `server/migrate.js` with the next number (`015-...`, `016-...`). Never edit an existing migration. Migrations run automatically on API start. There is no separate `sql/` folder (it was a stale copy and was removed); the schema lives only in `server/migrate.js`.
 - **localStorage:** keys are prefixed `golden-gai-`. After task **B06** lands, use `src/utils/storage.js` (`readJSON`/`writeJSON`); never call bare `JSON.parse(localStorage...)`.
 - **Admin endpoints** use the `admin` middleware (`server/middleware/admin.js`). Public write endpoints must be rate-limited (after **S02**, use the shared limiter in `server/middleware/rateLimits.js`).
 - User-generated text is always rendered with `{{ }}` interpolation, never `v-html`.
@@ -33,14 +33,14 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 ## How to verify (required before you finish)
 
 1. `npm run build` must succeed with no new warnings, apart from the existing chunk-size warning (until R06).
-2. If `npm test` exists (task **Q00**), it must pass, and you should add tests for any pure logic you touch.
+2. `npm test` must pass, and you should add tests for any pure logic you touch. It also runs the server tests, one of which (`tests/serverSuggestions.test.js`) needs the server's own dependencies: run `npm ci` in the repo root **and** in `server/` first (a fresh worktree has neither).
 3. For backend changes: `node --check` each changed server file. If Postgres is available (`docker compose up db`), start the API with `npm run dev:server` and exercise the endpoint with `curl`.
 4. For UI changes: run `npm run dev` and look at the change in Chromium via Playwright (pre-installed: `require('playwright')`), at **1280×800 and 390×844 (mobile)**. Save screenshots to your scratchpad and describe what you saw. In dev mode the onboarding flow always runs (`DEV` guard in `App.vue`), so click through it or temporarily stub it, but don't commit the stub.
 5. Re-read the "Acceptance criteria" in your task and tick each one off in your final summary.
 
 ## Local environment tips
 
-- **Database:** if `psql` is installed, a local Postgres works without Docker: create a `golden_gai` database and put `DATABASE_URL=postgres://...`, `ADMIN_PASSWORD=devpass` in `.env` (git-ignored; a worktree needs its own copy). `npm run dev:server` runs the migrations. For data, `ADMIN_PASSWORD=devpass node scripts/dev-seed.mjs` fills an empty DB from `src/data/bars.json` (placeholder buildings/prices/schedules, 4 inactive bars).
+- **Database:** if `psql` is installed, a local Postgres works without Docker: create a `golden_gai` database and put `DATABASE_URL=postgres://...`, `ADMIN_PASSWORD=devpass` in `.env` (git-ignored; a worktree needs its own copy). `npm run dev:server` runs the migrations. For data, `ADMIN_PASSWORD=devpass node scripts/dev-seed.mjs` fills an empty DB from `scripts/data/bars.json` (placeholder buildings/prices/schedules, 4 inactive bars).
 - **Don't share mutable state with other agents:** if your task writes to the DB (partitions, reviews, bars), copy the database (`createdb x && pg_dump golden_gai | psql x`) and run your own API on another `PORT`.
 - **Skipping onboarding in Playwright:** the `DEV` guard only applies to `npm run dev`. Against `npm run build && npx vite preview`, set these before the page loads (`context.addInitScript`): `golden-gai-lang=en`, `golden-gai-first-time=no`, `golden-gai-rules-accepted=1`, `golden-gai-booted=1`.
 - **Driving the UI:** desktop icons open on double-click; the taskbar buttons switch views on single click; the admin toggle is in the Start menu (first taskbar button).

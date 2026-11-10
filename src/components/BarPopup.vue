@@ -9,6 +9,7 @@ import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
 import ReviewDialog from './ReviewDialog.vue'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   buildingBars: Array, // array of bars in the clicked building
@@ -111,15 +112,6 @@ const openStatus = computed(() => {
   if (!hasSchedule) return null // unknown
   return props.openBarIds.has(String(bar.value.id)) ? 'open' : 'closed'
 })
-
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = String(url).trim().match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/@?([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
-}
 
 const twitterHandle = computed(() => parseTwitterHandle(bar.value?.sns))
 

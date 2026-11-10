@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { onArtError, onArtLoad } from '../utils/artFallback.js'
 import WinButton from './win2000/WinButton.vue'
 
 const props = defineProps({
@@ -66,7 +67,7 @@ onUnmounted(() => clearInterval(typingTimer))
           <!-- Body: sprite + text -->
           <div class="gaichan-dialog-body">
             <div class="gaichan-dialog-sprite-box">
-              <img :src="currentSprite" class="gaichan-dialog-sprite" alt="Gai-chan" />
+              <img :src="currentSprite" class="gaichan-dialog-sprite" alt="Gai-chan" @error="onArtError" @load="onArtLoad" />
             </div>
             <div class="gaichan-dialog-text">
               {{ displayedText }}<span v-if="!typingDone" class="gaichan-cursor">▋</span>
@@ -105,8 +106,8 @@ onUnmounted(() => clearInterval(typingTimer))
     <div class="gaichan-window" :class="{ 'gaichan-window--hidden': hidden || bubbleType }">
       <div class="gaichan-titlebar">街ちゃん / Gai-chan</div>
       <div class="gaichan-imgwrap">
-        <img class="gaichan-bg" src="/gaichan/gaichanwindow.webp" alt="" />
-        <img class="gaichan-sprite" :src="currentSprite" alt="Gai-chan" />
+        <img class="gaichan-bg" src="/gaichan/gaichanwindow.webp" alt="" @error="onArtError" @load="onArtLoad" />
+        <img class="gaichan-sprite" :src="currentSprite" alt="Gai-chan" @error="onArtError" @load="onArtLoad" />
         <div class="gaichan-scanlines" aria-hidden="true"></div>
       </div>
     </div>

@@ -25,7 +25,7 @@ import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { useDialog } from './composables/useDialog.js'
 import { usePwa } from './composables/usePwa.js'
-import { useUrlState, parseUrl, barShareUrl, barTitle, resolveLang, canNativeShare } from './composables/useUrlState.js'
+import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
@@ -342,13 +342,6 @@ const visitedFilter = ref(false)
 // over the map does not re-render this component.)
 const hoveredBarId = ref(null)
 
-// Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
-const labelMode = ref(readString('golden-gai-label-mode', 'yoko'))
-function setLabelMode(mode) {
-  labelMode.value = mode
-  writeString('golden-gai-label-mode', mode)
-}
-
 const mobileMapFiltersOpen = ref(false)
 const hasActiveMapFilters = computed(() =>
   activeTags.value.length > 0 ||
@@ -378,7 +371,9 @@ watch(explorerWinRef, (el) => {
   if (!el) return
   nextTick(() => {
     const h = el.$el?.offsetHeight ?? 0
-    const desktopH = window.innerHeight - 32
+    // Height of the area the window lives in, in its own px. (#app is zoomed
+    // on desktop, so window.innerHeight is not in the same units.)
+    const desktopH = el.$el?.offsetParent?.clientHeight ?? window.innerHeight - 32
     const y = Math.max(8, Math.floor((desktopH - h) / 2))
     el.setPosition(8, y)
   })
@@ -605,15 +600,28 @@ function handlePopupBarChange(bar) {
   urlState.replaceNext()
 }
 
-watch([openBar, effectiveLang], ([bar, l]) => {
+watch([openBar, effectiveLang, activeView, loading], ([bar, l, view, isLoading]) => {
+  // Until the bars are in, the URL has not been applied: keep the title the
+  // server sent for this address rather than flashing the desktop's.
+  if (isLoading) return
   const name = bar && (l === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp))
-  document.title = barTitle(name)
+  document.title = pageTitle({ view, barName: name, lang: l })
 }, { immediate: true })
+
+// <html lang> follows the language chosen in the app
+watch(effectiveLang, (l) => { document.documentElement.lang = htmlLang(l) }, { immediate: true })
 
 // ── Share ─────────────────────────────────────────────────────────────────────
 const dialog = useDialog()
 const shareBalloon = ref(null) // { text, x, y, below } | null
 let shareBalloonTimer = null
+let shareBalloonWatch = null
+
+function hideShareBalloon() {
+  clearTimeout(shareBalloonTimer)
+  clearInterval(shareBalloonWatch)
+  shareBalloon.value = null
+}
 
 function showShareBalloon(anchorEl, text) {
   const rect = anchorEl?.getBoundingClientRect?.()
@@ -626,9 +634,17 @@ function showShareBalloon(anchorEl, text) {
     below,
   }
   clearTimeout(shareBalloonTimer)
-  shareBalloonTimer = setTimeout(() => { shareBalloon.value = null }, 2000)
+  clearInterval(shareBalloonWatch)
+  shareBalloonTimer = setTimeout(hideShareBalloon, 2000)
+  // The balloon points at a button on a bar card: when the card goes away
+  // (closed, filtered out, another view) the balloon goes with it.
+  if (anchorEl) {
+    shareBalloonWatch = setInterval(() => {
+      if (!anchorEl.isConnected || anchorEl.getClientRects().length === 0) hideShareBalloon()
+    }, 100)
+  }
 }
-onUnmounted(() => clearTimeout(shareBalloonTimer))
+onUnmounted(hideShareBalloon)
 
 async function handleShareBar({ bar, anchor }) {
   if (!bar || !bar.slug) return
@@ -847,7 +863,6 @@ async function handleUnplaceBar(bar) {
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
-          :label-mode="labelMode"
           :tag-mode="tagMode"
           @select-building="handleSelectBuilding"
           @deselect="closeDrawer"

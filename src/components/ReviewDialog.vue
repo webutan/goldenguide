@@ -6,6 +6,7 @@ import { useNickname } from '../composables/useChat.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOnline } from '../composables/usePwa.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -24,6 +25,7 @@ const phase = ref('ask')   // 'ask' | 'write'
 const reviewText = ref('')
 const submitting = ref(false)
 const submitError = ref(null) // null | i18n key of the message to show
+const retryAfter = ref(null) // seconds the server asked us to wait (429), if it said
 const canvasRef = ref(null)
 const canvasTouched = ref(false)
 const selectedColor = ref('#ffffff')
@@ -140,6 +142,7 @@ async function handleSubmit() {
     emit('done')
   } catch (err) {
     console.error('Review submit error:', err)
+    retryAfter.value = err?.retryAfter ?? null
     submitError.value = err?.status === 429 ? 'rateLimited' : offline.value ? 'offlineSend' : 'reviewError'
     submitting.value = false
   }
@@ -218,7 +221,7 @@ async function handleSubmit() {
               class="submit-error-icon"
               alt=""
             />
-            <span>{{ t(submitError) }}</span>
+            <span>{{ submitError === 'rateLimited' ? rateLimitMessage(t, retryAfter) : t(submitError) }}</span>
           </div>
 
           <div class="write-actions">

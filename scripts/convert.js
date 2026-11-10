@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Converts goldengai.ods → src/data/bars.json
+ * Converts goldengai.ods → scripts/data/bars.json
  *
  * Usage:
  *   npm run convert            # converts ODS → CSV → JSON
@@ -9,7 +9,7 @@
  * The ODS spreadsheet is the source of truth. This script:
  *   1. Calls LibreOffice to convert ODS → CSV (if ODS is newer)
  *   2. Parses the CSV
- *   3. Writes src/data/bars.json
+ *   3. Writes scripts/data/bars.json
  *
  * Columns expected (Japanese headers):
  *   名前, 番街, 住所, (empty), Plus Code, 階, チャージ, 男性, お通し付, 席,
@@ -25,7 +25,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '..')
 const ODS_PATH = resolve(ROOT, 'goldengai.ods')
 const CSV_PATH = resolve(ROOT, 'goldengai.csv')
-const OUT_PATH = resolve(ROOT, 'src/data/bars.json')
+const OUT_PATH = resolve(ROOT, 'scripts/data/bars.json')
 
 // Street ID mapping
 const STREET_MAP = {

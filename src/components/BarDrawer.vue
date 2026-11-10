@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onBeforeUnmount } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useSuggestEdit } from '../composables/useSuggestEdit.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -10,6 +10,7 @@ import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
 import ReviewDialog from './ReviewDialog.vue'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   buildingId: String,
@@ -34,6 +35,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'share-bar', 'hover-bar', 'unhover-bar', 'back-to-all'])
+
+// A card under the pointer never gets its mouseleave if the drawer is removed
+// (admin toggle, leaving the map): report it so the map highlight clears.
+onBeforeUnmount(() => emit('unhover-bar'))
 const { openSuggestEdit } = useSuggestEdit()
 // "Share…" opens the phone's share sheet; elsewhere the link is copied
 const nativeShare = canNativeShare()
@@ -178,15 +183,6 @@ function getDisplayName(bar) {
 function getSubName(bar) {
   if (props.lang === 'jp') return bar.name_en
   return bar.name_jp
-}
-
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = String(url).trim().match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/@?([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
 }
 
 function getGoogleMapsUrl(bar) {
@@ -809,9 +805,12 @@ function getOpenStatus(bar) {
 }
 
 @media (max-width: 768px) {
-  /* Beats WinButton's own .small sizing */
-  .drawer-bar-actions .share-btn.small {
+  /* Beats WinButton's own .small sizing. Every action button, not only the
+     share button: a wrapped row without it was 23px tall. */
+  .drawer-bar-actions .win-btn.small {
     min-height: 40px;
+  }
+  .drawer-bar-actions .share-btn.small {
     padding: 2px 10px;
   }
   .suggest-link {

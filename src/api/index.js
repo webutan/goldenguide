@@ -28,12 +28,6 @@ export async function fetchBars() {
   return res.json()
 }
 
-export async function fetchBar(slug) {
-  const res = await fetch(`${BASE}/bars/${encodeURIComponent(slug)}`)
-  if (!res.ok) throw new Error('Failed to fetch bar')
-  return res.json()
-}
-
 export async function fetchTags() {
   const res = await fetch(`${BASE}/tags`)
   if (!res.ok) throw new Error('Failed to fetch tags')

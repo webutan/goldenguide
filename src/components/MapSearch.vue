@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import { useI18n } from '../composables/useI18n.js'
 import { buildSearchIndex, searchBars } from '../utils/searchText.js'
@@ -30,6 +30,12 @@ const moreCount = computed(() => Math.max(0, allMatches.value.length - DROPDOWN_
 
 watch(allMatches, (matches) => {
   emit('searchMatches', matches)
+})
+
+// The box is recreated empty the next time it is shown (leaving the map,
+// admin mode, crossing the mobile width), so the matches go with it.
+onBeforeUnmount(() => {
+  if (allMatches.value.length > 0) emit('searchMatches', [])
 })
 
 function displayName(bar) {

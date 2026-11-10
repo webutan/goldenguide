@@ -24,8 +24,9 @@ const url = computed(() => stickerUrl(props.baseUrl, props.bar.slug))
 const host = computed(() => displayHost(props.baseUrl))
 const names = computed(() => stickerNames(props.bar))
 
-// "Rules · Hours · Charge": the pixel font has no middle dot, so the
-// separators are drawn as squares instead of falling back to a system font.
+// "Rules · Hours · Charge": the pixel fonts have no middle dot (W95FA has
+// none; PixelMplus10 is only used for its Japanese ranges), so the "·" in the
+// string only marks where to split and the separators are drawn as squares.
 const infoLines = computed(() => [en, jp].map(t => t('stickerInfoLine').split('·').map(part => part.trim())))
 
 // Level M: 15% of the symbol can be damaged. Higher levels make the modules
@@ -293,13 +294,17 @@ const qr = computed(() => {
   height: 4.9mm;
 }
 
+/* A 0.5mm square made of borders, not a background: border widths are
+   rounded to whole device pixels, so every separator in the scaled-down
+   on-screen preview comes out the same size (a 0.5mm background box landed
+   on 1px or 2px depending on where it fell). Prints the same. */
 .sticker-dot {
   display: inline-block;
-  width: 0.5mm;
-  height: 0.5mm;
+  width: 0;
+  height: 0;
   margin: 0 1.1mm;
   vertical-align: middle;
-  background: #000;
+  border: 0.25mm solid #000;
 }
 
 .sticker-status-cell {

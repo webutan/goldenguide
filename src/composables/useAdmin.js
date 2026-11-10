@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { setAdminPassword } from '../api/index.js'
 import { useDialog } from './useDialog.js'
+import { rateLimitMessage, retryAfterOf } from '../utils/retryAfter.js'
 
 const isAdmin = ref(false)
 
@@ -24,7 +25,7 @@ export function useAdmin() {
 
     if (!res.ok) {
       await dialog.alert(
-        res.status === 401 ? t('adminWrongPassword') : res.status === 429 ? t('adminLockedOut') : t('adminServerError'),
+        res.status === 401 ? t('adminWrongPassword') : res.status === 429 ? rateLimitMessage(t, retryAfterOf(res), 'adminLockedOut') : t('adminServerError'),
         { title: t('adminLoginTitle'), icon: 'error' },
       )
       return

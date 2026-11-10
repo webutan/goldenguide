@@ -64,7 +64,6 @@ const props = defineProps({
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
   tourHighlight: { type: String, default: null },
-  labelMode: { type: String, default: 'yoko' },
   tagMode: { type: String, default: 'or' }, // 'or' | 'and'
   hoveredBarId: { type: String, default: null },
   // false while another view is shown: the map stays mounted but hidden
@@ -191,9 +190,6 @@ const mapFilters = computed(() => ({
 // Whether any filter is active (includes floor filter)
 const hasActiveFilters = computed(() => hasAnyFilter(mapFilters.value))
 
-// Whether floor filter is active (separate from tag/price filters)
-const hasFloorFilter = computed(() => props.floorFilter != null)
-
 // The one place the filter function runs: IDs (as strings) of the bars that
 // pass the active filters, or null when no filter is active. Badges, dimming,
 // labels and the tooltip all read this set.
@@ -269,15 +265,6 @@ const barById = computed(() => {
   return map
 })
 
-// Lookup bar floor by ID
-const barFloorMap = computed(() => {
-  const map = {}
-  for (const bar of props.bars) {
-    map[String(bar.id)] = bar.floor ?? 1
-  }
-  return map
-})
-
 const unplacedBars = computed(() => {
   return props.bars.filter(b => !b.building_id)
 })
@@ -322,6 +309,20 @@ function barLabelText(bar) {
   const vis = isVisited(bar.id) ? '✓' : ''
   const prefix = [fav, vis].filter(Boolean).join('')
   return prefix ? `${prefix} ${name} ${floorLabel}` : `${name} ${floorLabel}`
+}
+
+// Rotation of a building's label group before the admin's own rotation.
+// Counter-rotates the map's rotation so labels are screen-aligned; 'horizontal'
+// (names side by side, each reading down its slot) gets a quarter turn more.
+// 'tate' does not: writing-mode already runs the text top to bottom, and the
+// extra quarter turn laid it on its side, reading right to left.
+function labelBaseRotation(orientation) {
+  return orientation === 'horizontal' ? -MAP_ROTATION + 90 : -MAP_ROTATION
+}
+
+// Direction the label text runs on screen (0 = left to right, 90 = down)
+function labelScreenAngle(orientation, groupRotation) {
+  return groupRotation + MAP_ROTATION + (orientation === 'tate' ? 90 : 0)
 }
 
 // Compute label layout for every building (only when zoomed in enough).
@@ -457,11 +458,10 @@ const buildingLabelData = computed(() => {
             items = alt
           }
         }
-        const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
-        const groupRotation = baseRotation + partAdminRotation
+        const groupRotation = labelBaseRotation(orientation) + partAdminRotation
         const cx = rect.visibleCenter.x + partOffsetX
         const cy = rect.visibleCenter.y + partOffsetY
-        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
+        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: labelScreenAngle(orientation, groupRotation), items }
       }
       continue
     }
@@ -481,13 +481,10 @@ const buildingLabelData = computed(() => {
     const cx = bldg.minX + bldg.width / 2 + offsetX
     const cy = bldg.minY + bldg.height / 2 + offsetY
 
-    // Counter-rotate the map's own rotation so labels are screen-aligned.
-    // +90° extra for side-by-side (horizontal and tate modes).
-    const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
-    const groupRotation = baseRotation + adminRotation
+    const groupRotation = labelBaseRotation(orientation) + adminRotation
 
     const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride)
-    result[bldgId] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
+    result[bldgId] = { cx, cy, groupRotation, screenAngle: labelScreenAngle(orientation, groupRotation), items }
   }
   return result
 })
@@ -1737,7 +1734,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
       <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
       <WinButton class="zoom-btn" :title="t('zoomOut')" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" :title="t('fitToView')" @click="resetZoom">&#x27F3;</WinButton>
-      <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
+      <WinButton v-if="adminMode" class="zoom-btn" :title="t('annAddLabel')" @click="addAnnotation">Aa+</WinButton>
       <WinButton
         class="zoom-btn"
         :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError, 'tour-highlight': tourHighlight === 'map-location' }"
@@ -1770,7 +1767,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           :value="selectedAnn.text_en || selectedAnn.text || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_en', $event.target.value)"
           class="ann-input"
-          placeholder="English text"
+          :placeholder="t('annTextEn')"
         />
       </label>
       <label class="ann-field">
@@ -1780,11 +1777,11 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           :value="selectedAnn.text_jp || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_jp', $event.target.value)"
           class="ann-input"
-          placeholder="Japanese text"
+          :placeholder="t('annTextJp')"
         />
       </label>
       <label class="ann-field">
-        <span>Size</span>
+        <span>{{ t('annSize') }}</span>
         <input
           type="number"
           :value="selectedAnn.font_size"
@@ -1795,7 +1792,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
         />
       </label>
       <label class="ann-field">
-        <span>Rot</span>
+        <span>{{ t('annRotation') }}</span>
         <input
           type="number"
           :value="selectedAnn.rotation"
@@ -1811,7 +1808,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
         :value="selectedAnn.color"
         @input="updateAnnotation(selectedAnn.id, 'color', $event.target.value)"
         class="ann-color"
-        title="Color"
+        :title="t('annColor')"
       />
       <label v-if="selectedAnn.image_url" class="ann-field">
         <span>W</span>
@@ -1826,7 +1823,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
           class="ann-num" min="10" max="5000" />
       </label>
       <label v-if="!selectedAnn.image_url" class="ann-field">
-        <span>Icon</span>
+        <span>{{ t('annIcon') }}</span>
         <input type="file" accept="image/*" @change="onAnnotationIconUpload($event)" style="width:80px;font-size:9px" />
       </label>
       <WinButton small @click="deleteAnnotation(selectedAnn.id)">&#10005;</WinButton>

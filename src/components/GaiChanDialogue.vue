@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, reactive, watch, onUnmounted, nextTick } from 'vue'
 import GaiChanModel from './GaiChanModel.vue'
+import { shuffle } from '../utils/shuffle.js'
+// Bound with .capture on each top-level element of the template
+import { onArtError, onArtLoad } from '../utils/artFallback.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -605,7 +608,7 @@ function getRecommendedBars(count = 3) {
   if (filterState.cash === false)     filtered = filtered.filter(b => !b.tags?.includes('cash-only'))
   if (filterState.japanese === false) filtered = filtered.filter(b => b.tags?.includes('english-ok'))
   // Shuffle and take count
-  return filtered.sort(() => Math.random() - 0.5).slice(0, count)
+  return shuffle(filtered).slice(0, count)
 }
 
 function buildRecommendText(bars) {
@@ -827,7 +830,7 @@ watch(() => props.lang, () => {
   <Teleport to="body">
     <!-- Terminal window (slides down from top) -->
     <Transition name="crt">
-      <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick">
+      <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick" @error.capture="onArtError" @load.capture="onArtLoad">
         <div class="crt-screen" :class="{ 'crt-screen--gaichan': !terminalImageVisible }">
           <div
             v-if="isMobile"
@@ -858,6 +861,8 @@ watch(() => props.lang, () => {
       :class="{ tucked: isTucked }"
       @click="handleDialogueClick"
       @touchend="handleTouchEnd"
+      @error.capture="onArtError"
+      @load.capture="onArtLoad"
     >
       <div class="dialogue-body">
 
@@ -973,6 +978,8 @@ watch(() => props.lang, () => {
     <div
       v-if="interactiveMode && isMobile && isTourNode"
       class="small-terminal"
+      @error.capture="onArtError"
+      @load.capture="onArtLoad"
     >
       <div class="small-terminal-screen">
         <div class="small-terminal-sprite">

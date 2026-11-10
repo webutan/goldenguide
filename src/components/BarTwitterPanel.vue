@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { fetchBarFeed } from '../api/index.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOnline } from '../composables/usePwa.js'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -12,15 +13,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const { t } = useI18n(computed(() => props.lang))
-
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = String(url).trim().match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:twitter\.com|x\.com)\/@?([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
-}
 
 const handle = computed(() => parseTwitterHandle(props.bar?.sns))
 
@@ -33,7 +25,7 @@ const barName = computed(() => {
 
 const tweets = ref(null)   // null = no API key / no tweets field, array = tweets
 const loading = ref(false)
-const error = ref(null)
+const error = ref(false) // the request failed, or the server reported an upstream error
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -52,15 +44,15 @@ function formatDate(dateStr) {
 async function loadFeed(h) {
   if (!h) return
   loading.value = true
-  error.value = null
+  error.value = false
   tweets.value = null
   try {
     const data = await fetchBarFeed(h)
     // The response may have no `tweets` field at all (e.g. error-only payloads)
     tweets.value = Array.isArray(data?.tweets) ? data.tweets : null
-    if (data?.error) error.value = data.error
-  } catch (err) {
-    error.value = err.message
+    if (data?.error) error.value = true
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
@@ -93,7 +85,7 @@ watch(offline, (isOffline) => { if (!isOffline && error.value && handle.value) l
       <div v-if="loading" class="btp-status">{{ t('loading') }}</div>
 
       <!-- Error banner -->
-      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : error }}</div>
+      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : t('feedLoadFailed') }}</div>
 
       <!-- No API key — show link fallback -->
       <div v-else-if="tweets == null && !loading" class="btp-no-api">
