@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, shallowReactive, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue'
+import { ref, reactive, shallowReactive, shallowRef, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
 import MapPartitions from './map/MapPartitions.vue'
@@ -16,6 +16,11 @@ import {
   computePartitionSlotState,
   computeBuildingStyles,
   diffBuildingStyles,
+  parsePolygonPath,
+  findPartitionAt,
+  screenToMap as screenToMapPure,
+  panToCenter,
+  clampPan,
 } from '../utils/mapGeometry.js'
 import { devCount, devTrackRenders } from '../utils/devPerf.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -392,13 +397,18 @@ const buildingLabelData = computed(() => {
           const fd = (b.floor ?? 1) - (a.floor ?? 1)
           return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
         })
-        // Estimate usable partition dimensions
-        const estW = pdata.dir === 'vertical'
-          ? (bldg.width / pdata.count) - PAD * 2
-          : bldg.width - PAD * 2
-        const estH = pdata.dir === 'horizontal'
-          ? (bldg.height / pdata.count) - PAD * 2
-          : bldg.height - PAD * 2
+        // Estimate usable partition dimensions (geometryV2 knows the visible
+        // size of the slot; the original geometry guesses from the bbox)
+        const estW = rect.visibleSize
+          ? rect.visibleSize.width - PAD * 2
+          : pdata.dir === 'vertical'
+            ? (bldg.width / pdata.count) - PAD * 2
+            : bldg.width - PAD * 2
+        const estH = rect.visibleSize
+          ? rect.visibleSize.height - PAD * 2
+          : pdata.dir === 'horizontal'
+            ? (bldg.height / pdata.count) - PAD * 2
+            : bldg.height - PAD * 2
         const usableW = Math.max(20, estW)
         const usableH = Math.max(20, estH)
         const autoOrient = usableW >= usableH ? 'horizontal' : 'vertical'
@@ -411,12 +421,22 @@ const buildingLabelData = computed(() => {
         const partOffsetY = partObj.labelOffsetY ?? offsetY
         const partAdminRotation = partObj.labelTextRotation ?? adminRotation
         const isTate = partOrientOverride === 'tate'
-        const orientation = isTate ? 'tate' : (partOrientOverride === 'auto' ? autoOrient : partOrientOverride)
+        let orientation = isTate ? 'tate' : (partOrientOverride === 'auto' ? autoOrient : partOrientOverride)
+        let items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, partFontSizeOverride)
+        if (rect.visibleSize && partOrientOverride === 'auto') {
+          // geometryV2 knows the real size of the slot, so "auto" can take
+          // whichever of the two layouts fits the larger text
+          const other = orientation === 'horizontal' ? 'vertical' : 'horizontal'
+          const alt = makeLabelItems(sortedBars, other, false, usableW, usableH, partFontSizeOverride)
+          if (alt[0].fontSize > items[0].fontSize) {
+            orientation = other
+            items = alt
+          }
+        }
         const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
         const groupRotation = baseRotation + partAdminRotation
         const cx = rect.visibleCenter.x + partOffsetX
         const cy = rect.visibleCenter.y + partOffsetY
-        const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, partFontSizeOverride)
         result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, items }
       }
       continue
@@ -609,6 +629,47 @@ let buildingPaths = null      // id → path elements of the injected SVG
 let buildingPathsFor = null   // the mapContent the index was built from
 let appliedBuildingStyle = {}
 
+// Outline of every building (buildingId → { rings, contains }), read from the
+// injected SVG once. Feeds the geometryV2 partition layout: `rings` gives the
+// building's real extent, `contains` is the exact isPointInFill test used to
+// keep badges and labels inside L-shaped buildings.
+const buildingShapes = shallowRef(null)
+
+function readBuildingShapes(pathsById) {
+  const shapes = {}
+  for (const [id, paths] of pathsById) {
+    const path = paths[0]
+    let rings = parsePolygonPath(path.getAttribute('d') || '')
+    if (!rings) {
+      // Not a plain polygon: sample the outline instead
+      try {
+        const len = path.getTotalLength()
+        const ring = []
+        for (let i = 0; i < 128; i++) {
+          const pt = path.getPointAtLength(len * i / 128)
+          ring.push({ x: pt.x, y: pt.y })
+        }
+        rings = [ring]
+      } catch {
+        continue
+      }
+    }
+    const shape = { rings }
+    if (typeof path.isPointInFill === 'function') {
+      const probe = svgRef.value?.createSVGPoint?.()
+      if (probe) {
+        shape.contains = (x, y) => {
+          probe.x = x
+          probe.y = y
+          return path.isPointInFill(probe)
+        }
+      }
+    }
+    shapes[id] = shape
+  }
+  return shapes
+}
+
 watchEffect(() => {
   const wanted = buildingStyle.value
   const content = mapContent.value
@@ -621,6 +682,7 @@ watchEffect(() => {
     }
     buildingPathsFor = content
     appliedBuildingStyle = {}
+    buildingShapes.value = readBuildingShapes(buildingPaths)
   }
   for (const { id, fill, classes } of diffBuildingStyles(appliedBuildingStyle, wanted)) {
     const wantedClasses = classes ? classes.split(' ') : []
@@ -682,16 +744,50 @@ function zoomOut() {
   panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 0.67)
 }
 
+// === Screen ↔ map coordinates ===
+// Everything between a map point (raw SVG coordinates, as in buildings.json)
+// and the viewport: MAP_ROTATION, the viewBox origin, panzoom, the two-finger
+// userRotation of .map-svg-wrap and the CSS zoom of #app. Pure math (see
+// utils/mapGeometry.js), no getScreenCTM.
+function currentView() {
+  if (!panzoomInstance || !containerRef.value) return null
+  const el = containerRef.value
+  const rect = el.getBoundingClientRect()
+  const { x: tx, y: ty, scale } = panzoomInstance.getTransform()
+  // getBoundingClientRect is in viewport px, the layout size in the element's
+  // own px: they differ by the CSS zoom on #app (1.25 on desktop)
+  const zoom = el.offsetWidth ? rect.width / el.offsetWidth : 1
+  return {
+    mapRotation: MAP_ROTATION, mapCx: MAP_CX, mapCy: MAP_CY,
+    vbMinX: VB_MIN_X, vbMinY: VB_MIN_Y,
+    tx, ty, scale,
+    userRotation: userRotation.value,
+    width: el.clientWidth, height: el.clientHeight,
+    // overflow is hidden, but focus / scrollIntoView can still scroll the container
+    left: rect.left - el.scrollLeft * zoom,
+    top: rect.top - el.scrollTop * zoom,
+    zoom,
+  }
+}
+
+function screenToMap(clientX, clientY) {
+  const view = currentView()
+  return view ? screenToMapPure({ x: clientX, y: clientY }, view) : null
+}
+
+// Pan (keeping the zoom level) so a map point sits in the middle of the container
+function centerOnMapPoint(x, y) {
+  const view = currentView()
+  if (!view) return
+  const pan = panToCenter({ x, y }, view)
+  panzoomInstance.moveTo(pan.x, pan.y)
+}
+
 function clampToBounds() {
-  if (!panzoomInstance || !containerRef.value) return
-  const { x: tx, y: ty, scale: s } = panzoomInstance.getTransform()
-  const W = containerRef.value.clientWidth
-  const H = containerRef.value.clientHeight
-  const mapW = VB_W * s
-  const mapH = VB_H * s
-  const nx = mapW >= W ? Math.min(0, Math.max(tx, W - mapW)) : (W - mapW) / 2
-  const ny = mapH >= H ? Math.min(0, Math.max(ty, H - mapH)) : (H - mapH) / 2
-  if (Math.abs(nx - tx) > 0.5 || Math.abs(ny - ty) > 0.5) {
+  const view = currentView()
+  if (!view) return
+  const { x: nx, y: ny } = clampPan(view, VB_W, VB_H)
+  if (Math.abs(nx - view.tx) > 0.5 || Math.abs(ny - view.ty) > 0.5) {
     panzoomInstance.moveTo(nx, ny)
   }
 }
@@ -844,14 +940,8 @@ const userSvgPos = computed(() => {
 })
 
 function panToUserLocation() {
-  if (!userSvgPos.value || !panzoomInstance || !containerRef.value) return
-  const { x, y } = userSvgPos.value
-  const rotated = rotatePoint(x, y)
-  const rect = containerRef.value.getBoundingClientRect()
-  const { scale } = panzoomInstance.getTransform()
-  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
-  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
-  panzoomInstance.moveTo(offsetX, offsetY)
+  if (!userSvgPos.value) return
+  centerOnMapPoint(userSvgPos.value.x, userSvgPos.value.y)
 }
 
 function startGeoTracking() {
@@ -911,21 +1001,9 @@ function panToBuilding(buildingId) {
   const el = buildingEl(buildingId)
   if (!el) return
 
+  // Keep the current zoom level, just centre on the building's bbox (map coordinates)
   const bbox = el.getBBox()
-  // Center in local (unrotated) coordinates
-  const localCx = bbox.x + bbox.width / 2
-  const localCy = bbox.y + bbox.height / 2
-  // Transform through the rotation to get viewport coordinates
-  const rotated = rotatePoint(localCx, localCy)
-
-  const rect = containerRef.value.getBoundingClientRect()
-  // Keep current zoom level, just center on the building
-  const { scale } = panzoomInstance.getTransform()
-  // Account for viewBox origin offset when computing pan target
-  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
-  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
-
-  panzoomInstance.moveTo(offsetX, offsetY)
+  centerOnMapPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2)
 
   // Pulse highlight
   el.classList.add('building-highlight-pulse')
@@ -1070,7 +1148,7 @@ const partitionedBuildings = computed(() => {
 // here, or every hover would recompute every split building.
 const partitionGeometry = computed(() => {
   devCount('geometry')
-  return computePartitionGeometry(props.partitions, buildingMap, barById.value, MAP_ROTATION)
+  return computePartitionGeometry(props.partitions, buildingMap, barById.value, MAP_ROTATION, buildingShapes.value)
 })
 
 // Highlight / dim state per building and slot (cheap; changes on hover, search and filters)
@@ -1094,43 +1172,15 @@ const barPartitionColor = computed(() => {
   return map
 })
 
-// Find which partition was clicked by checking SVG coordinates
+// Find which partition was clicked (map coordinates). Uses the same rects the
+// overlay draws, so the hit-test always agrees with what is on screen.
 function findClickedPartition(buildingId, svgX, svgY) {
-  const pdata = partitionGeometry.value[buildingId]
-  if (!pdata) return null
-  const { rects, angle, cx, cy } = pdata
-  // Rotate click point into the partition coordinate space (inverse of splitAngle)
-  let px = svgX, py = svgY
-  if (angle) {
-    const rad = -angle * Math.PI / 180
-    const dx = svgX - cx, dy = svgY - cy
-    px = cx + dx * Math.cos(rad) - dy * Math.sin(rad)
-    py = cy + dx * Math.sin(rad) + dy * Math.cos(rad)
-  }
-  for (const r of rects) {
-    if (px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height) {
-      return r
-    }
-  }
-  return null
+  return findPartitionAt(partitionGeometry.value[buildingId], svgX, svgY)
 }
 
+// Map coordinates of a mouse / touch event
 function getSvgPoint(e) {
-  if (!svgRef.value) return null
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  // Transform through the SVG's CTM (includes panzoom transforms)
-  const ctm = svgRef.value.getScreenCTM()
-  if (!ctm) return null
-  const svgPt = pt.matrixTransform(ctm.inverse())
-  // Also undo the map rotation
-  const rad = -MAP_ROTATION * Math.PI / 180
-  const dx = svgPt.x - MAP_CX, dy = svgPt.y - MAP_CY
-  return {
-    x: MAP_CX + dx * Math.cos(rad) - dy * Math.sin(rad),
-    y: MAP_CY + dx * Math.sin(rad) + dy * Math.cos(rad),
-  }
+  return screenToMap(e.clientX, e.clientY)
 }
 
 // Emit building selection for admin editing

@@ -147,6 +147,8 @@ openNowFilter, openBarIds, favoritesFilter, visitedFilter, tourHighlight, labelM
 ### Partitions System
 Admin can split a building into colored rectangles. `partitions` prop: `{ [bldgId]: { partitions: [...], splitDirection, splitAngle, labelOrientation, ... } }`. Each partition: `{ barId, weight, color }`.
 
+`geometryV2: true` on a building's config opts it into the corrected geometry (`layoutPartitionsV2` in `src/utils/mapGeometry.js`): the slots divide the building's own on-screen extent, so every slot is visible and clickable for any slot count, and badges/labels are centred inside their slot (also in L-shaped buildings). Configs without the flag keep the original layout, because admins tuned their slot sizes and label offsets by eye against it; they are switched over from Admin → Buildings ("Reset offsets & use auto centre/split", or "Apply to all"). Auto-generated defaults and buildings split for the first time get the flag automatically.
+
 ### Building Labels
 Labels appear at `currentZoom >= baseFitScale * 2.5`. Per-building label orientation options: `auto`, `vertical`, `horizontal`, `tate` (縦書き). Admin overrides: `labelFontSize`, `labelTextRotation`, `labelOffsetX/Y`.
 
