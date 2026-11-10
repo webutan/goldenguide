@@ -1,27 +1,11 @@
 import { Router } from 'express'
-import { randomUUID } from 'crypto'
-import { mkdirSync } from 'fs'
-import { extname, resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
-import multer from 'multer'
+import { unlink } from 'fs'
+import { resolve } from 'path'
 import pool from '../db.js'
 import admin from '../middleware/admin.js'
+import { UPLOADS_DIR, UNSUPPORTED_TYPE_ERROR, imageUpload, saveImage } from './photos.js'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const UPLOADS_DIR = resolve(__dirname, '..', 'uploads')
-
-const annotationStorage = multer.diskStorage({
-  destination(req, file, cb) {
-    const dir = resolve(UPLOADS_DIR, 'annotations')
-    mkdirSync(dir, { recursive: true })
-    cb(null, dir)
-  },
-  filename(req, file, cb) {
-    const ext = extname(file.originalname)
-    cb(null, `${randomUUID()}${ext}`)
-  },
-})
-const uploadAnnotation = multer({ storage: annotationStorage, limits: { fileSize: 10 * 1024 * 1024 } })
+const uploadAnnotation = imageUpload('icon')
 
 const router = Router()
 
@@ -51,18 +35,24 @@ router.post('/', admin, async (req, res) => {
   }
 })
 
-router.post('/:id/icon', admin, uploadAnnotation.single('icon'), async (req, res) => {
+router.post('/:id/icon', admin, uploadAnnotation, async (req, res) => {
+  let imageUrl = null
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
-    const imageUrl = `annotations/${req.file.filename}`
+    imageUrl = await saveImage(req.file, 'annotations')
+    if (!imageUrl) return res.status(415).json({ error: UNSUPPORTED_TYPE_ERROR })
     const result = await pool.query(
       'UPDATE annotations SET image_url = $1 WHERE id = $2 RETURNING *',
       [imageUrl, req.params.id]
     )
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Annotation not found' })
+    if (result.rows.length === 0) {
+      unlink(resolve(UPLOADS_DIR, imageUrl), () => {}) // don't orphan the file
+      return res.status(404).json({ error: 'Annotation not found' })
+    }
     res.json({ image_url: imageUrl })
   } catch (err) {
     console.error('POST /api/annotations/:id/icon error:', err)
+    if (imageUrl) unlink(resolve(UPLOADS_DIR, imageUrl), () => {})
     res.status(500).json({ error: 'Internal server error' })
   }
 })
