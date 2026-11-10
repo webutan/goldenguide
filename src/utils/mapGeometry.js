@@ -554,6 +554,16 @@ export function snapRotation(deg, tolerance) {
 }
 
 /**
+ * Zoom factor of one wheel event: a quarter per notch at most, less for the
+ * small deltas of a trackpad (the same step panzoom uses). Rolling down
+ * (positive delta) zooms out. `deltaMode` above 0 means lines or pages.
+ */
+export function wheelZoomFactor(deltaY, deltaMode = 0) {
+  const delta = deltaMode > 0 ? deltaY * 100 : deltaY
+  return 1 - Math.sign(delta) * Math.min(0.25, Math.abs(delta / 128))
+}
+
+/**
  * Pan limits. `view` needs tx, ty, scale, width, height, userRotation;
  * mapW / mapH are the unscaled size of the map (the viewBox).
  *
@@ -563,23 +573,40 @@ export function snapRotation(deg, tolerance) {
  * the container: the container scaled by `k`, the largest factor at which it
  * still fits inside itself when turned by the rotation. k is 1 at 0°, so the
  * limits change smoothly with the angle.
+ *
+ * `view.insetRight` (container px, default 0) is a strip along the right edge
+ * that something else covers (the bar drawer on desktop). "The container" is
+ * then the part left of it: that is what the map has to cover, and where a
+ * smaller map is centred.
  * @returns {{ x: number, y: number }} the clamped translation
  */
 export function clampPan(view, mapW, mapH) {
   const { tx, ty, scale, width, height } = view
   const w = mapW * scale
   const h = mapH * scale
+  // the part of the container that can be seen
+  const vw = Math.max(0, width - (view.insetRight || 0))
   let k = 1
+  // how far the middle of that part is from where it would be without the
+  // inset and the rotation, in the un-rotated coordinates the translation is in
+  let ox = 0
+  let oy = 0
   if (view.userRotation) {
     const rad = view.userRotation * Math.PI / 180
     const c = Math.abs(Math.cos(rad)), s = Math.abs(Math.sin(rad))
-    k = Math.min(width / (width * c + height * s), height / (width * s + height * c))
+    k = Math.min(vw / (vw * c + height * s), height / (vw * s + height * c))
+    if (vw !== width) {
+      // the wrap turns about the middle of the whole container
+      const m = rotateAbout(vw / 2, height / 2, -view.userRotation, width / 2, height / 2)
+      ox = m.x - vw / 2
+      oy = m.y - height / 2
+    }
   }
-  const iw = width * k
+  const iw = vw * k
   const ih = height * k
   return {
-    x: w >= iw ? Math.min((width - iw) / 2, Math.max(tx, (width + iw) / 2 - w)) : (width - w) / 2,
-    y: h >= ih ? Math.min((height - ih) / 2, Math.max(ty, (height + ih) / 2 - h)) : (height - h) / 2,
+    x: ox + (w >= iw ? Math.min((vw - iw) / 2, Math.max(tx - ox, (vw + iw) / 2 - w)) : (vw - w) / 2),
+    y: oy + (h >= ih ? Math.min((height - ih) / 2, Math.max(ty - oy, (height + ih) / 2 - h)) : (height - h) / 2),
   }
 }
 
