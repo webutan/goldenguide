@@ -8,12 +8,11 @@ const props = defineProps({
 
 const emit = defineEmits(['done'])
 
+// Only what's on screen the moment the desktop appears: the logo and the
+// desktop wallpaper. Gai-chan's walkthrough art loads when it starts.
 const ASSETS_TO_PRELOAD = [
   '/gaichan/gaichanicon.png',
-  '/gaichan/gaichanidle.png',
-  '/gaichan/gaichanwindow.png',
-  '/static-off.png',
-  '/wallpaper.jpg',
+  '/static-off.webp',
 ]
 
 const BOOT_LINES = [
