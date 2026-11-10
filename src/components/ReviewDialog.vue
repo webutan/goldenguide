@@ -5,6 +5,7 @@ import { useReviews } from '../composables/useReviews.js'
 import { useNickname } from '../composables/useChat.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -14,6 +15,7 @@ const emit = defineEmits(['done'])
 
 const { t } = useI18n(computed(() => props.lang))
 const { submitReview } = useReviews()
+const { offline } = useOnline()
 // Socket-free: reading the nickname must not open the chat connection
 const { nickname } = useNickname()
 const dialog = useDialog()
@@ -138,7 +140,7 @@ async function handleSubmit() {
     emit('done')
   } catch (err) {
     console.error('Review submit error:', err)
-    submitError.value = err?.status === 429 ? 'rateLimited' : 'reviewError'
+    submitError.value = err?.status === 429 ? 'rateLimited' : offline.value ? 'offlineSend' : 'reviewError'
     submitting.value = false
   }
 }
@@ -212,7 +214,7 @@ async function handleSubmit() {
 
           <div v-if="submitError" class="submit-error" role="alert">
             <img
-              :src="submitError === 'rateLimited' ? '/icons/msg_warning-1.png' : '/icons/msg_error-1.png'"
+              :src="submitError === 'reviewError' ? '/icons/msg_error-1.png' : '/icons/msg_warning-1.png'"
               class="submit-error-icon"
               alt=""
             />

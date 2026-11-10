@@ -12,6 +12,7 @@ import { barToForm, buildSuggestionItems } from '../utils/suggestions.js'
 import { DAY_NAMES } from '../utils/openNow.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -21,6 +22,7 @@ const emit = defineEmits(['close', 'sent'])
 
 const { t } = useI18n(computed(() => props.lang))
 const dialog = useDialog()
+const { offline } = useOnline()
 
 const NOTE_MAX = 1000
 const CONTACT_MAX = 200
@@ -90,7 +92,7 @@ async function submit(items) {
     })
     emit('sent')
   } catch (err) {
-    errorKey.value = err.status === 429 ? 'rateLimited' : 'suggestSendFailed'
+    errorKey.value = err.status === 429 ? 'rateLimited' : offline.value ? 'offlineSend' : 'suggestSendFailed'
   } finally {
     sending.value = false
   }

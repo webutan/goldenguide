@@ -10,10 +10,21 @@ export function adminHeaders(extra = {}) {
   return { 'X-Admin-Password': adminPassword, ...extra }
 }
 
+// When the bar list in hand left the server. Offline, the service worker
+// answers with its saved copy, whose Date header is that of the original
+// response; the offline balloon shows it ("saved data from ...").
+let barsServedAt = null
+
+export function getBarsServedAt() {
+  return barsServedAt
+}
+
 export async function fetchBars() {
   // Admin mode sends the password so the API also returns inactive bars
   const res = await fetch(`${BASE}/bars`, adminPassword ? { headers: adminHeaders() } : undefined)
   if (!res.ok) throw new Error('Failed to fetch bars')
+  const served = new Date(res.headers.get('date') || NaN)
+  barsServedAt = Number.isNaN(served.getTime()) ? new Date() : served
   return res.json()
 }
 

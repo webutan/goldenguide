@@ -327,6 +327,45 @@ const translations = {
   // Printed on the sticker itself, in both languages
   'stickerFindUs': { en: 'Find us on', jp: 'ゴールデン街マップに掲載中' },
   'stickerInfoLine': { en: 'Rules · Hours · Charge', jp: 'ルール · 営業時間 · チャージ' },
+  // Offline mode / installable app (G03)
+  'installMenu': { en: 'Install GAI OS...', jp: 'GAI OSをインストール...' },
+  'installTitle': { en: 'GAI OS Setup', jp: 'GAI OS セットアップ' },
+  'installWelcomeTitle': { en: 'Welcome to the GAI OS Setup Wizard', jp: 'GAI OS セットアップウィザードへようこそ' },
+  'installWelcomeText': { en: 'This wizard puts Golden Gai Map on your home screen like an app. Once installed, the map, the bar list and the rules also work without a connection, which is handy in the alleys where the signal is weak.', jp: 'このウィザードでは、ゴールデン街マップをアプリのようにホーム画面へ追加します。インストールすると、電波の届きにくい路地でも、マップ・お店一覧・ルールをオフラインで見られます。' }, // TODO(jp-review)
+  'installWelcomeNext': { en: 'To continue, press Next.', jp: '続けるには［次へ］を押してください。' },
+  'installBack': { en: '< Back', jp: '< 戻る' },
+  'installNext': { en: 'Next >', jp: '次へ >' },
+  'installFinish': { en: 'Finish', jp: '完了' },
+  'installWorkingTitle': { en: 'Installing GAI OS...', jp: 'GAI OSをインストール中...' },
+  'installConfirmHint': { en: 'Please confirm in the window your browser has opened.', jp: 'ブラウザが開いた確認画面で「インストール」を選んでください。' }, // TODO(jp-review)
+  'installSavingFiles': { en: 'Saving the map for offline use...', jp: 'オフライン用にマップを保存しています...' },
+  'installDoneTitle': { en: 'Setup is complete', jp: 'セットアップが完了しました' },
+  'installDoneText': { en: 'GAI OS has been installed. Look for the GaiMap icon on your home screen or among your apps.', jp: 'GAI OSをインストールしました。ホーム画面またはアプリ一覧の「GaiMap」アイコンから開けます。' }, // TODO(jp-review)
+  'installOfflineReady': { en: 'The map, the bar list and the rules are saved on this device.', jp: 'マップ・お店一覧・ルールをこの端末に保存しました。' },
+  'installCancelledTitle': { en: 'Setup was not completed', jp: 'セットアップは完了していません' },
+  'installCancelledText': { en: 'Nothing was installed. You can run Setup again at any time from the Start menu.', jp: '何もインストールされていません。スタートメニューからいつでもやり直せます。' },
+  'installIosTitle': { en: 'Add GAI OS to your Home Screen', jp: 'GAI OSをホーム画面に追加' },
+  'installIosIntro': { en: 'On iPhone and iPad, apps like this one are installed from the Share menu:', jp: 'iPhone・iPadでは、共有メニューからインストールします。' },
+  'installIosStep1': { en: 'Tap the Share button in the browser toolbar.', jp: 'ブラウザのツールバーにある「共有」ボタンをタップします。' },
+  'installIosStep2': { en: 'Scroll down and tap "Add to Home Screen".', jp: '下にスクロールして「ホーム画面に追加」をタップします。' },
+  'installIosStep3': { en: 'Tap "Add" in the corner.', jp: '右上の「追加」をタップします。' },
+  'installIosNote': { en: 'Then open GaiMap from the Home Screen once while you are online, so it can save the map.', jp: 'その後、オンラインのうちに一度ホーム画面の「GaiMap」を開くと、マップが保存されます。' }, // TODO(jp-review)
+  'installManualTitle': { en: 'Install from the browser menu', jp: 'ブラウザのメニューからインストール' },
+  'installManualText': { en: 'This browser has not offered to install the app. Open the browser menu and choose "Install app" or "Add to Home screen".', jp: 'このブラウザからはインストールの案内が出ていません。ブラウザのメニューを開き、「アプリをインストール」または「ホーム画面に追加」を選んでください。' }, // TODO(jp-review)
+  'installManualNote': { en: 'If there is no such entry, this browser cannot install it. The map still works offline here once it has loaded.', jp: '該当する項目がない場合、このブラウザではインストールできません。一度読み込めば、このブラウザでもマップはオフラインで使えます。' }, // TODO(jp-review)
+  'installAlreadyTitle': { en: 'GAI OS is already installed', jp: 'GAI OSはインストール済みです' },
+  'installAlreadyText': { en: 'You are using the installed app. There is nothing more to set up.', jp: 'インストール済みのアプリで開いています。追加の設定は必要ありません。' },
+  'offlineTitle': { en: "You're offline", jp: 'オフラインです' },
+  'offlineSavedData': { en: 'Showing saved data from {time}.', jp: '{time} 時点の保存データを表示しています。' },
+  'offlineNoData': { en: 'Showing saved data.', jp: '保存済みのデータを表示しています。' },
+  'offlineReviews': { en: "You're offline. Reviews will load when you're back online.", jp: 'オフラインです。レビューは接続が戻ると読み込まれます。' },
+  'offlineChat': { en: "You're offline. Chat reconnects by itself when you're back online.", jp: 'オフラインです。接続が戻るとチャットに自動で再接続します。' },
+  'offlineFeed': { en: "You're offline. The feed will load when you're back online.", jp: 'オフラインです。フィードは接続が戻ると読み込まれます。' },
+  'offlineSend': { en: "You're offline. Please send this when you're back online.", jp: 'オフラインです。接続が戻ってから送信してください。' },
+  'updateTitle': { en: 'GAI OS Update', jp: 'GAI OS アップデート' },
+  'updateAvailable': { en: 'A new version of GAI OS is available. Restart now?', jp: 'GAI OSの新しいバージョンがあります。今すぐ再起動しますか？' },
+  'updateRestart': { en: 'Restart', jp: '再起動' },
+  'updateLater': { en: 'Later', jp: 'あとで' },
 }
 
 export function useI18n(lang) {

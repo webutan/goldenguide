@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { fetchFeed } from '../api/index.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -83,6 +84,10 @@ async function load() {
 }
 
 onMounted(load)
+
+// The feed is not saved for offline use: say so, and load it once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline && error.value) load() })
 </script>
 
 <template>
@@ -95,6 +100,11 @@ onMounted(load)
     <div v-if="loading" class="feed-status">
       <img src="/icons/desktop/goldengaisprite.ico" class="feed-status-icon" alt="" />
       {{ t('loading') }}
+    </div>
+
+    <!-- Offline -->
+    <div v-else-if="offline && error" class="feed-status">
+      {{ t('offlineFeed') }}
     </div>
 
     <!-- No accounts -->

@@ -1,14 +1,18 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
 import ReviewActions from './ReviewActions.vue'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
 })
 
-const { weeklyReviews } = useReviews()
+const { weeklyReviews, loadWeeklyReviews } = useReviews()
+// Reviews are not saved for offline use: say so, and load them once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline) loadWeeklyReviews() })
 const { t } = useI18n(computed(() => props.lang))
 
 function timeAgo(dateStr) {
@@ -29,7 +33,7 @@ function barName(review) {
 
 <template>
   <div class="reviews-window">
-    <div v-if="weeklyReviews.length === 0" class="reviews-empty">{{ t('noReviews') }}</div>
+    <div v-if="weeklyReviews.length === 0" class="reviews-empty">{{ offline ? t('offlineReviews') : t('noReviews') }}</div>
     <div v-for="review in weeklyReviews" :key="review.id" class="review-item">
       <div class="review-item-header">
         <span class="review-bar-name">{{ barName(review) }}</span>

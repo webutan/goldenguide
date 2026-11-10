@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { fetchBarFeed } from '../api/index.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -67,6 +68,10 @@ async function loadFeed(h) {
 
 onMounted(() => { if (handle.value) loadFeed(handle.value) })
 watch(handle, (h) => { if (h) loadFeed(h) })
+
+// Not saved for offline use: say so, and load it once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline && error.value && handle.value) loadFeed(handle.value) })
 </script>
 
 <template>
@@ -88,7 +93,7 @@ watch(handle, (h) => { if (h) loadFeed(h) })
       <div v-if="loading" class="btp-status">{{ t('loading') }}</div>
 
       <!-- Error banner -->
-      <div v-if="error" class="btp-error">{{ error }}</div>
+      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : error }}</div>
 
       <!-- No API key — show link fallback -->
       <div v-else-if="tweets == null && !loading" class="btp-no-api">

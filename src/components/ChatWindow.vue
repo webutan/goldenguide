@@ -2,6 +2,7 @@
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
 import { useChat, isNearBottom } from '../composables/useChat.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 import { readString } from '../utils/storage.js'
 import WinButton from './win2000/WinButton.vue'
 
@@ -12,6 +13,7 @@ const props = defineProps({
 
 const { messages, userCount, connected, nickname, setNickname, sendMessage, checkinList, myCheckinBarId, checkIn, checkOut, rateLimitNotice, clearRateLimitNotice } = useChat()
 const { t } = useI18n(computed(() => props.lang))
+const { offline } = useOnline()
 
 const inputText = ref('')
 const messagesEl = ref(null)
@@ -234,6 +236,12 @@ function formatTime(ts) {
       <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
       <span class="chat-notice-text">{{ t('rateLimited') }}</span>
       <WinButton class="chat-notice-btn" @click="clearRateLimitNotice">{{ t('ok') }}</WinButton>
+    </div>
+
+    <!-- Offline notice (the socket reconnects by itself) -->
+    <div v-else-if="offline && !connected" class="chat-notice" role="status">
+      <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
+      <span class="chat-notice-text">{{ t('offlineChat') }}</span>
     </div>
 
     <!-- Input area -->
