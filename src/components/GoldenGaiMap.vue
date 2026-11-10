@@ -24,6 +24,7 @@ import {
 } from '../utils/mapGeometry.js'
 import { devCount, devTrackRenders } from '../utils/devPerf.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useMapHover } from '../composables/useMapHover.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
 import {
@@ -60,9 +61,14 @@ const props = defineProps({
   labelMode: { type: String, default: 'yoko' },
   tagMode: { type: String, default: 'or' }, // 'or' | 'and'
   hoveredBarId: { type: String, default: null },
+  // false while another view is shown: the map stays mounted but hidden
+  active: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'hoverBuilding', 'deselect'])
+const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'deselect'])
+
+// Building under the pointer, shared with the drawer's hover preview
+const { hoveredBuildingId } = useMapHover()
 
 const { t } = useI18n(computed(() => props.lang))
 
@@ -89,7 +95,6 @@ const mapRotateStyle = computed(() =>
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() {
   isMobile.value = window.innerWidth <= 768
-  fitToContainer()
 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
@@ -584,7 +589,7 @@ function onSvgMouseMove(e) {
     if (newId && buildingsWithBars.value.has(newId)) {
       interaction.hovered = newId
       if (target) target.classList.add('building-hover')
-      emit('hoverBuilding', newId)
+      hoveredBuildingId.value = newId
       // Show the tooltip after a short delay, at wherever the pointer is by then
       hoverTimer = setTimeout(() => {
         hoverTimer = null
@@ -592,7 +597,7 @@ function onSvgMouseMove(e) {
       }, TOOLTIP_DELAY_MS)
     } else {
       interaction.hovered = null
-      emit('hoverBuilding', null)
+      hoveredBuildingId.value = null
     }
   } else {
     followTooltip()
@@ -602,7 +607,7 @@ function onSvgMouseMove(e) {
 function onSvgMouseLeave() {
   clearHighlight()
   hideTooltip()
-  emit('hoverBuilding', null)
+  hoveredBuildingId.value = null
 }
 
 function clearHighlight() {
@@ -792,11 +797,48 @@ function clampToBounds() {
   }
 }
 
+// Size of the container: layout px (what panzoom works in) and viewport px
+// (they differ by the CSS zoom of #app). All zero while the map is hidden.
+function containerSize() {
+  const el = containerRef.value
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  return { w: el.clientWidth, h: el.clientHeight, rw: rect.width, rh: rect.height }
+}
+
+// Zoom at which the whole map fits the container (the lower zoom limit)
+function fitScaleFor(size) {
+  return Math.min(size.rw / VB_W, size.rh / VB_H)
+}
+
+// The container size the current pan / zoom limits were worked out for
+let fittedSize = null
+// The injected SVG is in the DOM and panzoom may be set up
+let initDue = false
+
+// whenReady(): resolves true once panzoom is set up, false if the map is
+// hidden before that happens (it cannot be measured while hidden).
+let mapReady = false
+let readyWaiters = []
+function whenReady() {
+  if (mapReady) return Promise.resolve(true)
+  if (!props.active) return Promise.resolve(false)
+  return new Promise(resolve => readyWaiters.push(resolve))
+}
+function settleReady(value) {
+  const waiters = readyWaiters
+  readyWaiters = []
+  for (const resolve of waiters) resolve(value)
+}
+
 function initPanzoom() {
-  if (panzoomInstance) panzoomInstance.dispose()
+  initDue = true
   if (!svgRef.value || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const fitScale = Math.min(rect.width / VB_W, rect.height / VB_H)
+  const size = containerSize()
+  // Hidden (another view is shown): set up on the next show instead
+  if (!size.rw || !size.rh) return
+  if (panzoomInstance) panzoomInstance.dispose()
+  const fitScale = fitScaleFor(size)
   panzoomInstance = panzoom(svgRef.value, {
     maxZoom: 8,
     minZoom: fitScale,
@@ -812,9 +854,51 @@ function initPanzoom() {
   baseFitScale.value = initScale
   // Center on bldg-5 area on initial load
   centerOnPoint(1679.29, 2495.3)
+  fittedSize = size
+  mapReady = true
+  settleReady(true)
 }
 
+// The container changed size (window resize, phone rotation, or either of
+// those while the map was hidden): keep the zoom and the map point that was in
+// the middle, and bring the zoom / pan limits in line with the new size.
+function refitToContainer() {
+  const size = containerSize()
+  if (!size || !size.rw || !size.rh) return
+  if (!panzoomInstance) {
+    if (initDue) initPanzoom()
+    return
+  }
+  const prev = fittedSize
+  if (prev && Math.abs(prev.w - size.w) < 0.5 && Math.abs(prev.h - size.h) < 0.5 &&
+      Math.abs(prev.rw - size.rw) < 0.5 && Math.abs(prev.rh - size.rh) < 0.5) return
+  const view = currentView()
+  // Map point at the middle of the container as it was before the change
+  const centre = screenToMapPure(
+    { x: prev.w / 2, y: prev.h / 2 },
+    { ...view, width: prev.w, height: prev.h, left: 0, top: 0, zoom: 1 },
+  )
+  const fitScale = fitScaleFor(size)
+  panzoomInstance.setMinZoom(fitScale)
+  // Same relation as in initPanzoom (the initial view is 1.5x the fit)
+  baseFitScale.value = fitScale * 1.5
+  fittedSize = size
+  if (view.scale < fitScale) panzoomInstance.zoomAbs(0, 0, fitScale)
+  centerOnMapPoint(centre.x, centre.y)
+  clampToBounds()
+}
+
+let resizeObserver = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') return
+  // Also fires when the map is shown again after being hidden
+  resizeObserver = new ResizeObserver(() => refitToContainer())
+  resizeObserver.observe(containerRef.value)
+})
+onUnmounted(() => resizeObserver?.disconnect())
+
 function onKeyDown(e) {
+  if (!props.active) return
   // Don't intercept when typing in inputs
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
   if (e.key === '+' || e.key === '=') {
@@ -951,7 +1035,11 @@ function startGeoTracking() {
   }
   geoWatching.value = true
   geoError.value = null
-  let firstFix = true
+  watchGeoPosition(true)
+}
+
+function watchGeoPosition(panOnFirstFix) {
+  let firstFix = panOnFirstFix
   geoWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       geoPosition.value = {
@@ -967,6 +1055,7 @@ function startGeoTracking() {
     (err) => {
       geoError.value = err.message
       geoWatching.value = false
+      geoWatchId = null
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   )
@@ -987,9 +1076,34 @@ function toggleGeoTracking() {
   else startGeoTracking()
 }
 
+// === Hidden / shown ===
+// While another view is shown the map stays mounted (so zoom and position
+// survive) but must not do anything: no hover or tooltip left behind, no
+// position updates, no drag in progress. Keyboard zoom checks props.active.
+watch(() => props.active, (active) => {
+  if (active) {
+    // Location tracking the user had switched on carries on (without re-centring)
+    if (geoWatching.value && geoWatchId === null) watchGeoPosition(false)
+    return
+  }
+  clearHighlight()
+  hideTooltip()
+  hoveredBuildingId.value = null
+  rotTouchStartAngle = null
+  if (draggingAnnotation) onAnnotationDragEnd()
+  if (geoWatchId !== null) {
+    navigator.geolocation.clearWatch(geoWatchId)
+    geoWatchId = null
+  }
+  // Nothing can be measured until the map is shown again
+  if (!mapReady) settleReady(false)
+})
+
 onUnmounted(() => {
   if (panzoomInstance) panzoomInstance.dispose()
   hideTooltip()
+  hoveredBuildingId.value = null
+  settleReady(false)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('mousemove', onAnnotationDrag)
   window.removeEventListener('mouseup', onAnnotationDragEnd)
@@ -1286,7 +1400,7 @@ function handleMapClick(e) {
   }
 }
 
-defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection: () => setSelectedBuilding(null) })
+defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, clearSelection: () => setSelectedBuilding(null) })
 </script>
 
 <template>
