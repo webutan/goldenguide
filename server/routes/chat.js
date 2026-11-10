@@ -56,6 +56,9 @@ export function registerChatNamespace(io) {
       } finally {
         client.release()
       }
+    }).catch((err) => {
+      // pool.connect() itself failed (DB down): the client just gets no history
+      console.error('Chat history error:', err.message)
     })
 
     // Send current checkin list to new connection

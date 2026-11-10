@@ -30,7 +30,7 @@ const barName = computed(() => {
     : (props.bar.name_en || props.bar.name_jp)
 })
 
-const tweets = ref(null)   // null = no API key, array = tweets
+const tweets = ref(null)   // null = no API key / no tweets field, array = tweets
 const loading = ref(false)
 const error = ref(null)
 
@@ -55,8 +55,9 @@ async function loadFeed(h) {
   tweets.value = null
   try {
     const data = await fetchBarFeed(h)
-    tweets.value = data.tweets
-    if (data.error) error.value = data.error
+    // The response may have no `tweets` field at all (e.g. error-only payloads)
+    tweets.value = Array.isArray(data?.tweets) ? data.tweets : null
+    if (data?.error) error.value = data.error
   } catch (err) {
     error.value = err.message
   } finally {
@@ -90,7 +91,7 @@ watch(handle, (h) => { if (h) loadFeed(h) })
       <div v-if="error" class="btp-error">{{ error }}</div>
 
       <!-- No API key — show link fallback -->
-      <div v-else-if="tweets === null && !loading" class="btp-no-api">
+      <div v-else-if="tweets == null && !loading" class="btp-no-api">
         <a
           :href="`https://x.com/${handle}`"
           target="_blank"
@@ -100,12 +101,12 @@ watch(handle, (h) => { if (h) loadFeed(h) })
       </div>
 
       <!-- No tweets found -->
-      <div v-else-if="tweets !== null && tweets.length === 0 && !loading" class="btp-status">
+      <div v-else-if="tweets != null && tweets.length === 0 && !loading" class="btp-status">
         {{ t('noRecentTweets') }}
       </div>
 
       <!-- Tweet cards -->
-      <div v-else-if="tweets !== null" class="btp-tweets">
+      <div v-else-if="tweets != null" class="btp-tweets">
         <a
           v-for="tweet in tweets"
           :key="tweet.id"
