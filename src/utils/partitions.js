@@ -5,6 +5,12 @@
 //   { partitions: [{ barIds: ['12'], weight: 1, color, ... }], splitDirection, ... }
 // Legacy slots use a single `barId` instead of `barIds`.
 //
+// `geometryV2: true` on a config opts that building into the corrected map
+// geometry (slots split the building's own extent, badges and labels centred
+// inside their slot; see layoutPartitionsV2 in mapGeometry.js). Configs without
+// it were tuned by eye against the original geometry and keep it until an
+// admin switches them over.
+//
 // Nothing here touches localStorage or the network; App.vue owns that.
 
 /** Bar ids referenced by a slot, as strings (supports legacy `barId`). */
@@ -34,11 +40,16 @@ function compareBars(a, b) {
   return na < nb ? -1 : na > nb ? 1 : 0
 }
 
-/** Default config for a building: one slot per bar, by floor then name. */
+/**
+ * Default config for a building: one slot per bar, by floor then name.
+ * Defaults are generated, never tuned by hand, so they use the corrected
+ * geometry straight away.
+ */
 export function defaultPartition(barsInBuilding) {
   return {
     partitions: [...barsInBuilding].sort(compareBars).map(bar => ({ barId: bar.id, weight: 1 })),
     splitDirection: 'auto',
+    geometryV2: true,
   }
 }
 
@@ -57,12 +68,13 @@ export function withDefaultPartitions(stored, bars) {
   return result
 }
 
-// Slot counts the map lays out so that every slot is visible inside the
-// building: 1 (whole building), 2 (two halves) and 4 (2x2 grid). For any other
-// count it divides a padded span much larger than the building by weight, so
-// with 3 equal slots the middle one covers the whole building and the outer
-// two cannot be seen or clicked. Until the map splits the building's own
-// extent, an extra slot is only added when it lands on one of these counts.
+// Slot counts the ORIGINAL map geometry lays out so that every slot is visible
+// inside the building: 1 (whole building), 2 (two halves) and 4 (2x2 grid).
+// For any other count it divides a padded span much larger than the building
+// by weight, so with 3 equal slots the middle one covers the whole building
+// and the outer two cannot be seen or clicked. For a building still on that
+// geometry (no `geometryV2`) an extra slot is only added when it lands on one
+// of these counts. With `geometryV2` every count is fully visible.
 const FULLY_VISIBLE_SLOT_COUNTS = new Set([1, 2, 4])
 
 /**
@@ -73,8 +85,9 @@ const FULLY_VISIBLE_SLOT_COUNTS = new Set([1, 2, 4])
  *   no longer exist or now sit in another building are removed (a slot left
  *   with no bars because of that is dropped; a slot that was already empty is
  *   kept). Bars in the building that no slot references stay visible and
- *   clickable: they get one extra slot marked `synthetic: true` when the map
- *   can show that many slots, otherwise they join the last slot that has bars
+ *   clickable: they get one extra slot marked `synthetic: true`. A building
+ *   without `geometryV2` only gets that slot when the original geometry can
+ *   show that many slots; otherwise the bars join the last slot that has bars
  *   (which then lists them in `syntheticBarIds`).
  * - `issues[buildingId] = { unassigned: [barId], stale: [{ slotIndex, barId, reason }] }`
  *   for buildings that have something to report. `slotIndex` indexes the
@@ -139,7 +152,7 @@ export function reconcilePartitions(configs, bars) {
 
     if (unassigned.length > 0) {
       changed = true
-      if (FULLY_VISIBLE_SLOT_COUNTS.has(outSlots.length + 1)) {
+      if (config.geometryV2 || FULLY_VISIBLE_SLOT_COUNTS.has(outSlots.length + 1)) {
         outSlots.push({ barIds: unassigned, weight: 1, synthetic: true })
       } else {
         let target = outSlots.length - 1

@@ -194,6 +194,17 @@ const translations = {
   'adminReviewsHiddenBadge': { en: 'Hidden', jp: '非表示中' },
   'adminReviewsApproved': { en: 'Approved', jp: '確認済み' },
   'adminReviewsApprovedHint': { en: 'Un-hidden by an admin: reports no longer hide it automatically.', jp: '管理者が再表示したレビューです。通報されても自動では非表示になりません。' },
+  // Admin: corrected map geometry opt-in (Buildings tab)
+  'geomTitle': { en: 'Centre & split', jp: '中心と分割' },
+  'geomStatusOn': { en: 'Auto centre/split: badges and labels sit inside each slot, slots divide the building itself.', jp: '自動の中心・分割：バッジとラベルは各スロットの中に置かれ、スロットは建物そのものを分割します。' },
+  'geomStatusOff': { en: 'Original layout (tuned by hand). Switching may need the slot sizes adjusted.', jp: '従来のレイアウト（手動調整）。切り替えるとスロットのサイズ調整が必要になる場合があります。' },
+  'geomReset': { en: 'Reset offsets & use auto centre/split', jp: 'オフセットをリセットして自動の中心・分割を使う' },
+  'geomResetConfirm': { en: 'Reset the label offsets of {id} and switch it to the auto centre/split?\n\nSlot sizes tuned for the original layout may need adjusting afterwards.', jp: '{id} のラベルのオフセットをリセットして、自動の中心・分割に切り替えますか？\n\n従来のレイアウトに合わせたスロットのサイズは、あとで調整が必要になる場合があります。' },
+  'geomAllTitle': { en: 'All buildings', jp: 'すべての建物' },
+  'geomAllHint': { en: '{n} split building(s) still use the original layout.', jp: '分割された建物のうち{n}件が従来のレイアウトのままです。' },
+  'geomAllNone': { en: 'Every split building uses the auto centre/split.', jp: '分割されたすべての建物が自動の中心・分割を使っています。' },
+  'geomApplyAll': { en: 'Apply to all', jp: 'すべてに適用' },
+  'geomApplyAllConfirm': { en: 'Reset the label offsets of {n} building(s) and switch them all to the auto centre/split?\n\nEach building is saved straight away. Slot sizes tuned for the original layout may need adjusting afterwards.', jp: '{n}件の建物のラベルのオフセットをリセットして、すべて自動の中心・分割に切り替えますか？\n\n各建物はすぐに保存されます。従来のレイアウトに合わせたスロットのサイズは、あとで調整が必要になる場合があります。' },
 }
 
 export function useI18n(lang) {

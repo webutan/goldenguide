@@ -459,6 +459,59 @@ const currentPartition = computed(() => {
   return props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
 })
 
+// === Corrected map geometry (per-building `geometryV2` opt-in) ===
+// Buildings split before this flag existed keep the original geometry, because
+// their slot sizes and label offsets were tuned by eye against it. An admin
+// switches them over here; the label offsets are dropped at the same time
+// since they were compensating for the old badge / label centres.
+function hasSlots(config) {
+  return !!config && Array.isArray(config.partitions) && config.partitions.length > 0
+}
+
+function toGeometryV2(config) {
+  const { labelOffsetX: _x, labelOffsetY: _y, ...rest } = config
+  return {
+    ...rest,
+    partitions: (config.partitions || []).map(p => {
+      const { labelOffsetX: _px, labelOffsetY: _py, ...slot } = p
+      return slot
+    }),
+    geometryV2: true,
+  }
+}
+
+// Split buildings still on the original geometry
+const legacyGeometryIds = computed(() =>
+  Object.keys(props.partitions).filter(id => hasSlots(props.partitions[id]) && !props.partitions[id].geometryV2)
+)
+
+async function resetGeometryForSelected() {
+  const buildingId = props.selectedBuilding
+  if (!buildingId || !hasSlots(currentPartition.value)) return
+  const ok = await dialog.confirm(
+    dialog.t('geomResetConfirm', { id: buildingId }),
+    { title: dialog.t('geomTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
+  const config = props.partitions[buildingId]
+  if (!hasSlots(config)) return
+  emit('updatePartitions', { buildingId, data: toGeometryV2(config) })
+}
+
+async function applyGeometryToAll() {
+  const count = legacyGeometryIds.value.length
+  if (count === 0) return
+  const ok = await dialog.confirm(
+    dialog.t('geomApplyAllConfirm', { n: count }),
+    { title: dialog.t('geomTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
+  // One save per building, through the same path as every other edit
+  for (const buildingId of legacyGeometryIds.value) {
+    emit('updatePartitions', { buildingId, data: toGeometryV2(props.partitions[buildingId]) })
+  }
+}
+
 function setBuildingColor(color) {
   if (!props.selectedBuilding) return
   const data = { ...currentPartition.value, buildingColor: color }
@@ -492,6 +545,9 @@ function addPartition() {
   if (!props.selectedBuilding) return
   const existing = props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
   const data = { ...existing }
+  // A building that is split for the first time has nothing tuned against the
+  // original geometry, so it starts on the corrected one
+  if (!hasSlots(existing)) data.geometryV2 = true
   data.partitions = [...(data.partitions || []).map(normalizePartition), { color: null, barIds: [], weight: 1 }]
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
@@ -1074,6 +1130,12 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
 
+            <div v-if="currentPartition && currentPartition.partitions.length > 0" class="partition-issues" data-testid="geometry-building">
+              <div class="partition-issues-title">{{ t('geomTitle') }}</div>
+              <div class="partition-issues-hint">{{ currentPartition.geometryV2 ? t('geomStatusOn') : t('geomStatusOff') }}</div>
+              <WinButton small data-testid="geometry-reset" @click="resetGeometryForSelected">{{ t('geomReset') }}</WinButton>
+            </div>
+
             <div v-if="currentPartition && currentPartition.partitions.length > 0" class="edit-field">
               <label>Mode</label>
               <WinButton
@@ -1365,6 +1427,12 @@ function setLabelOffset(axis, val) {
                 <span class="angle-value">{{ currentPartition?.labelOffsetY ?? 0 }}</span>
               </div>
             </div>
+          </div>
+
+          <div class="partition-issues geometry-all" data-testid="geometry-all">
+            <div class="partition-issues-title">{{ t('geomAllTitle') }}</div>
+            <div class="partition-issues-hint">{{ legacyGeometryIds.length > 0 ? t('geomAllHint', { n: legacyGeometryIds.length }) : t('geomAllNone') }}</div>
+            <WinButton small data-testid="geometry-apply-all" :disabled="legacyGeometryIds.length === 0" @click="applyGeometryToAll">{{ t('geomApplyAll') }}</WinButton>
           </div>
         </template>
 
@@ -1776,6 +1844,10 @@ function setLabelOffset(axis, val) {
 
 .partition-issues-title {
   font-weight: bold;
+}
+
+.geometry-all {
+  margin-top: 8px;
 }
 
 .partition-issues-hint {

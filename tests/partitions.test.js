@@ -35,6 +35,8 @@ describe('defaultPartition', () => {
       bar(3, 'bldg-a', { floor: 1, name_en: 'beta' }),
     ])
     expect(p.splitDirection).toBe('auto')
+    // generated defaults were never tuned by hand: corrected geometry from the start
+    expect(p.geometryV2).toBe(true)
     expect(p.partitions).toEqual([
       { barId: 3, weight: 1 },
       { barId: 2, weight: 1 },
@@ -88,7 +90,7 @@ describe('reconcilePartitions', () => {
     expect(configs['bldg-a'].partitions).toHaveLength(1)
   })
 
-  it('adds a synthetic fourth slot to a three-slot building (2x2 grid)', () => {
+  it('without geometryV2: adds a synthetic fourth slot to a three-slot building (2x2 grid)', () => {
     const configs = { 'bldg-a': { partitions: [{ barId: 1 }, { barId: 2 }, { barId: 3 }] } }
     const bars = [1, 2, 3, 4].map(id => bar(id, 'bldg-a'))
     const { partitions } = reconcilePartitions(configs, bars)
@@ -96,7 +98,31 @@ describe('reconcilePartitions', () => {
     expect(partitions['bldg-a'].partitions[3]).toEqual({ barIds: ['4'], weight: 1, synthetic: true })
   })
 
-  it('joins the last slot with bars when an extra slot would not be visible (2 slots)', () => {
+  it('always adds the synthetic slot for a geometryV2 building, whatever the count', () => {
+    for (let n = 1; n <= 6; n++) {
+      const ids = Array.from({ length: n + 2 }, (_, i) => i + 1)
+      const configs = { 'bldg-a': { partitions: ids.slice(0, n).map(id => ({ barIds: [String(id)] })), geometryV2: true } }
+      const { partitions, issues } = reconcilePartitions(configs, ids.map(id => bar(id, 'bldg-a')))
+      const slots = partitions['bldg-a'].partitions
+      expect(slots).toHaveLength(n + 1)
+      expect(slots.slice(0, n)).toEqual(configs['bldg-a'].partitions)
+      expect(slots[n]).toEqual({ barIds: [String(n + 1), String(n + 2)], weight: 1, synthetic: true })
+      expect(slots.some(s => s.syntheticBarIds)).toBe(false)
+      expect(partitions['bldg-a'].geometryV2).toBe(true)
+      expect(issues['bldg-a'].unassigned).toEqual([String(n + 1), String(n + 2)])
+    }
+  })
+
+  it('a generated default picks up a later bar as its own slot (2 -> 3 slots)', () => {
+    const before = [bar(1, 'bldg-a'), bar(2, 'bldg-a')]
+    const config = withDefaultPartitions({}, before)['bldg-a']
+    // the admin saved the default as-is, then a third bar was placed in the building
+    const { partitions } = reconcilePartitions({ 'bldg-a': config }, [...before, bar(3, 'bldg-a')])
+    expect(partitions['bldg-a'].partitions).toHaveLength(3)
+    expect(partitions['bldg-a'].partitions[2]).toEqual({ barIds: ['3'], weight: 1, synthetic: true })
+  })
+
+  it('without geometryV2: joins the last slot with bars when an extra slot would not be visible (2 slots)', () => {
     const configs = {
       'bldg-a': { partitions: [{ barIds: ['1'], color: '#111111' }, { barId: 2, weight: 2, color: '#222222' }], isIndependentBuilding: true },
     }
@@ -112,7 +138,7 @@ describe('reconcilePartitions', () => {
     expect(configs['bldg-a'].partitions[1]).toEqual({ barId: 2, weight: 2, color: '#222222' })
   })
 
-  it('skips trailing empty slots when joining an existing slot', () => {
+  it('without geometryV2: skips trailing empty slots when joining an existing slot', () => {
     const configs = { 'bldg-a': { partitions: [{ barIds: ['1'] }, { barIds: ['2'] }, { barIds: ['3'] }, { barIds: [] }] } }
     const { partitions } = reconcilePartitions(configs, [1, 2, 3, 4].map(id => bar(id, 'bldg-a')))
     expect(partitions['bldg-a'].partitions).toEqual([
