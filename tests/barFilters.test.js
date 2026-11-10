@@ -117,3 +117,13 @@ describe('hasActiveFilters', () => {
     }
   })
 })
+
+import { yen } from '../src/utils/barFilters.js'
+describe('yen', () => {
+  it('adds exactly one yen sign', () => {
+    expect(yen('1000')).toBe('¥1000')
+    expect(yen('¥1,000')).toBe('¥1,000')
+    expect(yen('￥ 500')).toBe('¥500')
+    expect(yen(null)).toBe('')
+  })
+})

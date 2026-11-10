@@ -76,3 +76,10 @@ export function hasUnknownFilteredPrice(bar, filters = {}) {
   return (chargeActive && parsePrice(bar.charge) == null) ||
     (drinkActive && parsePrice(bar.drink_price) == null)
 }
+
+// Display helper: prefix a stored price with a single ¥ even when the stored
+// text already contains one (e.g. "¥1,000" or "￥1000").
+export function yen(v) {
+  if (v == null || v === '') return ''
+  return '¥' + String(v).trim().replace(/^[¥￥\s]+/, '')
+}

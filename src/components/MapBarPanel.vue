@@ -1,4 +1,5 @@
 <script setup>
+import { yen } from '../utils/barFilters.js'
 import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -155,11 +156,11 @@ function handleBack() {
         <div class="mbp-detail-info">
           <div v-if="selectedBar.charge" class="mbp-info-row">
             <span class="mbp-info-label">{{ t('cover') }}</span>
-            <span>&yen;{{ selectedBar.charge }}</span>
+            <span>{{ yen(selectedBar.charge) }}</span>
           </div>
           <div v-if="selectedBar.drink_price" class="mbp-info-row">
             <span class="mbp-info-label">{{ t('drinks') }}</span>
-            <span>&yen;{{ selectedBar.drink_price }}~</span>
+            <span>{{ yen(selectedBar.drink_price) }}~</span>
           </div>
           <div v-if="selectedBar.seats" class="mbp-info-row">
             <span class="mbp-info-label">{{ t('seats') }}</span>

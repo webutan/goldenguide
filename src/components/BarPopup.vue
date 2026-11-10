@@ -1,4 +1,5 @@
 <script setup>
+import { yen } from '../utils/barFilters.js'
 import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -187,15 +188,15 @@ function openGoogleMaps() {
                 </div>
                 <div v-if="bar.charge" class="info-row">
                   <span class="info-label">{{ t('cover') }}</span>
-                  <span>&yen;{{ bar.charge }}</span>
+                  <span>{{ yen(bar.charge) }}</span>
                 </div>
                 <div v-if="bar.male_charge" class="info-row">
                   <span class="info-label">{{ t('maleCharge') }}</span>
-                  <span>&yen;{{ bar.male_charge }}</span>
+                  <span>{{ yen(bar.male_charge) }}</span>
                 </div>
                 <div v-if="bar.drink_price" class="info-row">
                   <span class="info-label">{{ t('drinks') }}</span>
-                  <span>&yen;{{ bar.drink_price }}~</span>
+                  <span>{{ yen(bar.drink_price) }}~</span>
                 </div>
                 <div v-if="bar.cash_only" class="info-row">
                   <span class="info-label">{{ t('payment') }}</span>

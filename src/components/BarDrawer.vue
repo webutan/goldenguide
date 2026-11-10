@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
-import { barPasses, hasActiveFilters as hasAnyFilter, parsePrice } from '../utils/barFilters.js'
+import { barPasses, hasActiveFilters as hasAnyFilter, parsePrice, yen } from '../utils/barFilters.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
@@ -271,7 +271,7 @@ function getOpenStatus(bar) {
             <div class="drawer-bar-info">
               <div v-if="bar.charge" class="info-row">
                 <span class="info-label">{{ t('cover') }}</span>
-                <span>&yen;{{ bar.charge }}<span v-if="chargeUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
+                <span>{{ yen(bar.charge) }}<span v-if="chargeUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
               </div>
               <div v-else-if="chargeUnknown(bar)" class="info-row">
                 <span class="info-label">{{ t('cover') }}</span>
@@ -279,11 +279,11 @@ function getOpenStatus(bar) {
               </div>
               <div v-if="bar.male_charge" class="info-row">
                 <span class="info-label">{{ t('maleCharge') }}</span>
-                <span>&yen;{{ bar.male_charge }}</span>
+                <span>{{ yen(bar.male_charge) }}</span>
               </div>
               <div v-if="bar.drink_price" class="info-row">
                 <span class="info-label">{{ t('drinks') }}</span>
-                <span>&yen;{{ bar.drink_price }}~<span v-if="drinkUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
+                <span>{{ yen(bar.drink_price) }}~<span v-if="drinkUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
               </div>
               <div v-else-if="drinkUnknown(bar)" class="info-row">
                 <span class="info-label">{{ t('drinks') }}</span>
