@@ -42,7 +42,13 @@ app.use(express.json())
 const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })
 
 // Static file serving for uploaded photos
-app.use('/uploads', express.static(resolve(__dirname, 'uploads')))
+app.use('/uploads', express.static(resolve(__dirname, 'uploads'), {
+  index: false,
+  setHeaders(res) {
+    res.set('X-Content-Type-Options', 'nosniff')
+    res.set('Content-Security-Policy', "default-src 'none'; img-src 'self'")
+  },
+}))
 
 // Admin auth check
 app.get('/api/admin/check', adminLimiter, admin, (req, res) => res.json({ ok: true }))
