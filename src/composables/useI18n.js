@@ -157,6 +157,7 @@ const translations = {
   'timeHoursAgo': { en: '{n}h ago', jp: '{n}時間前' },
   'timeDaysAgo': { en: '{n}d ago', jp: '{n}日前' },
   'chatNewMessages': { en: '▼ New messages', jp: '▼ 新着メッセージ' },
+  'rateLimited': { en: 'Slow down! Try again in a minute.', jp: 'ちょっと待って！1分ほどしてからもう一度お試しください。' },
 }
 
 export function useI18n(lang) {

@@ -21,7 +21,7 @@ const dialog = useDialog()
 const phase = ref('ask')   // 'ask' | 'write'
 const reviewText = ref('')
 const submitting = ref(false)
-const submitError = ref(false)
+const submitError = ref(null) // null | i18n key of the message to show
 const canvasRef = ref(null)
 const canvasTouched = ref(false)
 const selectedColor = ref('#ffffff')
@@ -122,7 +122,7 @@ function clearCanvas() {
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
-  submitError.value = false
+  submitError.value = null
   try {
     let drawingData = null
     if (canvasTouched.value && canvasRef.value) {
@@ -138,7 +138,7 @@ async function handleSubmit() {
     emit('done')
   } catch (err) {
     console.error('Review submit error:', err)
-    submitError.value = true
+    submitError.value = err?.status === 429 ? 'rateLimited' : 'reviewError'
     submitting.value = false
   }
 }
@@ -211,8 +211,12 @@ async function handleSubmit() {
           </div>
 
           <div v-if="submitError" class="submit-error" role="alert">
-            <img src="/icons/msg_error-1.png" class="submit-error-icon" alt="" />
-            <span>{{ t('reviewError') }}</span>
+            <img
+              :src="submitError === 'rateLimited' ? '/icons/msg_warning-1.png' : '/icons/msg_error-1.png'"
+              class="submit-error-icon"
+              alt=""
+            />
+            <span>{{ t(submitError) }}</span>
           </div>
 
           <div class="write-actions">

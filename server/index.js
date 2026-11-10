@@ -1,7 +1,6 @@
 import { createServer } from 'http'
 import express from 'express'
 import cors from 'cors'
-import rateLimit from 'express-rate-limit'
 import { Server as SocketIOServer } from 'socket.io'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -20,6 +19,8 @@ import reviewsRouter from './routes/reviews.js'
 import partitionsRouter from './routes/partitions.js'
 import { registerChatNamespace } from './routes/chat.js'
 import admin from './middleware/admin.js'
+import { feedLimiter } from './middleware/rateLimits.js'
+import { startFeedRefreshSchedule } from './jobs/feedRefresh.js'
 import pool from './db.js'
 
 const app = express()
@@ -41,8 +42,6 @@ const io = new SocketIOServer(httpServer, {
 app.use(cors({ origin: allowedOrigin }))
 app.use(express.json({ limit: '200kb' }))
 
-const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })
-
 // Static file serving for uploaded photos
 app.use('/uploads', express.static(resolve(__dirname, 'uploads'), {
   index: false,
@@ -52,8 +51,9 @@ app.use('/uploads', express.static(resolve(__dirname, 'uploads'), {
   },
 }))
 
-// Admin auth check
-app.get('/api/admin/check', adminLimiter, admin, (req, res) => res.json({ ok: true }))
+// Admin auth check. Failed attempts are rate-limited inside the `admin`
+// middleware itself, so every admin route is covered (see rateLimits.js).
+app.get('/api/admin/check', admin, (req, res) => res.json({ ok: true }))
 
 // Health check (used by the docker compose healthcheck)
 app.get('/api/health', async (req, res) => {
@@ -71,7 +71,7 @@ app.get('/api/health', async (req, res) => {
 app.use('/api/bars', barsRouter)
 app.use('/api/tags', tagsRouter)
 app.use('/api/annotations', annotationsRouter)
-app.use('/api/feed', feedRouter)
+app.use('/api/feed', feedLimiter, feedRouter)
 app.use('/api/reviews', reviewsRouter)
 app.use('/api/partitions', partitionsRouter)
 app.use('/api', photosRouter)
@@ -84,6 +84,7 @@ runMigrations()
   .then(() => {
     httpServer.listen(PORT, () => {
       console.log(`Golden Gai API running on http://localhost:${PORT}`)
+      startFeedRefreshSchedule()
     })
   })
   .catch(err => {

@@ -1,8 +1,9 @@
 import pool from '../db.js'
+import { socketIpKey } from '../lib/rateLimitCore.js'
+import { chatMessageLimiter, chatCheckinLimiter } from '../middleware/rateLimits.js'
 
 const HISTORY_LIMIT = 100
 const PRUNE_LIMIT = 500
-const RATE_LIMIT_MS = 1000
 
 const PRUNE_EVERY = 50 // only prune on every Nth insert
 
@@ -41,10 +42,18 @@ function broadcastCheckins(ns) {
 
 export function registerChatNamespace(io) {
   const chat = io.of('/chat')
-  const lastMessageTime = new Map()
 
   chat.on('connection', (socket) => {
-    const ip = socket.handshake.headers['x-real-ip'] || socket.handshake.address
+    // Rate limits are per visitor IP, not per socket, so reconnecting or
+    // opening more tabs does not reset them (limits in rateLimits.js).
+    const ip = socketIpKey(socket.handshake)
+    // Tells this client its last action was dropped, so the UI can say so.
+    // `barId` is the check-in the server still holds for this socket, so the
+    // client can put its own state back in sync.
+    const rateLimited = (kind) => socket.emit('chat:rate_limited', {
+      kind,
+      barId: socket.data.checkedInBarId || null,
+    })
 
     // Send history on connect
     pool.connect().then(async (client) => {
@@ -69,34 +78,40 @@ export function registerChatNamespace(io) {
     userCount()
 
     socket.on('disconnect', () => {
-      lastMessageTime.delete(socket.id)
       userCount()
       broadcastCheckins(chat)
     })
 
-    socket.on('checkin:set', ({ barId, barName, nickname }) => {
+    socket.on('checkin:set', ({ barId, barName, nickname } = {}) => {
       if (typeof barId !== 'number' && barId !== null) return
+      if (!barId) {
+        // Checking out is never limited (it must not leave a stale check-in),
+        // but it only broadcasts when there was something to clear.
+        if (!socket.data.checkedInBarId) return
+      } else if (!chatCheckinLimiter.hit(ip)) {
+        return rateLimited('checkin')
+      }
       socket.data.checkedInBarId = barId || null
       socket.data.checkedInBarName = typeof barName === 'string' ? barName.slice(0, 100) : null
       socket.data.checkinNickname = typeof nickname === 'string' ? nickname.trim().slice(0, 30) : 'Guest'
       broadcastCheckins(chat)
     })
 
-    socket.on('chat:send', async ({ nickname, message }) => {
+    socket.on('chat:send', async ({ nickname, message } = {}) => {
       // Input validation
       if (typeof nickname !== 'string' || typeof message !== 'string') return
       const nick = nickname.trim().slice(0, 30)
       const msg = message.trim().slice(0, 500)
       if (!nick || !msg) return
 
-      // Rate limiting: 1 message per second per socket
-      const now = Date.now()
-      const last = lastMessageTime.get(socket.id) || 0
-      if (now - last < RATE_LIMIT_MS) return
-      lastMessageTime.set(socket.id, now)
+      // Rate limiting per IP: 1 message per second and 20 per minute
+      if (!chatMessageLimiter.hit(ip)) return rateLimited('message')
 
-      const client = await pool.connect()
+      // pool.connect() is inside the try: a DB outage during a send must not
+      // become an unhandled rejection.
+      let client
       try {
+        client = await pool.connect()
         const { rows } = await client.query(
           `INSERT INTO chat_messages (nickname, message) VALUES ($1, $2) RETURNING id, nickname, message, created_at`,
           [nick, msg]
@@ -107,7 +122,7 @@ export function registerChatNamespace(io) {
       } catch (err) {
         console.error('Chat save error:', err.message)
       } finally {
-        client.release()
+        client?.release()
       }
     })
   })

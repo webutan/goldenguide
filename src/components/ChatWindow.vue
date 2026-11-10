@@ -10,7 +10,7 @@ const props = defineProps({
   bars: { type: Array, default: () => [] },
 })
 
-const { messages, userCount, connected, nickname, setNickname, sendMessage, checkinList, myCheckinBarId, checkIn, checkOut } = useChat()
+const { messages, userCount, connected, nickname, setNickname, sendMessage, checkinList, myCheckinBarId, checkIn, checkOut, rateLimitNotice, clearRateLimitNotice } = useChat()
 const { t } = useI18n(computed(() => props.lang))
 
 const inputText = ref('')
@@ -74,6 +74,14 @@ function sendChat() {
   sendMessage(text)
   inputText.value = ''
 }
+
+// The server dropped the last message for being too fast: put the text back
+// (unless the user is already typing something else) so nothing is lost.
+watch(rateLimitNotice, (notice) => {
+  if (notice?.kind === 'message' && notice.text && !inputText.value) {
+    inputText.value = notice.text
+  }
+})
 
 function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -219,6 +227,13 @@ function formatTime(ts) {
     <WinButton v-if="hasNewMessages" class="chat-new-btn" @click="scrollToBottom">
       {{ t('chatNewMessages') }}
     </WinButton>
+    </div>
+
+    <!-- Rate-limit notice -->
+    <div v-if="rateLimitNotice" class="chat-notice" role="alert">
+      <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
+      <span class="chat-notice-text">{{ t('rateLimited') }}</span>
+      <WinButton class="chat-notice-btn" @click="clearRateLimitNotice">{{ t('ok') }}</WinButton>
     </div>
 
     <!-- Input area -->
@@ -570,6 +585,47 @@ function formatTime(ts) {
   white-space: nowrap;
   flex-shrink: 0;
   padding-bottom: 1px;
+}
+
+/* Rate-limit notice: a raised Win95 strip above the input */
+.chat-notice {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--win-bg, #c0c0c0);
+  color: var(--win-text, #000);
+  font-family: var(--win-font, 'W95FA', Arial);
+  font-size: 11px;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest);
+}
+
+.chat-notice-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.chat-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-notice-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .chat-notice-btn {
+    min-height: 40px;
+    min-width: 56px;
+  }
 }
 
 /* Input area */
