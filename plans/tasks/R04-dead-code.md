@@ -67,3 +67,5 @@ Also (found in G04):
 - Gai-chan (z-index 1050) draws over the Start menu (inside the taskbar's z-index 1000 context); on mobile the menu sits right against Gai-chan's CRT.
 - The suggestion Hours tab edits `schedule` only; the free-text `hours` / `closed_days` columns that cards also show are not editable.
 - Admin main tabs are under 40px high on mobile.
+
+Also (found in G05): on the sticker's Japanese status bar one separator renders as a small dot and the other as a square (W95FA has no "·"; PixelMplus does) — draw both the same way; a few bar names fall back to system fonts in print (characters outside W95FA/PixelMplus10: find which and decide); the admin UI uses "×" and "—", which W95FA lacks; the "Six main tabs have to fit" comment in `AdminPanel.vue` is stale (the strip now wraps).
