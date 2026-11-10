@@ -233,6 +233,22 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    // Arrivals carrying a whitelisted ?ref= (door stickers, G05), counted per
+    // bar per Tokyo day by the SEO route. Aggregates only: no IP, no user agent.
+    // (Numbered 017: 016 is taken by a migration written at the same time.
+    // Migrations are tracked by name, so the order of landing does not matter.)
+    name: '017-ref-hits',
+    sql: `
+      CREATE TABLE IF NOT EXISTS ref_hits (
+        ref    TEXT NOT NULL,
+        bar_id INT NOT NULL REFERENCES bars(id) ON DELETE CASCADE,
+        day    DATE NOT NULL,
+        hits   INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (ref, bar_id, day)
+      );
+    `,
+  },
 ]
 
 export async function runMigrations() {

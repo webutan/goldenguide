@@ -51,6 +51,15 @@ describe('parseUrl', () => {
     expect(parseUrl('/map', '?lang=fr').lang).toBe(null)
   })
 
+  it('accepts and drops parameters it does not own, such as ?ref=sticker (G05)', () => {
+    const parsed = parseUrl('/bar/%E6%84%9B%E9%B7%B9', '?ref=sticker')
+    expect(parsed).toEqual(route({ view: 'map', slug: '愛鷹' }))
+    // What the address bar is rewritten to, and what the share link is built from
+    expect(buildUrl(parsed)).toBe('/bar/%E6%84%9B%E9%B7%B9')
+    expect(buildUrl(parseUrl('/bar/bar-tomorrow', '?ref=sticker&lang=jp'))).toBe('/bar/bar-tomorrow?lang=jp')
+    expect(buildUrl(parseUrl('/map', '?ref=sticker&open=1'))).toBe('/map?open=1')
+  })
+
   it('reads the map filters', () => {
     expect(parseUrl('/map', '?tags=karaoke,english-ok&mode=and&open=1&floor=2').filters).toEqual({
       ...emptyFilters(), tags: ['karaoke', 'english-ok'], mode: 'and', open: true, floor: 2,
