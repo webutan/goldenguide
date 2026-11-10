@@ -209,6 +209,16 @@ Copy `.env.example` to `.env` and fill in:
 | `APP_PORT` | Yes | Port exposed by Docker (reverse proxy forwards here) |
 | `ADMIN_PASSWORD` | Yes | Password required to enable admin mode in the UI |
 | `CORS_ORIGIN` | Recommended | Allowed origin for CORS (e.g. Cloudflare tunnel URL). Defaults to `'*'` if unset. |
+| `TWITTER_BEARER_TOKEN` | Optional | X/Twitter API v2 bearer token for the Feed refresh job. Empty = feed refresh disabled. |
+
+`docker-compose.yml` passes every variable above (except `DB_PASSWORD`/`APP_PORT`, which compose itself uses) into the `api` container explicitly. The API's `dotenv` lookup does **not** find the repo's `.env` inside the container, so any new server variable must also be added to `api.environment` in `docker-compose.yml`.
+
+**Operational notes**
+- `GET /api/health` runs `SELECT 1` and returns `200 {ok:true}` or `503`. The `api` service has a compose `healthcheck` on it (`docker compose ps` shows `healthy`/`unhealthy`).
+- The API sets `trust proxy` to `1` (nginx is the single hop), so rate limits key on the real client IP from `X-Forwarded-For`. If another proxy is added in front of nginx that forwards to it directly, revisit this value.
+- The `pg` pool has an `error` listener, so a Postgres restart no longer crashes the API; queries fail with 503/500 until the DB is back, then recover on their own.
+- The `db` service no longer bind-mounts the repo (it used to mount `./` at `/import`, which exposed `.env` inside the DB container; nothing used it). To load a SQL dump, pipe it in: `docker compose exec -T db psql -U golden_gai -d golden_gai < dump.sql`.
+- Photo uploads still live in the named `uploads` volume. Moving them to a NAS bind mount is recommended; see `KNOWN_ISSUES.md` → *Docker named volume vs bind mount for uploads* (manual, owner-run migration).
 
 ---
 
