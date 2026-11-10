@@ -60,3 +60,10 @@ Also (found in B12):
 - When the map is rotated, the container corners outside the rotated wrap don't respond to wheel/drag.
 - `+/−` and search-select centre on the container centre, which on desktop is right of the middle of the visible (drawer-free) area; consider the visible-area centre.
 - Deploy note for PROJECT_GUIDE: `web` and `api` must be updated together. A new `web` with an old `api` (no SEO routes) answers `/bar/<slug>` with Express's plain 404 page.
+
+Also (found in G04):
+- Applying a suggestion is two calls (`PATCH /api/bars/:id`, then `PATCH /api/suggestions/:id`), not atomic; if the second fails the suggestion stays open (it then reads "Already matches the current data"). A server-side apply endpoint that reuses the bars update in one transaction would close that.
+- The `rateLimited` string says "a few minutes" but the suggestion limit is per hour; give the 429 a retry time from `Retry-After`.
+- Gai-chan (z-index 1050) draws over the Start menu (inside the taskbar's z-index 1000 context); on mobile the menu sits right against Gai-chan's CRT.
+- The suggestion Hours tab edits `schedule` only; the free-text `hours` / `closed_days` columns that cards also show are not editable.
+- Admin main tabs are under 40px high on mobile.
