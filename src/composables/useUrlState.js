@@ -160,6 +160,26 @@ export function barTitle(barName) {
   return barName ? `${barName} — ${SITE_TITLE}` : SITE_TITLE
 }
 
+// Titles of the Map and Directory views. Same text as the server puts in the
+// page it sends for /map and /directory (mapTitle / directoryTitle in
+// server/lib/seo.js; tests/urlState.test.js compares them).
+const VIEW_TITLES = {
+  map: { en: 'Map', jp: 'マップ' },
+  directory: { en: 'Bar directory', jp: '店舗一覧' },
+}
+
+/** document.title for the current state: the open bar, else the view. */
+export function pageTitle({ view, barName, lang } = {}) {
+  if (barName) return barTitle(barName)
+  const names = VIEW_TITLES[view]
+  return names ? `${names[lang === 'jp' ? 'jp' : 'en']} — ${SITE_TITLE}` : SITE_TITLE
+}
+
+/** The app's language code as an HTML `lang` value (the app says `jp`). */
+export function htmlLang(lang) {
+  return lang === 'jp' ? 'ja' : 'en'
+}
+
 // ── Browser glue ──────────────────────────────────────────────────────────────
 
 /** Native share sheet only where it is the expected thing: touch devices. */

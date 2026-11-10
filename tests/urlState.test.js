@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseUrl, buildUrl, navigationKind, barShareUrl, resolveLang, langFromBrowser,
-  emptyFilters, barTitle,
+  emptyFilters, barTitle, pageTitle, htmlLang,
 } from '../src/composables/useUrlState.js'
+import { buildHead } from '../server/lib/seo.js'
 
 const route = (over = {}) => ({ view: 'desktop', slug: null, lang: null, filters: emptyFilters(), ...over })
 
@@ -171,5 +172,35 @@ describe('barTitle', () => {
   it('follows the open bar and resets', () => {
     expect(barTitle('Bar Tomorrow')).toBe('Bar Tomorrow — Golden Gai Map')
     expect(barTitle(null)).toBe('Golden Gai Map')
+  })
+})
+
+describe('pageTitle', () => {
+  it('is the bar title while a bar is open, whatever the view', () => {
+    expect(pageTitle({ view: 'map', barName: 'Bar Tomorrow', lang: 'en' })).toBe('Bar Tomorrow — Golden Gai Map')
+    expect(pageTitle({ view: 'directory', barName: '明日', lang: 'jp' })).toBe('明日 — Golden Gai Map')
+  })
+
+  it('names the Map and Directory views exactly as the server does', () => {
+    for (const lang of ['en', 'jp']) {
+      expect(pageTitle({ view: 'map', lang })).toBe(buildHead({ kind: 'map', lang }).title)
+      expect(pageTitle({ view: 'directory', lang })).toBe(buildHead({ kind: 'directory', lang }).title)
+    }
+    expect(pageTitle({ view: 'map', lang: 'en' })).toBe('Map — Golden Gai Map')
+    expect(pageTitle({ view: 'directory', lang: 'jp' })).toBe('店舗一覧 — Golden Gai Map')
+  })
+
+  it('is the site title on the desktop and for anything unknown', () => {
+    expect(pageTitle({ view: 'desktop', lang: 'en' })).toBe('Golden Gai Map')
+    expect(pageTitle({ view: 'nope', lang: 'jp' })).toBe('Golden Gai Map')
+    expect(pageTitle()).toBe('Golden Gai Map')
+  })
+})
+
+describe('htmlLang', () => {
+  it('maps the app code jp to the HTML code ja', () => {
+    expect(htmlLang('jp')).toBe('ja')
+    expect(htmlLang('en')).toBe('en')
+    expect(htmlLang(null)).toBe('en')
   })
 })

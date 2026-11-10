@@ -25,7 +25,7 @@ import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { useDialog } from './composables/useDialog.js'
 import { usePwa } from './composables/usePwa.js'
-import { useUrlState, parseUrl, barShareUrl, barTitle, resolveLang, canNativeShare } from './composables/useUrlState.js'
+import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
@@ -598,10 +598,16 @@ function handlePopupBarChange(bar) {
   urlState.replaceNext()
 }
 
-watch([openBar, effectiveLang], ([bar, l]) => {
+watch([openBar, effectiveLang, activeView, loading], ([bar, l, view, isLoading]) => {
+  // Until the bars are in, the URL has not been applied: keep the title the
+  // server sent for this address rather than flashing the desktop's.
+  if (isLoading) return
   const name = bar && (l === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp))
-  document.title = barTitle(name)
+  document.title = pageTitle({ view, barName: name, lang: l })
 }, { immediate: true })
+
+// <html lang> follows the language chosen in the app
+watch(effectiveLang, (l) => { document.documentElement.lang = htmlLang(l) }, { immediate: true })
 
 // ── Share ─────────────────────────────────────────────────────────────────────
 const dialog = useDialog()
