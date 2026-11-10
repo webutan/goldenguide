@@ -19,7 +19,6 @@ import {
   parsePolygonPath,
   findPartitionAt,
   screenToMap as screenToMapPure,
-  screenToWrap,
   panToCenter,
   panToPoint,
   clampPan,
@@ -27,6 +26,7 @@ import {
   touchSpan,
   pinchScale,
   snapRotation,
+  wheelZoomFactor,
 } from '../utils/mapGeometry.js'
 import { devCount, devTrackRenders } from '../utils/devPerf.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -110,6 +110,13 @@ function onResize() {
 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+// Width (layout px) of the bar drawer, which on desktop lies over the right
+// edge of the map whenever admin mode is off (see BarDrawer.vue / App.vue).
+// The map stays as wide as the desktop, so everything that has to be seen or
+// clicked keeps clear of that strip: the buttons, the fitted map, the pan limits.
+const DRAWER_WIDTH = 300
+const coveredRight = computed(() => (!isMobile.value && !props.adminMode ? DRAWER_WIDTH : 0))
 
 const MAP_W = 3614.12
 const MAP_H = 4096
@@ -715,18 +722,14 @@ watchEffect(() => {
 }, { flush: 'post' })
 
 // Panzoom
-function fitToContainer(zoomMultiplier = 1) {
-  if (!containerRef.value || !svgRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const scaleX = rect.width / VB_W
-  const scaleY = rect.height / VB_H
-  const scale = Math.min(scaleX, scaleY) * zoomMultiplier
-  const offsetX = (rect.width - VB_W * scale) / 2
-  const offsetY = (rect.height - VB_H * scale) / 2
-  if (panzoomInstance) {
-    panzoomInstance.zoomAbs(0, 0, scale)
-    panzoomInstance.moveTo(offsetX, offsetY)
-  }
+// Zoom all the way out: the whole map, in the middle of the part of the
+// container that is not covered (the pan limits put it there)
+function fitToContainer() {
+  const size = containerSize()
+  if (!panzoomInstance || !size || !size.w || !size.h) return
+  cancelZoomAnimation()
+  panzoomInstance.zoomAbs(0, 0, fitScaleFor(size))
+  clampToBounds()
 }
 
 function resetView() {
@@ -734,31 +737,24 @@ function resetView() {
   fitToContainer()
 }
 
-function centerOnPoint(mapX, mapY) {
-  if (!containerRef.value || !panzoomInstance) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const scale = baseFitScale.value
-  const screenX = (mapX - VB_MIN_X) * scale
-  const screenY = (mapY - VB_MIN_Y) * scale
-  const offsetX = rect.width / 2 - screenX
-  const offsetY = rect.height / 2 - screenY
-  panzoomInstance.moveTo(offsetX, offsetY)
-}
-
 function resetZoom() {
   fitToContainer()
 }
 
+// Zoom by a factor about the middle of the container (buttons and keyboard)
+function zoomAtCentre(factor) {
+  const view = currentView()
+  if (!view) return
+  cancelZoomAnimation()
+  zoomAbout({ x: view.left + view.width * view.zoom / 2, y: view.top + view.height * view.zoom / 2 }, view.scale * factor)
+}
+
 function zoomIn() {
-  if (!panzoomInstance || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 1.5)
+  zoomAtCentre(1.5)
 }
 
 function zoomOut() {
-  if (!panzoomInstance || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 0.67)
+  zoomAtCentre(0.67)
 }
 
 // === Screen ↔ map coordinates ===
@@ -784,6 +780,8 @@ function currentView() {
     left: rect.left - el.scrollLeft * zoom,
     top: rect.top - el.scrollTop * zoom,
     zoom,
+    // the strip under the bar drawer does not count for the pan limits
+    insetRight: coveredRight.value,
   }
 }
 
@@ -818,9 +816,22 @@ function containerSize() {
   return { w: el.clientWidth, h: el.clientHeight, rw: rect.width, rh: rect.height }
 }
 
-// Zoom at which the whole map fits the container (the lower zoom limit)
+// Zoom at which the whole map fits the uncovered part of the container (the
+// lower zoom limit). In layout px, which is what panzoom scales.
 function fitScaleFor(size) {
-  return Math.min(size.rw / VB_W, size.rh / VB_H)
+  const w = size.w - coveredRight.value
+  return Math.min((w > 0 ? w : size.w) / VB_W, size.h / VB_H)
+}
+
+// The view the map opens with was picked by eye and is kept as it was: 1.5x
+// the zoom at which the map fits the container, with OPENING_POINT (viewBox
+// px, around bldg-5) in the middle. On desktop that was always measured in
+// viewport px, so the CSS zoom of #app is part of it: the map opens that much
+// larger and the point sits that much further right and down. The bar labels
+// appear at twice this zoom (baseFitScale).
+const OPENING_POINT = { x: 1679.29, y: 2495.3 }
+function openingScaleFor(size) {
+  return Math.min(size.rw / VB_W, size.rh / VB_H) * 1.5
 }
 
 // The container size the current pan / zoom limits were worked out for
@@ -853,23 +864,27 @@ function initPanzoom() {
   const fitScale = fitScaleFor(size)
   panzoomInstance = panzoom(svgRef.value, {
     maxZoom: 8,
-    minZoom: fitScale,
+    minZoom: fitScaleFor(size),
     smoothScroll: false,
-    zoomDoubleClickSpeed: 1.5,
-    // panzoom knows nothing about the rotation of .map-svg-wrap: while the
-    // map is turned, mouse drag and wheel are handled here instead
-    beforeMouseDown: startRotatedMouseDrag,
-    beforeWheel: zoomRotatedWheel,
+    // panzoom keeps the transform, but measures the pointer in viewport px and
+    // knows nothing about the CSS zoom of #app or the rotation of
+    // .map-svg-wrap. So every input is handled here instead (see Gestures):
+    // returning true makes panzoom leave the event alone (touches and
+    // double-clicks never reach it). It keeps the arrow keys.
+    beforeMouseDown: startMouseDrag,
+    beforeWheel: zoomWithWheel,
+    filterKey: (e, dx, dy, dz) => dz !== 0,
   })
-  panzoomInstance.on('panend', clampToBounds)
   panzoomInstance.on('zoom', clampToBounds)
   panzoomInstance.on('zoom', () => { currentZoom.value = panzoomInstance.getTransform().scale })
-  fitToContainer(1.5)
-  const { scale: initScale } = panzoomInstance.getTransform()
-  currentZoom.value = initScale
-  baseFitScale.value = initScale
-  // Center on bldg-5 area on initial load
-  centerOnPoint(1679.29, 2495.3)
+  const scale = openingScaleFor(size)
+  panzoomInstance.zoomAbs(0, 0, scale)
+  // Open on OPENING_POINT, as near as the pan limits allow, so that the first
+  // drag or zoom does not make the map jump
+  panzoomInstance.moveTo(size.rw / 2 - (OPENING_POINT.x - VB_MIN_X) * scale, size.rh / 2 - (OPENING_POINT.y - VB_MIN_Y) * scale)
+  clampToBounds()
+  currentZoom.value = panzoomInstance.getTransform().scale
+  baseFitScale.value = scale
   fittedSize = size
   mapReady = true
   settleReady(true)
@@ -894,15 +909,27 @@ function refitToContainer() {
     { x: prev.w / 2, y: prev.h / 2 },
     { ...view, width: prev.w, height: prev.h, left: 0, top: 0, zoom: 1 },
   )
-  const fitScale = fitScaleFor(size)
-  panzoomInstance.setMinZoom(fitScale)
-  // Same relation as in initPanzoom (the initial view is 1.5x the fit)
-  baseFitScale.value = fitScale * 1.5
+  baseFitScale.value = openingScaleFor(size)
   fittedSize = size
-  if (view.scale < fitScale) panzoomInstance.zoomAbs(0, 0, fitScale)
+  applyZoomLimit(size)
   centerOnMapPoint(centre.x, centre.y)
   clampToBounds()
 }
+
+// Bring the lower zoom limit in line with the container (and the drawer)
+function applyZoomLimit(size) {
+  const fitScale = fitScaleFor(size)
+  panzoomInstance.setMinZoom(fitScale)
+  if (panzoomInstance.getTransform().scale < fitScale) panzoomInstance.zoomAbs(0, 0, fitScale)
+}
+
+// The drawer came or went (admin mode): the limits moved with it
+watch(coveredRight, () => {
+  const size = containerSize()
+  if (!panzoomInstance || !size || !size.rw || !size.rh) return
+  applyZoomLimit(size)
+  clampToBounds()
+})
 
 let resizeObserver = null
 onMounted(() => {
@@ -1315,13 +1342,15 @@ function getSvgPoint(e) {
 // pinch and twist compose. They all work the same way: the map point under the
 // finger (or between the two fingers) when the gesture starts is kept under
 // the finger(s) as they move, at whatever zoom and rotation the fingers ask
-// for. panzoom still holds the transform, and keeps the mouse, the wheel and
-// the keyboard while the map is not rotated.
+// for. The mouse works the same way (drag, wheel, double-click), and so do the
+// zoom buttons and keys, so there is one implementation, correct at any
+// rotation and under the CSS zoom of #app. panzoom only holds the transform.
 const TAP_MAX_MOVE = 8      // viewport px a finger may travel and still be a tap
 const TAP_MAX_MS = 300
 const DOUBLE_TAP_MS = 300
 const DOUBLE_TAP_MAX_DIST = 30
 const DRAG_MIN_MOVE = 5     // viewport px after which a mouse press is a drag, not a click
+const DOUBLE_CLICK_ZOOM = 1.5 // zoom factor of a double-click / double-tap
 const ROTATION_SNAP_DEG = 6 // a twist that ends this close to straight snaps back to it
 
 // Put the map point `anchor` under the viewport point `at` with the given zoom
@@ -1334,6 +1363,42 @@ function moveAnchorTo(anchor, at, scale, rotation) {
   const pan = clampPan({ ...view, tx: want.x, ty: want.y }, VB_W, VB_H)
   panzoomInstance.moveTo(pan.x, pan.y)
   return Math.abs(pan.x - want.x) > 0.5 || Math.abs(pan.y - want.y) > 0.5
+}
+
+// Zoom to `scale` (kept within the zoom limits), holding the map point that is
+// under the viewport point `at` where it is
+function zoomAbout(at, scale) {
+  const anchor = screenToMap(at.x, at.y)
+  if (!anchor) return
+  const limited = Math.min(panzoomInstance.getMaxZoom(), Math.max(panzoomInstance.getMinZoom(), scale))
+  moveAnchorTo(anchor, at, limited, userRotation.value)
+}
+
+// Double-click / double-tap: the same, eased over a few frames. Any other
+// input takes over from it.
+const ZOOM_ANIMATION_MS = 400
+let zoomAnimation = null
+
+function animateZoomAbout(at, factor) {
+  cancelZoomAnimation()
+  const anchor = screenToMap(at.x, at.y)
+  if (!anchor) return
+  const from = panzoomInstance.getTransform().scale
+  const to = Math.min(panzoomInstance.getMaxZoom(), Math.max(panzoomInstance.getMinZoom(), from * factor))
+  if (to === from) return
+  const start = performance.now()
+  const step = (now) => {
+    const t = Math.min(1, Math.max(0, (now - start) / ZOOM_ANIMATION_MS))
+    const eased = 1 - (1 - t) ** 3
+    moveAnchorTo(anchor, at, from + (to - from) * eased, userRotation.value)
+    zoomAnimation = t < 1 ? requestAnimationFrame(step) : null
+  }
+  zoomAnimation = requestAnimationFrame(step)
+}
+
+function cancelZoomAnimation() {
+  if (zoomAnimation !== null) cancelAnimationFrame(zoomAnimation)
+  zoomAnimation = null
 }
 
 // The touch gesture in progress: { ids, target, startX, startY, startTime,
@@ -1377,6 +1442,7 @@ function onTouchStart(e) {
   // turning into a synthetic click
   e.stopPropagation()
   if (e.cancelable) e.preventDefault()
+  cancelZoomAnimation()
   if (!gesture) {
     const t = e.changedTouches[0]
     gesture = { ids: [], target: e.target, startX: t.clientX, startY: t.clientY, startTime: Date.now(), moved: 0, multi: false }
@@ -1435,8 +1501,7 @@ function onTouchEnd(e) {
   if (lastTap && now - lastTap.time < DOUBLE_TAP_MS &&
       Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < DOUBLE_TAP_MAX_DIST) {
     lastTap = null
-    const p = screenToWrap({ x: t.clientX, y: t.clientY }, currentView())
-    panzoomInstance.smoothZoom(p.x, p.y, 1.5)
+    animateZoomAbout({ x: t.clientX, y: t.clientY }, DOUBLE_CLICK_ZOOM)
   } else {
     lastTap = { time: now, x: t.clientX, y: t.clientY }
   }
@@ -1461,48 +1526,56 @@ function endGesture() {
   return g
 }
 
-// --- Mouse while the map is rotated (panzoom's beforeMouseDown / beforeWheel:
-// returning true makes panzoom leave the event alone) ---
+// --- Mouse (panzoom's beforeMouseDown / beforeWheel: returning true makes
+// panzoom leave the event alone) ---
 let mouseDrag = null
 
-function startRotatedMouseDrag(e) {
-  if (userRotation.value === 0) return false
+function startMouseDrag(e) {
   if (e.button !== 0) return true
+  cancelZoomAnimation()
   const anchor = screenToMap(e.clientX, e.clientY)
   if (!anchor) return true
   e.preventDefault() // no text selection while dragging
+  // ...which also keeps the click from focusing the map, and the arrow keys need that
+  wrapRef.value?.focus({ preventScroll: true })
   mouseDrag = { anchor }
-  window.addEventListener('mousemove', onRotatedMouseDrag)
-  window.addEventListener('mouseup', endRotatedMouseDrag)
+  window.addEventListener('mousemove', onMouseDrag)
+  window.addEventListener('mouseup', endMouseDrag)
   return true
 }
 
-function onRotatedMouseDrag(e) {
+function onMouseDrag(e) {
   if (!mouseDrag || !panzoomInstance) return
   const scale = panzoomInstance.getTransform().scale
   const held = moveAnchorTo(mouseDrag.anchor, { x: e.clientX, y: e.clientY }, scale, userRotation.value)
+  // At the edge of the map, let go of the anchor (as for a finger)
   if (held) mouseDrag.anchor = screenToMap(e.clientX, e.clientY)
 }
 
-function endRotatedMouseDrag() {
+function endMouseDrag() {
   mouseDrag = null
-  window.removeEventListener('mousemove', onRotatedMouseDrag)
-  window.removeEventListener('mouseup', endRotatedMouseDrag)
+  window.removeEventListener('mousemove', onMouseDrag)
+  window.removeEventListener('mouseup', endMouseDrag)
 }
 
-function zoomRotatedWheel(e) {
-  if (userRotation.value === 0) return false
-  const view = currentView()
-  if (!view) return true
+function zoomWithWheel(e) {
+  if (!currentView()) return true
   // Same step per wheel notch as panzoom, about the point under the pointer
-  const delta = e.deltaMode > 0 ? e.deltaY * 100 : e.deltaY
-  const factor = 1 - Math.sign(delta) * Math.min(0.25, Math.abs(delta / 128))
+  const factor = wheelZoomFactor(e.deltaY, e.deltaMode)
   if (factor !== 1) {
-    const p = screenToWrap({ x: e.clientX, y: e.clientY }, view)
-    panzoomInstance.zoomTo(p.x, p.y, factor)
+    cancelZoomAnimation()
+    zoomAbout({ x: e.clientX, y: e.clientY }, panzoomInstance.getTransform().scale * factor)
     e.preventDefault()
   }
   return true
+}
+
+function onDoubleClick(e) {
+  if (!panzoomInstance || !props.active || e.button !== 0) return
+  // Only on the map itself (as for touches), and never panzoom's own zoom
+  if (e.target !== containerRef.value && !wrapRef.value.contains(e.target)) return
+  e.stopPropagation()
+  animateZoomAbout({ x: e.clientX, y: e.clientY }, DOUBLE_CLICK_ZOOM)
 }
 
 // --- A mouse press that turns into a drag must not end in a click ---
@@ -1538,7 +1611,8 @@ function onSvgClick(e) {
 // Drop whatever touch or mouse gesture is in progress (the map is being hidden or removed)
 function cancelGestures() {
   if (gesture) endGesture()
-  endRotatedMouseDrag()
+  cancelZoomAnimation()
+  endMouseDrag()
   endMousePress()
 }
 
@@ -1594,6 +1668,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
     class="map-container"
     ref="containerRef"
     @touchstart.capture="onTouchStart"
+    @dblclick.capture="onDoubleClick"
   >
     <div class="map-svg-wrap" ref="wrapRef" :style="mapRotateStyle">
     <svg
@@ -1658,7 +1733,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
     <!-- Hover tooltip -->
     <MapTooltip :tooltip="tooltip" :bar-colors="barPartitionColor" :lang="lang" />
 
-    <div v-if="!isMobile" class="map-controls" style="right: 8px">
+    <div v-if="!isMobile" class="map-controls" :style="{ right: `${coveredRight + 8}px` }">
       <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
       <WinButton class="zoom-btn" :title="t('zoomOut')" @click="zoomOut">&minus;</WinButton>
       <WinButton class="zoom-btn" :title="t('fitToView')" @click="resetZoom">&#x27F3;</WinButton>

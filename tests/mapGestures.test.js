@@ -11,6 +11,8 @@ import {
   pinchScale,
   snapRotation,
   flipsWhenTurned,
+  wheelZoomFactor,
+  rotateAbout,
 } from '../src/utils/mapGeometry.js'
 
 const frame = { mapRotation: -21, mapCx: 1807.06, mapCy: 2048, vbMinX: -613.9, vbMinY: -511.5 }
@@ -233,5 +235,110 @@ describe('flipsWhenTurned', () => {
         expect(Math.abs(normalizeAngle(shown))).toBeLessThanOrEqual(100)
       }
     }
+  })
+})
+
+describe('wheelZoomFactor', () => {
+  it('is a quarter per notch, in for a roll up and out for a roll down', () => {
+    expect(wheelZoomFactor(-100)).toBe(1.25)
+    expect(wheelZoomFactor(100)).toBe(0.75)
+    expect(wheelZoomFactor(-3, 1)).toBe(1.25) // deltaMode 1: lines
+  })
+
+  it('is smaller for the small deltas of a trackpad, and 1 for none', () => {
+    expect(wheelZoomFactor(16)).toBe(0.875)
+    expect(wheelZoomFactor(-16)).toBe(1.125)
+    expect(wheelZoomFactor(0)).toBe(1)
+  })
+})
+
+describe('mouse input under CSS zoom', () => {
+  // what the component does for a wheel notch or a drag step: keep the map
+  // point that was under the pointer under the pointer
+  it('a wheel zoom keeps the point under the cursor', () => {
+    const cursor = { x: 420, y: 320 }
+    for (const view of [views.zoomed, views.all, views.plain]) {
+      const anchor = screenToMap(cursor, view)
+      let v = view
+      for (let i = 0; i < 4; i++) {
+        const scale = v.scale * wheelZoomFactor(-100)
+        const pan = panToPoint(anchor, cursor, { ...v, scale })
+        v = { ...v, scale, tx: pan.x, ty: pan.y }
+      }
+      expect(v.scale).toBeCloseTo(view.scale * 1.25 ** 4, 9)
+      const at = mapToScreen(anchor, v)
+      expect(at.x).toBeCloseTo(cursor.x, 6)
+      expect(at.y).toBeCloseTo(cursor.y, 6)
+    }
+  })
+
+  it('a drag moves the map by exactly what the cursor moved', () => {
+    const from = { x: 400, y: 300 }
+    const to = { x: 500, y: 350 }
+    const other = { x: 1700, y: 2100 } // any other map point moves by the same
+    for (const view of [views.zoomed, views.all]) {
+      const pan = panToPoint(screenToMap(from, view), to, view)
+      const before = mapToScreen(other, view)
+      const after = mapToScreen(other, { ...view, tx: pan.x, ty: pan.y })
+      expect(after.x - before.x).toBeCloseTo(100, 6)
+      expect(after.y - before.y).toBeCloseTo(50, 6)
+    }
+  })
+})
+
+describe('clampPan with a covered strip on the right (insetRight)', () => {
+  const mapW = 4842.3, mapH = 5119.1
+  const base = { width: 1024, height: 608, userRotation: 0, insetRight: 300 }
+
+  it('is the plain rule when nothing is covered', () => {
+    const view = { tx: 37, ty: -12, scale: 0.3, width: 1024, height: 608, userRotation: 0 }
+    expect(clampPan({ ...view, insetRight: 0 }, mapW, mapH)).toEqual(clampPan(view, mapW, mapH))
+    const turned = { ...view, userRotation: 40 }
+    expect(clampPan({ ...turned, insetRight: 0 }, mapW, mapH)).toEqual(clampPan(turned, mapW, mapH))
+  })
+
+  it('makes the map cover the uncovered part only: its right edge stops at the strip', () => {
+    const scale = 0.3
+    const far = clampPan({ ...base, tx: -5000, ty: -5000, scale }, mapW, mapH)
+    expect(far.x + mapW * scale).toBeCloseTo(724, 9)
+    expect(far.y + mapH * scale).toBeCloseTo(608, 9)
+    expect(clampPan({ ...base, tx: 500, ty: 500, scale }, mapW, mapH)).toEqual({ x: 0, y: 0 })
+  })
+
+  it('at the fit zoom the whole map is inside the uncovered part, centred', () => {
+    const scale = Math.min(724 / mapW, 608 / mapH)
+    for (const [tx, ty] of [[0, 0], [400, -90], [-800, 300]]) {
+      const p = clampPan({ ...base, tx, ty, scale }, mapW, mapH)
+      expect(p.x).toBeGreaterThanOrEqual(0)
+      expect(p.x + mapW * scale).toBeLessThanOrEqual(724 + 1e-9)
+      expect(p.y).toBeCloseTo(0, 9)
+      expect(p.y + mapH * scale).toBeCloseTo(608, 9)
+      expect(p.x + mapW * scale / 2).toBeCloseTo(362, 9)
+    }
+  })
+
+  it('changes smoothly when the map starts to turn', () => {
+    for (const scale of [0.1, 0.3]) {
+      const at0 = clampPan({ ...base, tx: 500, ty: 500, scale }, mapW, mapH)
+      const at1 = clampPan({ ...base, tx: 500, ty: 500, scale, userRotation: 0.5 }, mapW, mapH)
+      expect(Math.abs(at1.x - at0.x)).toBeLessThan(10)
+      expect(Math.abs(at1.y - at0.y)).toBeLessThan(10)
+    }
+  })
+
+  it('turned, a small map sits in the middle of the uncovered part on screen', () => {
+    const scale = 0.01
+    const view = { ...base, tx: 0, ty: 0, scale, userRotation: 60 }
+    const p = clampPan(view, mapW, mapH)
+    // middle of the map in the un-rotated wrap, then as it is shown
+    const shown = rotateAbout(p.x + mapW * scale / 2, p.y + mapH * scale / 2, 60, 512, 304)
+    expect(shown.x).toBeCloseTo(362, 9)
+    expect(shown.y).toBeCloseTo(304, 9)
+  })
+
+  it('leaves a pan that is inside the limits alone', () => {
+    const p = clampPan({ ...base, tx: -300, ty: -400, scale: 0.4, userRotation: 30 }, mapW, mapH)
+    expect(p.x).toBeCloseTo(-300, 9)
+    expect(p.y).toBeCloseTo(-400, 9)
   })
 })
