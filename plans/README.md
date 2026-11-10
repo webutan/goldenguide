@@ -137,7 +137,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [B05](tasks/B05-bios.md) | BIOS double-blink + fast boot for regulars | S | 1 h | 10 m | – |
 | ✅ | [B06](tasks/B06-safe-storage.md) | Safe localStorage helper | S | 1 h | 10 m | – |
 | ✅ | [B07](tasks/B07-jst-clock.md) | Taskbar clock in Tokyo time | S | 45 m | 5 m | – |
-| ☐ | [B08](tasks/B08-i18n-gaps.md) | i18n gaps / duplicate keys | S | 1 h | 15 m | – |
+| ✅ | [B08](tasks/B08-i18n-gaps.md) | i18n gaps / duplicate keys | S | 1 h | 15 m | – |
 | ☐ | [B09](tasks/B09-partition-sync.md) | New bars missing from partitions; stale cache | S–M | 2 h | 20 m | B06 |
 | ✅ | [P01](tasks/P01-image-diet.md) | Image diet (24 MB → ~3 MB) | S–M | 2 h | 20 m | – |
 
