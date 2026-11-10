@@ -1,26 +1,22 @@
 import { ref, computed } from 'vue'
+import { readJSON, writeJSON, isNumberArray } from '../utils/storage.js'
 
 const VISITED_KEY = 'golden-gai-visited'
 const FAVORITES_KEY = 'golden-gai-favorites'
 
 function loadIds(key) {
-  try {
-    const stored = localStorage.getItem(key)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
+  return readJSON(key, [], isNumberArray)
 }
 
 const visitedIds = ref(loadIds(VISITED_KEY))
 const favoritedIds = ref(loadIds(FAVORITES_KEY))
 
 function saveVisited() {
-  localStorage.setItem(VISITED_KEY, JSON.stringify(visitedIds.value))
+  writeJSON(VISITED_KEY, visitedIds.value)
 }
 
 function saveFavorites() {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoritedIds.value))
+  writeJSON(FAVORITES_KEY, favoritedIds.value)
 }
 
 export function useVisited() {

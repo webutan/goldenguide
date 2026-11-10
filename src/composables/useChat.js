@@ -1,5 +1,6 @@
 import { ref, onUnmounted } from 'vue'
 import { io } from 'socket.io-client'
+import { readString, writeString } from '../utils/storage.js'
 
 const NICKNAME_KEY = 'golden-gai-chat-nickname'
 
@@ -15,7 +16,7 @@ let refCount = 0
 const messages = ref([])
 const userCount = ref(0)
 const connected = ref(false)
-const nickname = ref(localStorage.getItem(NICKNAME_KEY) || generateGuestName())
+const nickname = ref(readString(NICKNAME_KEY) || generateGuestName())
 const checkinList = ref([])
 const myCheckinBarId = ref(null)
 
@@ -77,7 +78,7 @@ export function useChat() {
   function setNickname(nick) {
     const clean = nick.trim().slice(0, 30) || generateGuestName()
     nickname.value = clean
-    localStorage.setItem(NICKNAME_KEY, clean)
+    writeString(NICKNAME_KEY, clean)
   }
 
   function sendMessage(text) {
