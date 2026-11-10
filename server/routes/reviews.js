@@ -3,41 +3,112 @@ import pool from '../db.js'
 import admin from '../middleware/admin.js'
 import { reviewLimiter, publicWriteLimiter } from '../middleware/rateLimits.js'
 import { parsePositiveInt } from '../lib/validate.js'
-import { parseAdminReviewStatus, shouldAutoHide, reporterKey } from '../lib/reviewModeration.js'
+import {
+  parseAdminReviewStatus, parseAdminReviewLimit, parseAdminReviewCursor, encodeAdminReviewCursor,
+  shouldAutoHide, reporterKey,
+} from '../lib/reviewModeration.js'
 
 const router = Router()
 
-const ADMIN_LIST_LIMIT = 100
+// Admin rows never carry the drawing itself (a data URL of up to 150 kB each):
+// `has_drawing` says there is one, GET /admin/:id/drawing fetches it on demand.
 const ADMIN_REVIEW_COLUMNS = `
-  r.id, r.bar_id, r.nickname, r.text, r.drawing, r.created_at,
+  r.id, r.bar_id, r.nickname, r.text, (r.drawing IS NOT NULL) AS has_drawing, r.created_at,
   r.hidden, r.report_count, r.auto_hide_exempt, b.name_en, b.name_jp`
+// created_at in UTC with microseconds: the paging cursor (see reviewModeration.js)
+const CURSOR_TS = `to_char(r.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
 
-// GET /api/reviews/admin?status=reported|hidden|all — moderation list (admin).
-// Declared first so no parameterised route can ever capture "admin".
+// GET /api/reviews/admin?status=reported|hidden|all&barId=&limit=&cursor=
+// Moderation list (admin). Declared first so no parameterised route can ever
+// capture "admin".
 //   reported: has reports and has not been cleared by an admin (the queue;
-//             includes reviews that were auto-hidden)
-//   hidden:   currently hidden
+//             includes reviews that were auto-hidden), most reported first
+//   hidden:   currently hidden, newest first
 //   all:      everything, newest first
+//   barId:    only that bar's reviews (the bar's review panel in admin mode
+//             asks for status=hidden&barId= to show hidden reviews in place)
+// Answers { items, nextCursor, total }: `nextCursor` is null on the last
+// page, `total` counts every row the filter matches.
 router.get('/admin', admin, async (req, res) => {
   const status = parseAdminReviewStatus(req.query.status)
-  const where = {
-    reported: 'WHERE r.report_count > 0 AND NOT r.auto_hide_exempt',
-    hidden: 'WHERE r.hidden',
-    all: '',
-  }[status]
-  const order = status === 'reported' ? 'r.report_count DESC, r.created_at DESC' : 'r.created_at DESC'
+  const limit = parseAdminReviewLimit(req.query.limit)
+  const cursor = parseAdminReviewCursor(status, req.query.cursor)
+  if (cursor && cursor.error) return res.status(400).json({ error: cursor.error })
+  let barId = null
+  if (req.query.barId !== undefined) {
+    barId = parsePositiveInt(req.query.barId)
+    if (barId === null) return res.status(400).json({ error: 'Invalid barId' })
+  }
+
+  const conditions = []
+  const params = []
+  if (status === 'reported') conditions.push('r.report_count > 0 AND NOT r.auto_hide_exempt')
+  if (status === 'hidden') conditions.push('r.hidden')
+  if (barId !== null) {
+    params.push(barId)
+    conditions.push(`r.bar_id = $${params.length}`)
+  }
+  const filter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  // The page: rows strictly after the cursor in the list's order (all DESC)
+  const pageConditions = [...conditions]
+  const pageParams = [...params]
+  if (cursor) {
+    if (status === 'reported') {
+      pageParams.push(cursor.reports, cursor.ts, cursor.id)
+      const n = pageParams.length
+      pageConditions.push(`(r.report_count, r.created_at, r.id) < ($${n - 2}::int, $${n - 1}::timestamptz, $${n}::int)`)
+    } else {
+      pageParams.push(cursor.ts, cursor.id)
+      const n = pageParams.length
+      pageConditions.push(`(r.created_at, r.id) < ($${n - 1}::timestamptz, $${n}::int)`)
+    }
+  }
+  const pageFilter = pageConditions.length > 0 ? `WHERE ${pageConditions.join(' AND ')}` : ''
+  const order = status === 'reported'
+    ? 'r.report_count DESC, r.created_at DESC, r.id DESC'
+    : 'r.created_at DESC, r.id DESC'
+
   try {
-    const { rows } = await pool.query(`
-      SELECT ${ADMIN_REVIEW_COLUMNS}
-      FROM reviews r
-      JOIN bars b ON b.id = r.bar_id
-      ${where}
-      ORDER BY ${order}
-      LIMIT ${ADMIN_LIST_LIMIT}
-    `)
-    res.json(rows)
+    // One row more than the page, to know whether another page follows
+    const [page, count] = await Promise.all([
+      pool.query(`
+        SELECT ${ADMIN_REVIEW_COLUMNS}, ${CURSOR_TS} AS cursor_ts
+        FROM reviews r
+        JOIN bars b ON b.id = r.bar_id
+        ${pageFilter}
+        ORDER BY ${order}
+        LIMIT ${limit + 1}
+      `, pageParams),
+      pool.query(`SELECT COUNT(*)::int AS n FROM reviews r ${filter}`, params),
+    ])
+    const rows = page.rows.slice(0, limit)
+    const nextCursor = page.rows.length > limit ? encodeAdminReviewCursor(status, rows[rows.length - 1]) : null
+    res.set('Cache-Control', 'no-store')
+    res.json({
+      items: rows.map(({ cursor_ts: _ts, ...row }) => row),
+      nextCursor,
+      total: count.rows[0].n,
+    })
   } catch (err) {
     console.error('GET /reviews/admin error:', err.message)
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// GET /api/reviews/admin/:id/drawing — one review's drawing (admin), fetched
+// when its row is looked at. Works for hidden reviews too.
+router.get('/admin/:id/drawing', admin, async (req, res) => {
+  const id = parsePositiveInt(req.params.id)
+  if (id === null) return res.status(400).json({ error: 'Invalid review id' })
+  try {
+    const { rows } = await pool.query('SELECT drawing FROM reviews WHERE id = $1', [id])
+    if (rows.length === 0) return res.status(404).json({ error: 'Review not found' })
+    if (!rows[0].drawing) return res.status(404).json({ error: 'Review has no drawing' })
+    res.set('Cache-Control', 'no-store')
+    res.json({ id, drawing: rows[0].drawing })
+  } catch (err) {
+    console.error('GET /reviews/admin/:id/drawing error:', err.message)
     res.status(500).json({ error: 'Server error' })
   }
 })
