@@ -472,6 +472,88 @@ export function panToCenter(point, view) {
 }
 
 /**
+ * Viewport (client) coordinates → the un-rotated coordinates of the container
+ * that panzoom works in (its zoomTo / smoothZoom take a point in this space).
+ */
+export function screenToWrap(point, view) {
+  const zoom = view.zoom || 1
+  return rotateAbout(
+    (point.x - (view.left || 0)) / zoom,
+    (point.y - (view.top || 0)) / zoom,
+    -(view.userRotation || 0), view.width / 2, view.height / 2,
+  )
+}
+
+/**
+ * The panzoom translation that puts a map point under a viewport point at the
+ * view's scale and user rotation (the view's own tx / ty are ignored). This is
+ * what keeps the map under the finger: drag, pinch and twist all anchor the
+ * map point they started on to wherever the finger(s) are now.
+ * @returns {{ x: number, y: number }}
+ */
+export function panToPoint(mapPoint, screenPoint, view) {
+  const at = mapToScreen(mapPoint, { ...view, tx: 0, ty: 0 })
+  const zoom = view.zoom || 1
+  // the translation is applied before the user rotation and the CSS zoom
+  return rotateAbout((screenPoint.x - at.x) / zoom, (screenPoint.y - at.y) / zoom, -(view.userRotation || 0))
+}
+
+/** An angle in degrees brought into (-180, 180]. */
+export function normalizeAngle(deg) {
+  const a = ((deg % 360) + 360) % 360
+  return a > 180 ? a - 360 : a
+}
+
+/**
+ * Whether text should be turned half a turn because the map has been rotated.
+ * `angle` is the direction the text runs on screen with the map straight
+ * (0 = left to right, 90 = top to bottom), `turn` how far the map is turned.
+ * Text is left alone while it still reads within `limit` degrees of upright.
+ * Text that is beyond the limit to begin with was set that way on purpose and
+ * is never flipped.
+ */
+export function flipsWhenTurned(angle, turn, limit = 100) {
+  const readable = a => Math.abs(normalizeAngle(a)) <= limit
+  return readable(angle) && !readable(angle + turn)
+}
+
+/**
+ * Two touch points as one gesture reading: the point between the fingers,
+ * how far apart they are and the direction from the first to the second.
+ * @returns {{ x: number, y: number, distance: number, angle: number }} angle in degrees
+ */
+export function touchSpan(a, b) {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  return {
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+    distance: Math.hypot(dx, dy),
+    angle: Math.atan2(dy, dx) * 180 / Math.PI,
+  }
+}
+
+/**
+ * Zoom of a pinch: the zoom it started at times how much the fingers have
+ * spread, kept within the zoom limits. Fingers on the same spot (a distance of
+ * 0, at the start or now) leave the zoom as it was instead of producing NaN.
+ */
+export function pinchScale(startScale, startDistance, distance, minScale, maxScale) {
+  const ratio = startDistance > 0 && distance > 0 ? distance / startDistance : 1
+  return Math.min(maxScale, Math.max(minScale, startScale * ratio))
+}
+
+/**
+ * Rotation to settle on when a twist ends: straight (0) when the map is
+ * within `tolerance` degrees of it, so a pinch does not leave the map
+ * slightly crooked; otherwise the angle itself, normalised.
+ */
+export function snapRotation(deg, tolerance) {
+  const a = normalizeAngle(deg)
+  return Math.abs(a) <= tolerance ? 0 : a
+}
+
+/**
  * Pan limits. `view` needs tx, ty, scale, width, height, userRotation;
  * mapW / mapH are the unscaled size of the map (the viewBox).
  *

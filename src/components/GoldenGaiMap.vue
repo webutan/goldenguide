@@ -19,8 +19,14 @@ import {
   parsePolygonPath,
   findPartitionAt,
   screenToMap as screenToMapPure,
+  screenToWrap,
   panToCenter,
+  panToPoint,
   clampPan,
+  normalizeAngle,
+  touchSpan,
+  pinchScale,
+  snapRotation,
 } from '../utils/mapGeometry.js'
 import { devCount, devTrackRenders } from '../utils/devPerf.js'
 import { useI18n } from '../composables/useI18n.js'
@@ -75,6 +81,7 @@ const { t } = useI18n(computed(() => props.lang))
 devTrackRenders('GoldenGaiMap')
 
 const containerRef = ref(null)
+const wrapRef = ref(null)
 const svgRef = ref(null)
 const mapContent = ref('')
 let panzoomInstance = null
@@ -86,8 +93,13 @@ const currentZoom = ref(0)
 const baseFitScale = ref(0)
 const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.0)
 
-// User rotation applied via container transform (pinch-to-rotate on mobile)
+// User rotation applied via container transform (two-finger twist), in (-180, 180]
 const userRotation = ref(0)
+// The same in 10-degree steps, for text that is laid out along a building or a
+// street (bar labels, annotations): it turns with the map, and is turned half
+// a turn when it would otherwise read upside down. Steps, so that those layers
+// re-render a few times per twist and not on every frame.
+const labelTurn = computed(() => Math.round(userRotation.value / 10) * 10)
 const mapRotateStyle = computed(() =>
   userRotation.value !== 0 ? { transform: `rotate(${userRotation.value}deg)` } : {}
 )
@@ -442,7 +454,7 @@ const buildingLabelData = computed(() => {
         const groupRotation = baseRotation + partAdminRotation
         const cx = rect.visibleCenter.x + partOffsetX
         const cy = rect.visibleCenter.y + partOffsetY
-        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, items }
+        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
       }
       continue
     }
@@ -468,7 +480,7 @@ const buildingLabelData = computed(() => {
     const groupRotation = baseRotation + adminRotation
 
     const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride)
-    result[bldgId] = { cx, cy, groupRotation, items }
+    result[bldgId] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
   }
   return result
 })
@@ -844,6 +856,10 @@ function initPanzoom() {
     minZoom: fitScale,
     smoothScroll: false,
     zoomDoubleClickSpeed: 1.5,
+    // panzoom knows nothing about the rotation of .map-svg-wrap: while the
+    // map is turned, mouse drag and wheel are handled here instead
+    beforeMouseDown: startRotatedMouseDrag,
+    beforeWheel: zoomRotatedWheel,
   })
   panzoomInstance.on('panend', clampToBounds)
   panzoomInstance.on('zoom', clampToBounds)
@@ -1089,7 +1105,7 @@ watch(() => props.active, (active) => {
   clearHighlight()
   hideTooltip()
   hoveredBuildingId.value = null
-  rotTouchStartAngle = null
+  cancelGestures()
   if (draggingAnnotation) onAnnotationDragEnd()
   if (geoWatchId !== null) {
     navigator.geolocation.clearWatch(geoWatchId)
@@ -1100,6 +1116,7 @@ watch(() => props.active, (active) => {
 })
 
 onUnmounted(() => {
+  cancelGestures()
   if (panzoomInstance) panzoomInstance.dispose()
   hideTooltip()
   hoveredBuildingId.value = null
@@ -1187,12 +1204,10 @@ function onAnnotationMouseDown(e, ann) {
   selectedAnnotation.value = ann.id
   draggingAnnotation = ann.id
 
-  // Get SVG coordinates
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const svgPt = pt.matrixTransform(svgRef.value.getScreenCTM().inverse())
-  dragOffset = { x: svgPt.x - ann.x, y: svgPt.y - ann.y }
+  // Where on the label (in map coordinates) it was grabbed
+  const mapPt = screenToMap(e.clientX, e.clientY)
+  if (!mapPt) return
+  dragOffset = { x: mapPt.x - ann.x, y: mapPt.y - ann.y }
 
   // Pause panzoom during drag
   if (panzoomInstance) panzoomInstance.pause()
@@ -1202,16 +1217,12 @@ function onAnnotationMouseDown(e, ann) {
 }
 
 function onAnnotationDrag(e) {
-  if (!draggingAnnotation || !svgRef.value) return
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const svgPt = pt.matrixTransform(svgRef.value.getScreenCTM().inverse())
-
+  if (!draggingAnnotation) return
+  const mapPt = screenToMap(e.clientX, e.clientY)
   const ann = annotations.value.find(a => a.id === draggingAnnotation)
-  if (ann) {
-    ann.x = Math.round(svgPt.x - dragOffset.x)
-    ann.y = Math.round(svgPt.y - dragOffset.y)
+  if (mapPt && ann) {
+    ann.x = Math.round(mapPt.x - dragOffset.x)
+    ann.y = Math.round(mapPt.y - dragOffset.y)
   }
 }
 
@@ -1297,63 +1308,238 @@ function getSvgPoint(e) {
   return screenToMap(e.clientX, e.clientY)
 }
 
-// Emit building selection for admin editing
-let rotTouchStartAngle = null
-let rotTouchStartRotation = 0
+// === Gestures ===
+// Touch is handled here, not by panzoom: panzoom measures a touch against the
+// bounding box of .map-svg-wrap, which is wrong as soon as the wrap is rotated,
+// and it cannot rotate. One handler owns one- and two-finger touches, so drag,
+// pinch and twist compose. They all work the same way: the map point under the
+// finger (or between the two fingers) when the gesture starts is kept under
+// the finger(s) as they move, at whatever zoom and rotation the fingers ask
+// for. panzoom still holds the transform, and keeps the mouse, the wheel and
+// the keyboard while the map is not rotated.
+const TAP_MAX_MOVE = 8      // viewport px a finger may travel and still be a tap
+const TAP_MAX_MS = 300
+const DOUBLE_TAP_MS = 300
+const DOUBLE_TAP_MAX_DIST = 30
+const DRAG_MIN_MOVE = 5     // viewport px after which a mouse press is a drag, not a click
+const ROTATION_SNAP_DEG = 6 // a twist that ends this close to straight snaps back to it
 
-function getTouchAngle(touches) {
-  const dx = touches[1].clientX - touches[0].clientX
-  const dy = touches[1].clientY - touches[0].clientY
-  return Math.atan2(dy, dx) * 180 / Math.PI
+// Put the map point `anchor` under the viewport point `at` with the given zoom
+// and rotation, within the pan limits. Returns true when the limits held it back.
+function moveAnchorTo(anchor, at, scale, rotation) {
+  if (rotation !== userRotation.value) userRotation.value = rotation
+  if (Math.abs(scale - panzoomInstance.getTransform().scale) > 1e-9) panzoomInstance.zoomAbs(0, 0, scale)
+  const view = currentView()
+  const want = panToPoint(anchor, at, view)
+  const pan = clampPan({ ...view, tx: want.x, ty: want.y }, VB_W, VB_H)
+  panzoomInstance.moveTo(pan.x, pan.y)
+  return Math.abs(pan.x - want.x) > 0.5 || Math.abs(pan.y - want.y) > 0.5
 }
 
-function onContainerTouchStart(e) {
-  if (e.touches.length === 2) {
-    rotTouchStartAngle = getTouchAngle(e.touches)
-    rotTouchStartRotation = userRotation.value
+// The touch gesture in progress: { ids, target, startX, startY, startTime,
+// moved, multi, anchor, at, scale, distance, angle }
+let gesture = null
+let lastTap = null
+
+// The (at most two) fingers of the gesture that are still down, as viewport points
+function gesturePoints(e) {
+  const points = []
+  for (const id of gesture.ids) {
+    for (const t of e.touches) {
+      if (t.identifier === id) points.push({ x: t.clientX, y: t.clientY })
+    }
   }
+  return points
 }
 
-function onContainerTouchMove(e) {
-  if (e.touches.length === 2 && rotTouchStartAngle !== null) {
-    const currentAngle = getTouchAngle(e.touches)
-    const delta = currentAngle - rotTouchStartAngle
-    userRotation.value = rotTouchStartRotation + delta
+function spanOf(points) {
+  return points.length === 2
+    ? touchSpan(points[0], points[1])
+    : { x: points[0].x, y: points[0].y, distance: 0, angle: 0 }
+}
+
+// (Re)start measuring from the fingers that are down now: called whenever a
+// finger lands or lifts, so the map does not jump when the finger count changes
+function rebaseGesture(points) {
+  const span = spanOf(points)
+  gesture.at = { x: span.x, y: span.y }
+  gesture.anchor = screenToMap(span.x, span.y)
+  gesture.scale = panzoomInstance.getTransform().scale
+  gesture.distance = span.distance
+  gesture.angle = span.angle
+}
+
+function onTouchStart(e) {
+  if (!panzoomInstance || !props.active) return
+  // Only touches on the map itself; the buttons and the toolbar keep theirs
+  if (e.target !== containerRef.value && !wrapRef.value.contains(e.target)) return
+  // Keep the touch from panzoom, and from scrolling / zooming the page or
+  // turning into a synthetic click
+  e.stopPropagation()
+  if (e.cancelable) e.preventDefault()
+  if (!gesture) {
+    const t = e.changedTouches[0]
+    gesture = { ids: [], target: e.target, startX: t.clientX, startY: t.clientY, startTime: Date.now(), moved: 0, multi: false }
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onTouchEnd)
+    document.addEventListener('touchcancel', onTouchEnd)
   }
-}
-
-function onContainerTouchEnd(e) {
-  if (e.touches.length < 2) {
-    rotTouchStartAngle = null
+  // Forget fingers whose end was never seen, then take up to two
+  const down = [...e.touches].map(t => t.identifier)
+  gesture.ids = gesture.ids.filter(id => down.includes(id))
+  for (const t of e.changedTouches) {
+    if (gesture.ids.length < 2 && !gesture.ids.includes(t.identifier)) gesture.ids.push(t.identifier)
   }
+  if (gesture.ids.length > 1) gesture.multi = true
+  rebaseGesture(gesturePoints(e))
 }
 
-
-// Touch tap detection (panzoom consumes touch events so @click never fires on mobile)
-let touchStartX = 0
-let touchStartY = 0
-let touchStartTime = 0
-
-function onSvgTouchStart(e) {
-  if (e.touches.length !== 1) return
-  touchStartX = e.touches[0].clientX
-  touchStartY = e.touches[0].clientY
-  touchStartTime = Date.now()
-}
-
-function onSvgTouchEnd(e) {
-  if (e.changedTouches.length !== 1) return
-  const dx = e.changedTouches[0].clientX - touchStartX
-  const dy = e.changedTouches[0].clientY - touchStartY
-  const dt = Date.now() - touchStartTime
-  if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 300) {
-    e.preventDefault() // prevent the 300ms-delayed synthetic click
-    handleMapClick({
-      target: e.target,
-      clientX: e.changedTouches[0].clientX,
-      clientY: e.changedTouches[0].clientY,
-    })
+function onTouchMove(e) {
+  if (!gesture) return
+  const points = gesturePoints(e)
+  if (!points.length || !gesture.anchor) return
+  if (e.cancelable) e.preventDefault()
+  const span = spanOf(points)
+  gesture.at = { x: span.x, y: span.y }
+  if (points.length === 1) {
+    gesture.moved = Math.max(gesture.moved, Math.hypot(span.x - gesture.startX, span.y - gesture.startY))
+    const held = moveAnchorTo(gesture.anchor, gesture.at, gesture.scale, userRotation.value)
+    // At the edge of the map, let go of the anchor so that dragging back
+    // moves the map straight away
+    if (held) gesture.anchor = screenToMap(span.x, span.y)
+    return
   }
+  // Twist: by how much the line between the fingers has turned since the last move
+  const rotation = normalizeAngle(userRotation.value + normalizeAngle(span.angle - gesture.angle))
+  gesture.angle = span.angle
+  const scale = pinchScale(gesture.scale, gesture.distance, span.distance,
+    panzoomInstance.getMinZoom(), panzoomInstance.getMaxZoom())
+  moveAnchorTo(gesture.anchor, gesture.at, scale, rotation)
+}
+
+function onTouchEnd(e) {
+  if (!gesture) return
+  const points = gesturePoints(e)
+  const down = [...e.touches].map(t => t.identifier)
+  gesture.ids = gesture.ids.filter(id => down.includes(id))
+  if (points.length) {
+    // One of two fingers lifted: carry on as a drag with the other
+    rebaseGesture(points)
+    return
+  }
+  const g = endGesture()
+  if (e.type === 'touchcancel' || g.multi || g.moved >= TAP_MAX_MOVE || Date.now() - g.startTime >= TAP_MAX_MS) return
+  // A tap (the touch never becomes a click, see onTouchStart)
+  const t = e.changedTouches[0]
+  const now = Date.now()
+  if (lastTap && now - lastTap.time < DOUBLE_TAP_MS &&
+      Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < DOUBLE_TAP_MAX_DIST) {
+    lastTap = null
+    const p = screenToWrap({ x: t.clientX, y: t.clientY }, currentView())
+    panzoomInstance.smoothZoom(p.x, p.y, 1.5)
+  } else {
+    lastTap = { time: now, x: t.clientX, y: t.clientY }
+  }
+  handleMapClick({ target: g.target, clientX: t.clientX, clientY: t.clientY })
+}
+
+// Stop following the fingers and settle the view
+function endGesture() {
+  const g = gesture
+  gesture = null
+  document.removeEventListener('touchmove', onTouchMove)
+  document.removeEventListener('touchend', onTouchEnd)
+  document.removeEventListener('touchcancel', onTouchEnd)
+  // The pan limits were applied on every move, so there is nothing to settle
+  // but the rotation (and a plain tap leaves the view exactly as it was)
+  if (g && g.multi && g.anchor && panzoomInstance) {
+    const settled = snapRotation(userRotation.value, ROTATION_SNAP_DEG)
+    if (settled !== userRotation.value) {
+      moveAnchorTo(g.anchor, g.at, panzoomInstance.getTransform().scale, settled)
+    }
+  }
+  return g
+}
+
+// --- Mouse while the map is rotated (panzoom's beforeMouseDown / beforeWheel:
+// returning true makes panzoom leave the event alone) ---
+let mouseDrag = null
+
+function startRotatedMouseDrag(e) {
+  if (userRotation.value === 0) return false
+  if (e.button !== 0) return true
+  const anchor = screenToMap(e.clientX, e.clientY)
+  if (!anchor) return true
+  e.preventDefault() // no text selection while dragging
+  mouseDrag = { anchor }
+  window.addEventListener('mousemove', onRotatedMouseDrag)
+  window.addEventListener('mouseup', endRotatedMouseDrag)
+  return true
+}
+
+function onRotatedMouseDrag(e) {
+  if (!mouseDrag || !panzoomInstance) return
+  const scale = panzoomInstance.getTransform().scale
+  const held = moveAnchorTo(mouseDrag.anchor, { x: e.clientX, y: e.clientY }, scale, userRotation.value)
+  if (held) mouseDrag.anchor = screenToMap(e.clientX, e.clientY)
+}
+
+function endRotatedMouseDrag() {
+  mouseDrag = null
+  window.removeEventListener('mousemove', onRotatedMouseDrag)
+  window.removeEventListener('mouseup', endRotatedMouseDrag)
+}
+
+function zoomRotatedWheel(e) {
+  if (userRotation.value === 0) return false
+  const view = currentView()
+  if (!view) return true
+  // Same step per wheel notch as panzoom, about the point under the pointer
+  const delta = e.deltaMode > 0 ? e.deltaY * 100 : e.deltaY
+  const factor = 1 - Math.sign(delta) * Math.min(0.25, Math.abs(delta / 128))
+  if (factor !== 1) {
+    const p = screenToWrap({ x: e.clientX, y: e.clientY }, view)
+    panzoomInstance.zoomTo(p.x, p.y, factor)
+    e.preventDefault()
+  }
+  return true
+}
+
+// --- A mouse press that turns into a drag must not end in a click ---
+let mousePress = null
+let mouseDragged = false
+
+function onSvgMouseDown(e) {
+  mousePress = { x: e.clientX, y: e.clientY }
+  mouseDragged = false
+  window.addEventListener('mousemove', trackMousePress)
+  window.addEventListener('mouseup', endMousePress)
+}
+
+function trackMousePress(e) {
+  if (mousePress && Math.hypot(e.clientX - mousePress.x, e.clientY - mousePress.y) >= DRAG_MIN_MOVE) mouseDragged = true
+}
+
+function endMousePress() {
+  mousePress = null
+  window.removeEventListener('mousemove', trackMousePress)
+  window.removeEventListener('mouseup', endMousePress)
+}
+
+function onSvgClick(e) {
+  // mouseDragged is still set here: the click comes right after the mouseup
+  if (mouseDragged) {
+    mouseDragged = false
+    return
+  }
+  handleMapClick(e)
+}
+
+// Drop whatever touch or mouse gesture is in progress (the map is being hidden or removed)
+function cancelGestures() {
+  if (gesture) endGesture()
+  endRotatedMouseDrag()
+  endMousePress()
 }
 
 function handleMapClick(e) {
@@ -1407,22 +1593,19 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
   <div
     class="map-container"
     ref="containerRef"
-    @touchstart.passive="onContainerTouchStart"
-    @touchmove.passive="onContainerTouchMove"
-    @touchend.passive="onContainerTouchEnd"
+    @touchstart.capture="onTouchStart"
   >
-    <div class="map-svg-wrap" :style="mapRotateStyle">
+    <div class="map-svg-wrap" ref="wrapRef" :style="mapRotateStyle">
     <svg
       ref="svgRef"
       :viewBox="`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`"
       :width="VB_W"
       :height="VB_H"
       :class="['golden-gai-svg', { 'placing-mode': adminMode && placingBar }]"
-      @click="handleMapClick"
+      @mousedown="onSvgMouseDown"
+      @click="onSvgClick"
       @mousemove="onSvgMouseMove"
       @mouseleave="onSvgMouseLeave"
-      @touchstart.passive="onSvgTouchStart"
-      @touchend="onSvgTouchEnd"
     >
       <g :transform="`rotate(${MAP_ROTATION}, ${MAP_CX}, ${MAP_CY})`">
       <!-- ClipPaths must live inside the rotation group so their coordinate space
@@ -1447,11 +1630,11 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
 
       <!-- Bar name labels (visible when sufficiently zoomed in) -->
       <Transition name="labels-fade">
-        <MapLabels v-if="showLabels" :labels="buildingLabelData" />
+        <MapLabels v-if="showLabels" :labels="buildingLabelData" :turn="labelTurn" />
       </Transition>
 
       <!-- Bar count badges: always shown when zoomed out -->
-      <MapBadges v-if="!showLabels" :badges="buildingBarCountBadges" :rotation="-MAP_ROTATION" />
+      <MapBadges v-if="!showLabels" :badges="buildingBarCountBadges" :rotation="-MAP_ROTATION - userRotation" />
 
       <!-- Annotations -->
       <MapAnnotations
@@ -1459,6 +1642,8 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
         :admin-mode="adminMode"
         :selected-id="selectedAnnotation"
         :lang="lang"
+        :map-rotation="MAP_ROTATION"
+        :turn="labelTurn"
         @annotation-mousedown="onAnnotationMouseDown"
       />
       <!-- User GPS location marker -->
@@ -1580,6 +1765,8 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
 
 <style scoped>
 .map-svg-wrap {
+  /* every touch on the map is a map gesture (see onTouchStart) */
+  touch-action: none;
   width: 100%;
   height: 100%;
   transform-origin: center center;
