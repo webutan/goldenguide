@@ -25,7 +25,7 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 
 ## Data and persistence rules
 
-- **Migrations:** append a new entry to the `MIGRATIONS` array in `server/migrate.js` with the next number (`015-...`, `016-...`). Never edit an existing migration. Migrations run automatically on API start. The `sql/` folder is stale; don't add files there.
+- **Migrations:** append a new entry to the `MIGRATIONS` array in `server/migrate.js` with the next number (`015-...`, `016-...`). Never edit an existing migration. Migrations run automatically on API start. There is no separate `sql/` folder (it was a stale copy and was removed); the schema lives only in `server/migrate.js`.
 - **localStorage:** keys are prefixed `golden-gai-`. After task **B06** lands, use `src/utils/storage.js` (`readJSON`/`writeJSON`); never call bare `JSON.parse(localStorage...)`.
 - **Admin endpoints** use the `admin` middleware (`server/middleware/admin.js`). Public write endpoints must be rate-limited (after **S02**, use the shared limiter in `server/middleware/rateLimits.js`).
 - User-generated text is always rendered with `{{ }}` interpolation, never `v-html`.
