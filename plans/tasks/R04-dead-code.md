@@ -24,3 +24,7 @@ Also (found in R07, small window bugs, fix here):
 Also (found in S02):
 - `parseTwitterHandle` exists in four copies (`server/lib/feedCore.js`, `BarTwitterPanel.vue`, `BarDrawer.vue`, `BarPopup.vue`). Move the frontend copies into one `src/utils/` helper.
 - `FeedWindow.vue` and `BarTwitterPanel.vue` show raw `err.message` / `data.error` strings instead of `t()` keys; an admin viewing an inactive bar's Twitter panel sees "Failed to fetch bar feed" (the feed route now 404s for inactive bars).
+
+Also (found in B09, admin gaps): `removePartition` in AdminPanel can only remove the last slot, and there is no `DELETE /api/partitions/:buildingId`, so a building's split can only be reset in the database. Add both.
+
+Also (found in R01): `hasFloorFilter` and `barFloorMap` in `GoldenGaiMap.vue` are unused; the map tooltip's "cover" and the annotation toolbar strings ("Add label", "English text", "Size", "Rot") bypass `t()`; four ids in `src/data/buildings.json` have no matching `bldg-*` path in `map.svg`, so a bar placed there is unreachable (check production data for bars in those buildings).

@@ -25,4 +25,4 @@ B09's agent reported that `partitionRects` divides a padded span of 4 × max(wid
 3. Existing saved partitions were tuned by eye against the old geometry: list which stored buildings change appearance, and keep 2-slot and 4-slot layouts pixel-identical where weights are equal.
 4. Then remove the workaround in `src/utils/partitions.js`: delete `FULLY_VISIBLE_SLOT_COUNTS` and the "join the last slot" branch so an unassigned bar always gets its own synthetic slot, and update `tests/partitions.test.js`.
 
-Also (found in B09, admin gaps): `removePartition` in AdminPanel can only remove the last slot, and there is no `DELETE /api/partitions/:buildingId`, so a building's split can only be reset in the database. Add both.
+Note: the geometry now lives in `src/utils/mapGeometry.js` (pure, unit-tested in `tests/mapGeometry.test.js`) and the overlay in `src/components/map/MapPartitions.vue`; `rects[i].visibleCenter` feeds the badges.

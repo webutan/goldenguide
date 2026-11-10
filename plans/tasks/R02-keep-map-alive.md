@@ -16,3 +16,5 @@ The map is behind `v-if="activeView === 'map'"`, so each switch to Desktop or Di
 - [ ] Zoom in, go to the Directory, come back: same zoom and centre
 - [ ] Rotating a phone (Playwright viewport swap) keeps the map usable and correctly bounded
 - [ ] Search from the Desktop view still pans to the bar
+
+Also (found in R01): after R01 the dominant hover cost is no longer the map. Every `hover-building` emit re-renders `App.vue` and the bar drawer (~2 ms per move, 110–125 ms per 50 moves, versus ~25 ms for the map itself). Keep the hovered building out of App.vue's render path: e.g. hold it in a small shared composable that only the drawer's title/hover list reads, or pass it to a narrow child component, and measure with R01's method (50 synthetic mousemoves, median of 5).

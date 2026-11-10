@@ -153,7 +153,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 ### Phase 3: Performance & refactors (~18 agent-h)
 | ✓ | ID | Task | Size | Agent | Review | Depends on |
 |---|----|------|------|-------|--------|-----------|
-| ☐ | [R01](tasks/R01-map-render-perf.md) | Map: hover separated from geometry; declarative colours | L | 6 h | 45 m | B03 |
+| ✅ | [R01](tasks/R01-map-render-perf.md) | Map: hover separated from geometry; declarative colours | L | 6 h | 45 m | B03 |
 | ☐ | [B10](tasks/B10-map-geometry.md) | Partition badge centres; pan correct after rotation | M | 3 h | 30 m | R01 |
 | ☐ | [R02](tasks/R02-keep-map-alive.md) | Keep map alive between views | S–M | 2 h | 15 m | R01 |
 | ✅ | [R03](tasks/R03-chat-scroll.md) | Chat: cheap watcher, don't yank scroll | S | 45 m | 10 m | – |
