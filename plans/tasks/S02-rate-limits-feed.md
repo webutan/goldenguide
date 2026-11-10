@@ -15,7 +15,7 @@
    - `reviewLimiter`: 5 per 10 min per IP
    - `publicWriteLimiter`: generic, for later tasks (suggestions, guestbook)
    - `feedLimiter`: 60 per min
-2. Chat: key the rate limit on IP (`socket.handshake.headers['x-forwarded-for']` first hop, else `x-real-ip`, else address), so it's 1 msg/s and 20 msgs/min per IP. Also cap check-in updates (e.g. 1 per 5 s).
+2. Chat: key the rate limit on IP (the `x-real-ip` handshake header set by nginx, else `socket.handshake.address`; never the first `X-Forwarded-For` entry, which the client controls; see the note at the end), so it's 1 msg/s and 20 msgs/min per IP. Also cap check-in updates (e.g. 1 per 5 s).
 3. Feed:
    - `/account/:handle` only serves handles that belong to an active bar's `sns` (look up via `parseTwitterHandle`). Anything else returns 404. Validate `^[A-Za-z0-9_]{1,15}$`.
    - Single-flight: keep an in-memory `Map<key, Promise>` so concurrent misses share one fetch.
