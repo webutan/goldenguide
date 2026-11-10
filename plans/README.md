@@ -161,7 +161,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [R03](tasks/R03-chat-scroll.md) | Chat: cheap watcher, don't yank scroll | S | 45 m | 10 m | – |
 | ✅ | [R04](tasks/R04-dead-code.md) | Dead code, duplicates and small loose ends (grew from findings) | M | 3 h | 20 m | late |
 | ☐ | [R08](tasks/R08-drawer-hover-and-reload.md) | Bar drawer hover cost; survive a failed reload (found in R02) | M | 3 h | 20 m | R02 |
-| ☐ | [R09](tasks/R09-admin-usability.md) | Admin usability gaps (found in S04/G04/B09) | M | 3–4 h | 30 m | S04, G04, B10 |
+| ✅ | [R09](tasks/R09-admin-usability.md) | Admin usability gaps (found in S04/G04/B09) | M | 3–4 h | 30 m | S04, G04, B10 |
 | ✅ | [R05](tasks/R05-win95-dialogs.md) | Win95 dialog system (replace alert/confirm/prompt) | M | 3 h | 20 m | – |
 | ✅ | [R06](tasks/R06-code-split.md) | Lazy-load heavy windows | S | 1 h | 10 m | – |
 | ✅ | [R07](tasks/R07-window-drag.md) | Pointer-event window drag + keep on screen | S | 1.5 h | 10 m | – |
@@ -236,5 +236,6 @@ Small or speculative items that didn't justify a task. Pick up when touching the
 - **Layout:** at 320 px wide the mobile taskbar is wider than the screen; the Explorer window's position is measured at mount and can differ by a few px between loads.
 - **Windows:** a window can hide under the bar drawer or Gai-chan (they should publish an inset that the window clamp subtracts); window z-indexes only increment and can pass the drawer's; Gai-chan draws over the Start menu on mobile; the first-visit rules balloon overlaps the Explorer window at 1280x800; sticky notes overlap each other, the icons and Gai-chan.
 - **Links and previews:** clicking a building doesn't change the URL (only an opened bar card does); a bar photo used as the preview image has no size and may be cropped oddly; the default preview image has no Japanese line; some bar names print in a fallback font on stickers.
+- **Admin:** on phones Search is still hidden in admin mode; the taskbar shows an Explorer button that does nothing in admin mode; "Reset split" can race an in-flight save for the same building (the save is fire-and-forget and could recreate the row); the bar review panel loads at most 100 hidden reviews per bar; the reported-queue paging can repeat or skip a row if report counts change between pages; the mobile admin taskbar button is an emoji rather than a pixel icon.
 - **Suggestions:** the Hours tab edits `schedule` only, not the free-text `hours` / `closed_days` that cards also show.
 - **Untested platforms:** Safari/iOS throughout (gestures, install steps, time picker, share sheet), Firefox, real printers, the Docker Compose wiring for link previews.
