@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useMapHover } from '../composables/useMapHover.js'
+import { canNativeShare } from '../composables/useUrlState.js'
 import { barPasses, hasActiveFilters as hasAnyFilter, parsePrice, yen } from '../utils/barFilters.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
@@ -31,7 +32,9 @@ const props = defineProps({
   followMapHover: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'hover-bar', 'unhover-bar', 'back-to-all'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'share-bar', 'hover-bar', 'unhover-bar', 'back-to-all'])
+// "Share…" opens the phone's share sheet; elsewhere the link is copied
+const nativeShare = canNativeShare()
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
 const { hoveredBuildingId } = useMapHover()
@@ -325,6 +328,9 @@ function getOpenStatus(bar) {
                 <template v-else>{{ t('markFavorite') }}</template>
               </WinButton>
               <WinButton small @click="emit('show-reviews', bar)">{{ t('reviews') }}</WinButton>
+              <WinButton small class="share-btn" @click="emit('share-bar', { bar, anchor: $event.currentTarget })">
+                <img src="/icons/tags/url1.ico" class="share-btn-icon" alt="" />{{ t(nativeShare ? 'shareBar' : 'copyLink') }}
+              </WinButton>
             </div>
           </div>
         </template>
@@ -754,6 +760,29 @@ function getOpenStatus(bar) {
   .maps-icon-img {
     width: 100px;
     height: 19px;
+  }
+}
+
+/* Share / copy-link button */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.share-btn-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  /* Beats WinButton's own .small sizing */
+  .drawer-bar-actions .share-btn.small {
+    min-height: 40px;
+    padding: 2px 10px;
   }
 }
 </style>

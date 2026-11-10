@@ -204,6 +204,14 @@ const translations = {
   'geomAllHint': { en: '{n} split building(s) still use the original layout.', jp: '分割された建物のうち{n}件が従来のレイアウトのままです。' },
   'geomAllNone': { en: 'Every split building uses the auto centre/split.', jp: '分割されたすべての建物が自動の中心・分割を使っています。' },
   'geomApplyAll': { en: 'Apply to all', jp: 'すべてに適用' },
+  // Deep links & sharing (G01)
+  'copyLink': { en: 'Copy link', jp: 'リンクをコピー' },
+  'shareBar': { en: 'Share…', jp: '共有…' },
+  'linkCopied': { en: 'Link copied!', jp: 'リンクをコピーしました！' },
+  'shareLinkTitle': { en: 'Share this bar', jp: 'このバーを共有' },
+  'shareCopyByHand': { en: 'Could not copy automatically. Select the link below and copy it:', jp: '自動でコピーできませんでした。下のリンクを選択してコピーしてください：' },
+  'rulesHintQuestion': { en: 'First time in Golden Gai?', jp: 'ゴールデン街は初めて？' },
+  'rulesHintAction': { en: 'Read the rules', jp: 'ルールを読む' },
   'geomApplyAllConfirm': { en: 'Reset the label offsets of {n} building(s) and switch them all to the auto centre/split?\n\nEach building is saved straight away. Slot sizes tuned for the original layout may need adjusting afterwards.', jp: '{n}件の建物のラベルのオフセットをリセットして、すべて自動の中心・分割に切り替えますか？\n\n各建物はすぐに保存されます。従来のレイアウトに合わせたスロットのサイズは、あとで調整が必要になる場合があります。' },
 }
 

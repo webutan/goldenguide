@@ -21,6 +21,8 @@ import { useApi } from './composables/useApi.js'
 import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
+import { useDialog } from './composables/useDialog.js'
+import { useUrlState, parseUrl, barShareUrl, barTitle, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
@@ -45,12 +47,18 @@ watch(isAdmin, () => reload())
 const wm = useWindowManager()
 const { openBarIds } = useOpenNow(bars)
 
+// The URL the page was opened with. Anything but the desktop is a deep link:
+// it fast-boots and skips the first-visit questions for this visit only,
+// without saving any answer, so a later visit to "/" still gets onboarding.
+const bootRoute = parseUrl(window.location.pathname, window.location.search)
+const isDeepLink = bootRoute.view !== 'desktop'
+
 const showBios = ref(true)
 // Returning visitors get a fast BIOS boot (same look, near-instant)
-const biosFastBoot = !!readString('golden-gai-booted')
+const biosFastBoot = isDeepLink || !!readString('golden-gai-booted')
 function handleBiosDone() {
   showBios.value = false
-  writeString('golden-gai-booted', '1')
+  if (!isDeepLink) writeString('golden-gai-booted', '1')
 }
 const reviewPanelBar = ref(null)
 
@@ -73,14 +81,50 @@ const floorFilter = ref(null) // null = all floors, 1 = 1F, 2 = 2F, etc.
 const openNowFilter = ref(false)
 const DEV = import.meta.env.DEV
 
+// `npm run dev` ignores the saved answers so onboarding always runs on "/".
+// Deep links behave the same in dev and in a build, except that in dev the
+// "read the rules" balloon shows on every deep link (nothing saved is read).
 const savedLang = DEV ? null : readString('golden-gai-lang')
-const lang = ref(savedLang || null)
+// ?lang wins for this visit and is not saved; then the saved choice. A deep
+// link never asks, so it falls back to the browser language.
+const urlLang = ref(bootRoute.lang)
+const lang = ref(
+  bootRoute.lang || savedLang
+  || (isDeepLink ? resolveLang({ browserLang: navigator.language }) : null)
+)
 
 const savedFirstTime = DEV ? null : readString('golden-gai-first-time') // 'yes' | 'no' | null
-const firstVisit = ref(savedFirstTime === null ? null : savedFirstTime === 'yes')
+// A deep link answers "not my first time" in memory only
+const firstVisit = ref(savedFirstTime === null ? (isDeepLink ? false : null) : savedFirstTime === 'yes')
 
 const rulesAccepted = ref(!DEV && !!readString('golden-gai-rules-accepted'))
 const showContact = ref(false)
+
+// Deep-linked visitors who never went through onboarding get a small balloon
+// offering the rules instead of the question flow.
+const showRulesHint = ref(
+  isDeepLink && savedFirstTime === null && !rulesAccepted.value
+  && !(!DEV && readString('golden-gai-rules-hint-dismissed'))
+)
+// Bumped to remount the dialogue panel so the walkthrough starts from step one
+const rulesWalkKey = ref(0)
+// Where to return to once the rules started from the balloon are accepted
+let routeAfterRules = null
+
+function dismissRulesHint() {
+  showRulesHint.value = false
+  writeString('golden-gai-rules-hint-dismissed', '1')
+}
+
+function startRulesFromHint() {
+  showRulesHint.value = false
+  routeAfterRules = activeView.value === 'desktop' ? null : readRoute()
+  closePopup()
+  activeView.value = 'desktop'
+  rulesAccepted.value = false
+  handleFirstTimeAnswer(true)
+  rulesWalkKey.value++
+}
 
 // Tour mode state
 const tourMode = ref(false)
@@ -95,6 +139,7 @@ function handleOpenBarFromTour(barId) {
   if (!bar) return
   // Switch to directory and show bar popup
   activeView.value = 'directory'
+  popupBarId.value = bar.id
   popupBuildingBars.value = [bar]
   popupBuildingId.value = bar.building_id || t('directory')
 }
@@ -111,6 +156,8 @@ const showRules = computed(() => firstVisit.value === true && !rulesAccepted.val
 function handleLangSelect(l) {
   lang.value = l
   writeString('golden-gai-lang', l)
+  // An explicit choice replaces whatever ?lang said
+  urlLang.value = null
 }
 
 function handleFirstTimeAnswer(isFirst) {
@@ -122,6 +169,12 @@ function handleRulesAccepted() {
   rulesAccepted.value = true
   writeString('golden-gai-rules-accepted', '1')
   activeView.value = 'map'
+  // Started from the deep-link balloon: go back to the bar they were sent
+  if (routeAfterRules) {
+    const route = routeAfterRules
+    routeAfterRules = null
+    applyRoute({ ...route, lang: urlLang.value }, null)
+  }
 }
 
 const effectiveLang = computed(() => lang.value || 'en')
@@ -132,7 +185,15 @@ const placingBar = ref(null)
 // Building popup state (directory / search single-bar view)
 const popupBuildingBars = ref(null)
 const popupBuildingId = ref(null)
+const popupBarId = ref(null)   // which of popupBuildingBars the card shows
 const twitterBar = ref(null)   // bar whose Twitter feed is currently shown
+
+// The bar whose card is open: what /bar/<slug> and the page title follow
+const openBar = computed(() => {
+  const list = popupBuildingBars.value
+  if (!list || !list.length) return null
+  return list.find(b => b.id === popupBarId.value) || list[0]
+})
 
 // Drawer state (map building click)
 const drawerBuildingBars = ref(null)
@@ -398,6 +459,7 @@ function closeDrawer() {
 
 function handleSelectBarFromDirectory(bar) {
   // Show single bar in popup (wrap in array)
+  popupBarId.value = bar.id
   popupBuildingBars.value = [bar]
   popupBuildingId.value = bar.building_id || t('directory')
 }
@@ -405,6 +467,7 @@ function handleSelectBarFromDirectory(bar) {
 function closePopup() {
   popupBuildingBars.value = null
   popupBuildingId.value = null
+  popupBarId.value = null
   twitterBar.value = null
   reviewPanelBar.value = null
 }
@@ -413,25 +476,161 @@ function openTwitterPanel(bar) {
   twitterBar.value = bar
 }
 
-async function handleSearchSelect({ bar, buildingId }) {
+// Opens a bar's card. The card and the view are set in the same tick (one
+// history entry, and the card is up before the map has finished mounting);
+// the pan follows once the map can measure itself.
+function handleSearchSelect({ bar, buildingId }) {
+  popupBarId.value = bar ? bar.id : null
   if (buildingId) {
     // Bar is placed in a building — pan to it and show all building's bars
     activeView.value = 'map'
-    // Mounts the map if this is the first visit to the map view
-    await nextTick()
-    // false if the user left the map view before the map was ready
-    if (mapRef.value && await mapRef.value.whenReady()) {
-      mapRef.value.panToBuilding(buildingId)
-    }
     const barsInBuilding = bars.value.filter(b => b.building_id === buildingId)
     if (barsInBuilding.length > 0) {
       popupBuildingBars.value = barsInBuilding
       popupBuildingId.value = buildingId
     }
+    panToBuildingWhenReady(buildingId)
   } else {
     // Bar has no building — just open popup with the single bar
     popupBuildingBars.value = [bar]
     popupBuildingId.value = bar.street || t('unplaced')
+  }
+}
+
+let panRequest = 0
+async function panToBuildingWhenReady(buildingId) {
+  const request = ++panRequest
+  // Mounts the map if this is the first visit to the map view
+  await nextTick()
+  // false if the user left the map view before the map was ready
+  if (mapRef.value && await mapRef.value.whenReady() && request === panRequest) {
+    mapRef.value.panToBuilding(buildingId)
+  }
+}
+
+// ── URL <-> state (see useUrlState.js for the scheme and the history rules) ──
+function readRoute() {
+  return {
+    view: activeView.value,
+    slug: openBar.value ? openBar.value.slug : null,
+    lang: urlLang.value,
+    filters: {
+      tags: activeTags.value,
+      mode: tagMode.value,
+      open: openNowFilter.value,
+      floor: floorFilter.value,
+      chargeMin: chargeMin.value,
+      chargeMax: chargeMax.value,
+      drinkMin: drinkMin.value,
+      drinkMax: drinkMax.value,
+    },
+  }
+}
+
+// Puts a parsed URL into the app. An unknown slug, or one of a bar that is
+// not in the public list (inactive), is simply the map: the address bar is
+// then rewritten to /map by useUrlState.
+function applyRoute(route, historyState) {
+  if (route.lang) {
+    lang.value = route.lang
+    urlLang.value = route.lang
+  } else {
+    urlLang.value = null
+  }
+
+  const bar = route.slug ? bars.value.find(b => b.slug === route.slug) : null
+  // A card opened from the Directory stays over the Directory on Back/Forward;
+  // a bar that is not on the map has nowhere else to open.
+  const overDirectory = !!bar && (!bar.building_id || historyState?.view === 'directory')
+
+  if (route.view === 'map' && !overDirectory) {
+    const f = route.filters
+    const known = new Set(tags.value.map(tag => tag.id))
+    activeTags.value = f.tags.filter(id => known.has(id))
+    tagMode.value = f.mode
+    openNowFilter.value = f.open
+    floorFilter.value = f.floor
+    chargeMin.value = f.chargeMin
+    chargeMax.value = f.chargeMax
+    drinkMin.value = f.drinkMin
+    drinkMax.value = f.drinkMax
+  }
+
+  if (!bar) {
+    closePopup()
+    activeView.value = route.view
+  } else if (overDirectory) {
+    twitterBar.value = null
+    reviewPanelBar.value = null
+    activeView.value = 'directory'
+    handleSelectBarFromDirectory(bar)
+  } else {
+    reviewPanelBar.value = null
+    handleSearchSelect({ bar, buildingId: bar.building_id })
+  }
+}
+
+const urlState = useUrlState({
+  read: readRoute,
+  apply: applyRoute,
+  historyState: () => ({ view: activeView.value }),
+})
+
+// Parse the URL only once the bars are there to resolve a slug against
+watch([loading, error], ([isLoading, err]) => {
+  if (!isLoading && !err) urlState.start()
+}, { immediate: true })
+
+// Moving between the tabs of an open card rewrites the entry instead of adding one
+function handlePopupBarChange(bar) {
+  popupBarId.value = bar.id
+  urlState.replaceNext()
+}
+
+watch([openBar, effectiveLang], ([bar, l]) => {
+  const name = bar && (l === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp))
+  document.title = barTitle(name)
+}, { immediate: true })
+
+// ── Share ─────────────────────────────────────────────────────────────────────
+const dialog = useDialog()
+const shareBalloon = ref(null) // { text, x, y, below } | null
+let shareBalloonTimer = null
+
+function showShareBalloon(anchorEl, text) {
+  const rect = anchorEl?.getBoundingClientRect?.()
+  const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+  const below = !rect || rect.top < 48
+  shareBalloon.value = {
+    text,
+    x: Math.round(Math.min(Math.max(cx, 70), window.innerWidth - 70)),
+    y: Math.round(rect ? (below ? rect.bottom + 8 : rect.top - 8) : window.innerHeight / 2),
+    below,
+  }
+  clearTimeout(shareBalloonTimer)
+  shareBalloonTimer = setTimeout(() => { shareBalloon.value = null }, 2000)
+}
+onUnmounted(() => clearTimeout(shareBalloonTimer))
+
+async function handleShareBar({ bar, anchor }) {
+  if (!bar || !bar.slug) return
+  const url = barShareUrl(window.location.origin, bar.slug, effectiveLang.value)
+  const name = effectiveLang.value === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp)
+  if (canNativeShare()) {
+    try {
+      await navigator.share({ title: barTitle(name), url })
+      return
+    } catch (err) {
+      if (err && err.name === 'AbortError') return // sheet closed by the user
+      // Share sheet refused (e.g. not allowed here): copy instead
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    showShareBalloon(anchor, t('linkCopied'))
+  } catch {
+    // No clipboard access (insecure context, denied permission): hand the URL over to copy by hand
+    await dialog.prompt(t('shareCopyByHand'), { title: t('shareLinkTitle'), default: url, icon: 'info' })
   }
 }
 
@@ -478,6 +677,7 @@ async function handleUnplaceBar(bar) {
          - firstVisit === false: start tucked (skip rules), ready for interactive help
          - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
+      :key="rulesWalkKey"
       v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && wm.getWindow('chatroom'))"
       :lang="effectiveLang"
       :rules-accepted="rulesAccepted || firstVisit === false"
@@ -703,6 +903,7 @@ async function handleUnplaceBar(bar) {
           @back-to-all="drawerMode = 'all'; drawerBuildingBars = null; drawerBuildingId = null"
           @select-bar="openTwitterPanel"
           @show-reviews="reviewPanelBar = $event"
+          @share-bar="handleShareBar"
           @hover-bar="hoveredBarId = $event"
           @unhover-bar="hoveredBarId = null"
         />
@@ -728,6 +929,7 @@ async function handleUnplaceBar(bar) {
           @close="closeDrawer"
           @select-bar="openTwitterPanel"
           @show-reviews="reviewPanelBar = $event"
+          @share-bar="handleShareBar"
           @hover-bar="hoveredBarId = $event"
           @unhover-bar="hoveredBarId = null"
         />
@@ -914,9 +1116,12 @@ async function handleUnplaceBar(bar) {
         :open-bar-ids="openBarIds"
         :twitter-open="!!twitterBar"
         :auto-twitter="!isMobile"
+        :selected-bar-id="popupBarId"
         @close="closePopup"
         @select-bar="openTwitterPanel"
         @show-reviews="reviewPanelBar = $event"
+        @change-bar="handlePopupBarChange"
+        @share-bar="handleShareBar"
       />
 
       <!-- Twitter panel — desktop: right sidebar; mobile: full-screen -->
@@ -935,6 +1140,32 @@ async function handleUnplaceBar(bar) {
         @close="reviewPanelBar = null"
       />
 
+    </div>
+
+    <!-- "Link copied!" tooltip, pointing at the share button that was pressed.
+         On <body> like the bar card, so viewport coordinates apply as they are
+         (#app is zoomed on desktop). -->
+    <Teleport to="body">
+      <div
+        v-if="shareBalloon"
+        :class="['share-balloon', { 'share-balloon--below': shareBalloon.below }]"
+        :style="{ left: shareBalloon.x + 'px', top: shareBalloon.y + 'px' }"
+        role="status"
+      >{{ shareBalloon.text }}</div>
+    </Teleport>
+
+    <!-- Deep-link visitors: offer the rules instead of the question flow -->
+    <div v-if="showRulesHint && !showBios" class="rules-hint">
+      <button class="rules-hint-main" @click="startRulesFromHint">
+        <img src="/gaichan/gaichanicon.png" class="rules-hint-face" alt="" />
+        <span class="rules-hint-text">
+          <span class="rules-hint-q">{{ t('rulesHintQuestion') }}</span>
+          <span class="rules-hint-link">{{ t('rulesHintAction') }} &#9654;</span>
+        </span>
+      </button>
+      <button class="rules-hint-close" :title="t('close')" :aria-label="t('close')" @click="dismissRulesHint">
+        <span class="rules-hint-close-box">&#10005;</span>
+      </button>
     </div>
 
     <!-- CRT monitor overlay -->
@@ -1127,6 +1358,143 @@ async function handleUnplaceBar(bar) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   max-height: 50dvh;
   overflow-y: auto;
+}
+
+/* "Link copied!" — Win95 tooltip with a tail */
+.share-balloon {
+  position: fixed;
+  z-index: 3000;
+  transform: translate(-50%, -100%);
+  padding: 3px 8px;
+  background: #ffffe1;
+  color: #000;
+  border: 1px solid #000;
+  font-family: var(--win-font);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.share-balloon--below {
+  transform: translate(-50%, 0);
+}
+
+.share-balloon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 7px;
+  height: 7px;
+  margin-left: -4px;
+  background: #ffffe1;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  transform: rotate(45deg);
+}
+
+.share-balloon--below::after {
+  bottom: auto;
+  top: -5px;
+  border: none;
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
+}
+
+/* Deep-link "read the rules" balloon: a small Gai-chan message window */
+.rules-hint {
+  position: fixed;
+  left: 8px;
+  bottom: calc(var(--taskbar-height, 32px) + 8px);
+  z-index: 260;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100vw - 16px);
+  background: var(--win-bg);
+  padding: 3px;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest),
+    4px 4px 10px rgba(0, 0, 0, 0.6);
+  font-family: var(--win-font);
+}
+
+.rules-hint-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 4px 8px 4px 6px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  color: var(--win-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rules-hint-main:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+}
+
+.rules-hint-face {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.rules-hint-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.rules-hint-link {
+  color: var(--valhalla-orange);
+  text-decoration: underline;
+}
+
+.rules-hint-close {
+  flex-shrink: 0;
+  width: 40px;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.rules-hint-close-box {
+  width: 16px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--win-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  font-size: 8px;
+  font-weight: bold;
+  line-height: 1;
+  color: var(--win-text);
+}
+
+.rules-hint-close:active .rules-hint-close-box {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
 }
 
 /* Mobile full-screen feed panel */
