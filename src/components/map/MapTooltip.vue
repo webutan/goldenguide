@@ -1,4 +1,5 @@
 <script setup>
+import { yen } from '../../utils/barFilters.js'
 // Hover tooltip listing the bars of the hovered building.
 import { computed } from 'vue'
 import { useVisited } from '../../composables/useVisited.js'
@@ -69,7 +70,7 @@ function barColor(bar) {
             {{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}
           </div>
           <div v-if="bar.name_en && bar.name_jp" class="tooltip-sub">{{ lang === 'jp' ? bar.name_en : bar.name_jp }}</div>
-          <div v-if="bar.charge" class="tooltip-meta">{{ t('tooltipCover', { price: `¥${bar.charge}` }) }}</div>
+          <div v-if="bar.charge" class="tooltip-meta">{{ t('tooltipCover', { price: yen(bar.charge) }) }}</div>
           <div v-if="bar.hours" class="tooltip-meta">{{ bar.hours }}</div>
         </div>
       </div>

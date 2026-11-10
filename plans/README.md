@@ -159,7 +159,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [B11](tasks/B11-map-touch-gestures.md) | Map touch gestures: rotate, drag and pinch when rotated (found in B10) | M | 3 h | 30 m | B10, R02 |
 | ✅ | [B12](tasks/B12-desktop-map-zoom.md) | Desktop map drag/wheel/fit under the 1.25 CSS zoom (found in B10/R02/B11) | S–M | 2 h | 20 m | B11 |
 | ✅ | [R03](tasks/R03-chat-scroll.md) | Chat: cheap watcher, don't yank scroll | S | 45 m | 10 m | – |
-| ☐ | [R04](tasks/R04-dead-code.md) | Dead code, duplicates and small loose ends (grew from findings) | M | 3 h | 20 m | late |
+| ✅ | [R04](tasks/R04-dead-code.md) | Dead code, duplicates and small loose ends (grew from findings) | M | 3 h | 20 m | late |
 | ☐ | [R08](tasks/R08-drawer-hover-and-reload.md) | Bar drawer hover cost; survive a failed reload (found in R02) | M | 3 h | 20 m | R02 |
 | ☐ | [R09](tasks/R09-admin-usability.md) | Admin usability gaps (found in S04/G04/B09) | M | 3–4 h | 30 m | S04, G04, B10 |
 | ✅ | [R05](tasks/R05-win95-dialogs.md) | Win95 dialog system (replace alert/confirm/prompt) | M | 3 h | 20 m | – |
@@ -229,6 +229,11 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 Small or speculative items that didn't justify a task. Pick up when touching the area.
 
 - **Map:** the 4-slot grid ignores weights; the count-badge glyph is a fixed size and overflows thin slots; arrow-key panning isn't clamped to the pan limits; the hover tooltip can open partly under the drawer; when rotated, container corners outside the rotated map don't respond to wheel/drag; `+/−` and search-select centre on the container centre rather than the drawer-free area; `DRAWER_WIDTH = 300` in the map duplicates the drawer's CSS width (pass it as a prop); annotations can't be dragged by touch; double-tap on a building never zooms on mobile (the first tap opens the drawer); Safari trackpad pinch (`gesturestart`/`gesturechange`) is unhandled; four ids in `src/data/buildings.json` have no shape in `map.svg`, so a bar placed there is unreachable (check production data).
+- **Vertical (tate) labels:** `labelOrientation: 'tate'` with no `labelTextRotation` renders sideways with Latin letters upside down. R04 fixed it (rotation 0 = upright columns) but that turns any building whose rotation was hand-set to compensate by a quarter turn, so the fix was reverted at merge (commit 36a37cf has it). Re-apply behind the per-building `geometryV2` opt-in, or after checking production partitions. Column order is also left-to-right where vertical writing is right-to-left.
+- **Unused components:** `BarMarker.vue`, `FloorToggle.vue`, `Legend.vue`, `MapBar.vue`, `LangDialog.vue` are imported nowhere.
+- **Fonts:** W95FA lacks `· — ✕ ✎ ⟳ ⌖ ♥ ✓`, used in the clock tooltip, window titles ("Golden Gai — 182 bars"), the walkthrough and on buttons, so they render in a fallback font. PixelMplus has some but its `@font-face` range excludes them.
+- **i18n:** "{n} unplaced" on the map and most of the admin console ("Placement", "Edit Bar"…) are English-only.
+- **Layout:** at 320 px wide the mobile taskbar is wider than the screen; the Explorer window's position is measured at mount and can differ by a few px between loads.
 - **Windows:** a window can hide under the bar drawer or Gai-chan (they should publish an inset that the window clamp subtracts); window z-indexes only increment and can pass the drawer's; Gai-chan draws over the Start menu on mobile; the first-visit rules balloon overlaps the Explorer window at 1280x800; sticky notes overlap each other, the icons and Gai-chan.
 - **Links and previews:** clicking a building doesn't change the URL (only an opened bar card does); a bar photo used as the preview image has no size and may be cropped oddly; the default preview image has no Japanese line; some bar names print in a fallback font on stickers.
 - **Suggestions:** the Hours tab edits `schedule` only, not the free-text `hours` / `closed_days` that cards also show.
