@@ -5,6 +5,7 @@ import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
 import { useDialog } from '../composables/useDialog.js'
+import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
 const props = defineProps({
@@ -12,11 +13,15 @@ const props = defineProps({
   tags: Array,
   placingBar: Object,
   partitions: { type: Object, default: () => ({}) },
+  // { [buildingId]: { unassigned: [barId], stale: [{ slotIndex, barId, reason }] } }
+  partitionIssues: { type: Object, default: () => ({}) },
   selectedBuilding: { type: String, default: null },
+  lang: { type: String, default: 'en' },
 })
 
 const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'open-db'])
 const dialog = useDialog()
+const { t } = useI18n(computed(() => props.lang))
 
 const mainTab = ref('placement')
 const mainTabOptions = [
@@ -493,6 +498,46 @@ function removePartition() {
   if (!props.selectedBuilding || !currentPartition.value || currentPartition.value.partitions.length === 0) return
   const data = { ...currentPartition.value }
   data.partitions = data.partitions.slice(0, -1)
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+// Bars placed in this building that no slot references, and slot references
+// to bars that were deleted or moved elsewhere (computed in App.vue).
+const selectedIssues = computed(() => props.partitionIssues[props.selectedBuilding] || null)
+
+const unassignedBars = computed(() => {
+  const ids = selectedIssues.value?.unassigned || []
+  return ids.map(id => props.bars.find(b => String(b.id) === id)).filter(Boolean)
+})
+
+const staleRefs = computed(() => {
+  return (selectedIssues.value?.stale || []).map(sr => {
+    const bar = props.bars.find(b => String(b.id) === sr.barId)
+    return { ...sr, name: bar ? (bar.name_en || bar.name_jp || `#${sr.barId}`) : `#${sr.barId}` }
+  })
+})
+
+// Give an unassigned bar its own new slot
+function addSlotForBar(barId) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = [...(data.partitions || []).map(normalizePartition), { color: null, barIds: [String(barId)], weight: 1 }]
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+// Remove a reference to a deleted/moved bar from a slot. A slot left with no
+// bars is removed too, which is how the map already draws it.
+function removeStaleRef(slotIndex, barId) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = (data.partitions || [])
+    .map((p, i) => {
+      const np = normalizePartition(p)
+      if (i !== slotIndex) return np
+      const barIds = np.barIds.filter(id => String(id) !== String(barId))
+      return barIds.length > 0 ? { ...np, barIds } : null
+    })
+    .filter(Boolean)
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
@@ -1006,6 +1051,24 @@ function setLabelOffset(axis, val) {
                 <WinButton small @click="removePartition" :disabled="!currentPartition || currentPartition.partitions.length === 0">&minus;</WinButton>
                 <span class="partition-count">{{ currentPartition ? currentPartition.partitions.length : 0 }}</span>
                 <WinButton small @click="addPartition">+</WinButton>
+              </div>
+            </div>
+
+            <div v-if="unassignedBars.length > 0" class="partition-issues" data-testid="partition-unassigned">
+              <div class="partition-issues-title">{{ t('partUnassignedTitle') }}</div>
+              <div class="partition-issues-hint">{{ t('partUnassignedHint') }}</div>
+              <div v-for="bar in unassignedBars" :key="bar.id" class="partition-issue-row">
+                <span class="partition-issue-text">{{ (bar.name_en || bar.name_jp) + ' (' + floorLabel(bar.floor ?? 1) + ')' }}</span>
+                <WinButton small @click="addSlotForBar(bar.id)">{{ t('partAddSlot') }}</WinButton>
+              </div>
+            </div>
+
+            <div v-if="staleRefs.length > 0" class="partition-issues" data-testid="partition-stale">
+              <div class="partition-issues-title">{{ t('partStaleTitle') }}</div>
+              <div class="partition-issues-hint">{{ t('partStaleHint') }}</div>
+              <div v-for="sr in staleRefs" :key="sr.slotIndex + ':' + sr.barId" class="partition-issue-row">
+                <span class="partition-issue-text">{{ t(sr.reason === 'moved' ? 'partStaleMoved' : 'partStaleMissing', { n: sr.slotIndex + 1, name: sr.name }) }}</span>
+                <WinButton small @click="removeStaleRef(sr.slotIndex, sr.barId)">{{ t('partStaleRemove') }}</WinButton>
               </div>
             </div>
 
@@ -1686,6 +1749,51 @@ function setLabelOffset(axis, val) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.partition-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  margin-bottom: 6px;
+  background: var(--win-bg-dark);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.partition-issues-title {
+  font-weight: bold;
+}
+
+.partition-issues-hint {
+  font-size: 10px;
+  color: var(--win-text-disabled);
+}
+
+.partition-issue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.partition-issue-text {
+  font-size: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.partition-issue-row > .win-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .partition-issue-row > .win-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 
 .partition-color-row {

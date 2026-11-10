@@ -23,6 +23,7 @@ import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
+import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
 
 // Heavy, rarely-opened windows are split into their own chunks (R06).
 function lazyWindow(loader) {
@@ -150,72 +151,46 @@ function handleReorderTags(newOrder) {
   writeJSON('golden-gai-tag-order', newOrder)
 }
 
-// Building partitions (persisted to server; localStorage as initial cache)
-const partitions = ref(readJSON('golden-gai-partitions', {}, isPlainObject))
+// Building partitions. The server is the source of truth: a successful fetch
+// replaces both the in-memory copy and the localStorage cache wholesale, so
+// buildings removed on the server disappear here too. The cache is only what
+// is shown until the fetch settles, and what stays if it fails (offline).
+const storedPartitions = ref(readJSON('golden-gai-partitions', {}, isPlainObject))
 const selectedBuilding = ref(null)
 
 async function loadPartitionsFromServer() {
   try {
     const serverPartitions = await fetchPartitions()
-    // Merge: server wins over localStorage for any building that exists on server
-    partitions.value = { ...partitions.value, ...serverPartitions }
-    writeJSON('golden-gai-partitions', partitions.value)
+    if (!isPlainObject(serverPartitions)) throw new Error('Unexpected partitions response')
+    storedPartitions.value = serverPartitions
+    writeJSON('golden-gai-partitions', serverPartitions)
   } catch (err) {
     // Server unavailable — keep using localStorage cache
     console.warn('Could not load partitions from server, using local cache:', err.message)
   }
 }
 
+// What the admin panel edits: stored partitions plus in-memory defaults (one
+// slot per bar) for multi-bar buildings with no stored entry. Defaults are
+// never saved unless an admin edits that building.
+const editablePartitions = computed(() => withDefaultPartitions(storedPartitions.value, bars.value))
+
+// What the map draws: unassigned bars get a synthetic extra slot, references
+// to deleted/moved bars are dropped. `issues` feeds the admin panel.
+const reconciledPartitions = computed(() => reconcilePartitions(editablePartitions.value, bars.value))
+const partitions = computed(() => reconciledPartitions.value.partitions)
+const partitionIssues = computed(() => reconciledPartitions.value.issues)
+
 async function handleUpdatePartitions({ buildingId, data }) {
-  const updated = { ...partitions.value }
-  updated[buildingId] = data
-  partitions.value = updated
-  writeJSON('golden-gai-partitions', updated)
-  // Persist to server (non-blocking — don't await so UI stays snappy)
-  savePartition(buildingId, data).catch(err => {
+  storedPartitions.value = { ...storedPartitions.value, [buildingId]: data }
+  // Persist to server (non-blocking — don't await so UI stays snappy).
+  // The cache mirrors the server, so it is only updated once the save lands.
+  savePartition(buildingId, data).then(() => {
+    writeJSON('golden-gai-partitions', storedPartitions.value)
+  }).catch(err => {
     console.error('Failed to save partition to server:', err)
   })
 }
-
-// Auto-create partitions for buildings with multiple bars.
-// One slot per bar, sorted ascending by floor then name.
-watch(bars, (newBars) => {
-  if (!newBars || newBars.length === 0) return
-  const groups = {}
-  for (const bar of newBars) {
-    if (!bar.building_id) continue
-    if (!groups[bar.building_id]) groups[bar.building_id] = []
-    groups[bar.building_id].push(bar)
-  }
-  let updated = false
-  const newPartitions = { ...partitions.value }
-
-  for (const [buildingId, barsInBldg] of Object.entries(groups)) {
-    if (barsInBldg.length <= 1) continue
-    if (newPartitions[buildingId] !== undefined) continue
-    const sorted = [...barsInBldg].sort((a, b) => {
-      const fa = a.floor ?? 1
-      const fb = b.floor ?? 1
-      if (fa !== fb) return fa - fb
-      const na = (a.name_en || a.name_jp || '').toLowerCase()
-      const nb = (b.name_en || b.name_jp || '').toLowerCase()
-      return na < nb ? -1 : na > nb ? 1 : 0
-    })
-    newPartitions[buildingId] = {
-      partitions: sorted.map(bar => ({
-        barId: bar.id,
-        weight: 1,
-      })),
-      splitDirection: 'auto',
-    }
-    updated = true
-  }
-
-  if (updated) {
-    partitions.value = newPartitions
-    writeJSON('golden-gai-partitions', newPartitions)
-  }
-}, { immediate: true })
 
 function handleSelectBuildingForEdit(buildingId) {
   selectedBuilding.value = buildingId
@@ -768,7 +743,9 @@ async function handleUnplaceBar(bar) {
           :bars="bars"
           :tags="sortedTags"
           :placing-bar="placingBar"
-          :partitions="partitions"
+          :partitions="editablePartitions"
+          :partition-issues="partitionIssues"
+          :lang="effectiveLang"
           :selected-building="selectedBuilding"
           @select-for-placement="placingBar = $event"
           @unplace-bar="handleUnplaceBar"

@@ -157,6 +157,14 @@ const translations = {
   'timeHoursAgo': { en: '{n}h ago', jp: '{n}時間前' },
   'timeDaysAgo': { en: '{n}d ago', jp: '{n}日前' },
   'chatNewMessages': { en: '▼ New messages', jp: '▼ 新着メッセージ' },
+  'partUnassignedTitle': { en: 'Unassigned in this building', jp: 'この建物で未割り当て' },
+  'partUnassignedHint': { en: 'Not in any slot yet. Still shown on the map until you place it.', jp: 'まだどのスロットにも入っていません。配置するまでマップには仮表示されます。' },
+  'partAddSlot': { en: 'Add slot', jp: 'スロット追加' },
+  'partStaleTitle': { en: 'Stale slot references', jp: '無効なスロット参照' },
+  'partStaleHint': { en: 'Ignored on the map.', jp: 'マップでは無視されます。' },
+  'partStaleMissing': { en: 'Slot {n}: bar {name} no longer exists', jp: 'スロット{n}：バー {name} は存在しません' },
+  'partStaleMoved': { en: 'Slot {n}: {name} is no longer in this building', jp: 'スロット{n}：{name} はこの建物にありません' },
+  'partStaleRemove': { en: 'Remove', jp: '削除' },
 }
 
 export function useI18n(lang) {
