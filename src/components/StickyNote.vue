@@ -36,7 +36,7 @@ const posY = computed(() =>
     }"
   >
     <div class="sticky-bar-name">{{ barName }}</div>
-    <div class="sticky-text">{{ review.text }}</div>
+    <div v-if="review.text && review.text.trim()" class="sticky-text">{{ review.text }}</div>
     <img v-if="review.drawing" :src="review.drawing" class="sticky-drawing" alt="" />
     <div class="sticky-nick">— {{ review.nickname }}</div>
   </div>

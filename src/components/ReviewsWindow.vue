@@ -35,7 +35,7 @@ function barName(review) {
         <span class="review-item-time">{{ timeAgo(review.created_at) }}</span>
       </div>
       <div class="review-item-nick">{{ review.nickname }}</div>
-      <p class="review-item-text">{{ review.text }}</p>
+      <p v-if="review.text && review.text.trim()" class="review-item-text">{{ review.text }}</p>
       <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" alt="drawing" />
     </div>
   </div>
