@@ -35,6 +35,13 @@ const wm = useWindowManager()
 const { openBarIds } = useOpenNow(bars)
 
 const showBios = ref(true)
+// Returning visitors get a fast BIOS boot (same look, near-instant)
+let biosFastBoot = false
+try { biosFastBoot = !!localStorage.getItem('golden-gai-booted') } catch { /* storage blocked */ }
+function handleBiosDone() {
+  showBios.value = false
+  try { localStorage.setItem('golden-gai-booted', '1') } catch { /* storage blocked */ }
+}
 const reviewPanelBar = ref(null)
 
 const activeView = ref('desktop') // 'desktop' | 'directory' | 'map'
@@ -443,7 +450,7 @@ async function handleUnplaceBar(bar) {
 </script>
 
 <template>
-  <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" @done="showBios = false" />
+  <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" :fast="biosFastBoot" @done="handleBiosDone" />
 
   <div v-if="loading" class="loading-screen">Loading...</div>
   <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
