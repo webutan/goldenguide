@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useMapHover } from '../composables/useMapHover.js'
 import { barPasses, hasActiveFilters as hasAnyFilter, parsePrice, yen } from '../utils/barFilters.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
@@ -26,12 +27,15 @@ const props = defineProps({
   allBarsMode: { type: Boolean, default: false },
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
-  hoverBuildingId: { type: String, default: null },
+  // Preview the bars of the building under the pointer on the map (desktop drawer)
+  followMapHover: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'hover-bar', 'unhover-bar', 'back-to-all'])
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
+const { hoveredBuildingId } = useMapHover()
+const hoverBuildingId = computed(() => props.followMapHover ? hoveredBuildingId.value : null)
 
 const reviewDialogBar = ref(null)
 
@@ -102,8 +106,8 @@ const displayedGroups = computed(() => {
       .sort((a, b) => b.floor - a.floor)
   }
 
-  if (props.hoverBuildingId) {
-    const barsForBuilding = props.allBars.filter(b => String(b.building_id) === String(props.hoverBuildingId))
+  if (hoverBuildingId.value) {
+    const barsForBuilding = props.allBars.filter(b => String(b.building_id) === String(hoverBuildingId.value))
     return makeFloorGroups(barsForBuilding)
   }
 
@@ -132,9 +136,9 @@ const displayedGroups = computed(() => {
 
 // Title bar text
 const drawerTitle = computed(() => {
-  if (props.hoverBuildingId) {
-    const count = props.allBars.filter(b => String(b.building_id) === String(props.hoverBuildingId)).length
-    return `${props.hoverBuildingId} \u2014 ${t(count === 1 ? 'barCountOne' : 'barCount', { n: count })}`
+  if (hoverBuildingId.value) {
+    const count = props.allBars.filter(b => String(b.building_id) === String(hoverBuildingId.value)).length
+    return `${hoverBuildingId.value} \u2014 ${t(count === 1 ? 'barCountOne' : 'barCount', { n: count })}`
   }
   if (props.allBarsMode) {
     const n = visibleBars.value.length

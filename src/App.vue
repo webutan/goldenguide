@@ -55,6 +55,14 @@ function handleBiosDone() {
 const reviewPanelBar = ref(null)
 
 const activeView = ref('desktop') // 'desktop' | 'directory' | 'map'
+// The map is mounted on the first visit to the map view and then only hidden,
+// so its zoom and position survive a trip to the Desktop or the Directory.
+const mapMounted = ref(false)
+watch(activeView, (view, prev) => {
+  if (view === 'map') mapMounted.value = true
+  // The drawer goes away with the view and cannot report the pointer leaving a card
+  if (prev === 'map') hoveredBarId.value = null
+}, { flush: 'sync' })
 const activeTags = ref([])
 const tagMode = ref('or') // 'or' | 'and'
 const chargeMin = ref(null)
@@ -264,9 +272,10 @@ const drawerMode = ref('all')
 // Fav/visited filter state (used by Explorer + map + BarDrawer)
 const favoritesFilter = ref(false)
 const visitedFilter = ref(false)
-// Hover sync between drawer cards ↔ map partitions
+// Hover sync between drawer cards ↔ map partitions. (The building hovered on
+// the map lives in useMapHover, read by the drawer directly, so that moving
+// over the map does not re-render this component.)
 const hoveredBarId = ref(null)
-const hoveredBuildingId = ref(null)
 
 // Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
 const labelMode = ref(readString('golden-gai-label-mode', 'yoko'))
@@ -407,12 +416,11 @@ function openTwitterPanel(bar) {
 async function handleSearchSelect({ bar, buildingId }) {
   if (buildingId) {
     // Bar is placed in a building — pan to it and show all building's bars
-    if (activeView.value !== 'map') {
-      activeView.value = 'map'
-      await nextTick()
-      await new Promise(r => setTimeout(r, 200))
-    }
-    if (mapRef.value) {
+    activeView.value = 'map'
+    // Mounts the map if this is the first visit to the map view
+    await nextTick()
+    // false if the user left the map view before the map was ready
+    if (mapRef.value && await mapRef.value.whenReady()) {
       mapRef.value.panToBuilding(buildingId)
     }
     const barsInBuilding = bars.value.filter(b => b.building_id === buildingId)
@@ -511,9 +519,11 @@ async function handleUnplaceBar(bar) {
       </div>
 
       <!-- Map view -->
-      <template v-if="activeView === 'map'">
-        <GoldenGaiMap
+      <GoldenGaiMap
+          v-if="mapMounted"
+          v-show="activeView === 'map'"
           ref="mapRef"
+          :active="activeView === 'map'"
           :bars="bars"
           :tag-map="tagMap"
           :active-tags="activeTags"
@@ -540,9 +550,9 @@ async function handleUnplaceBar(bar) {
           @deselect="closeDrawer"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"
-          @hover-building="hoveredBuildingId = $event"
         />
 
+      <template v-if="activeView === 'map'">
         <!-- Mobile controls: search + filter bar -->
         <div v-if="isMobile && !isAdmin" class="mobile-map-controls">
           <div class="mobile-search-bar">
@@ -688,7 +698,7 @@ async function handleUnplaceBar(bar) {
           :favorites-filter="favoritesFilter"
           :visited-filter="visitedFilter"
           :all-bars="bars"
-          :hover-building-id="hoveredBuildingId"
+          follow-map-hover
           @close="closeDrawer"
           @back-to-all="drawerMode = 'all'; drawerBuildingBars = null; drawerBuildingId = null"
           @select-bar="openTwitterPanel"
