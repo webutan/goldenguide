@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
+import { useSuggestEdit } from '../composables/useSuggestEdit.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useMapHover } from '../composables/useMapHover.js'
 import { canNativeShare } from '../composables/useUrlState.js'
@@ -33,6 +34,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'share-bar', 'hover-bar', 'unhover-bar', 'back-to-all'])
+const { openSuggestEdit } = useSuggestEdit()
 // "Share…" opens the phone's share sheet; elsewhere the link is copied
 const nativeShare = canNativeShare()
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
@@ -331,6 +333,9 @@ function getOpenStatus(bar) {
               <WinButton small class="share-btn" @click="emit('share-bar', { bar, anchor: $event.currentTarget })">
                 <img src="/icons/tags/url1.ico" class="share-btn-icon" alt="" />{{ t(nativeShare ? 'shareBar' : 'copyLink') }}
               </WinButton>
+            </div>
+            <div class="suggest-row">
+              <button class="suggest-link" @click.stop="openSuggestEdit(bar)">&#9998; {{ t('suggestEdit') }}</button>
             </div>
           </div>
         </template>
@@ -763,6 +768,31 @@ function getOpenStatus(bar) {
   }
 }
 
+/* "Suggest edit": Win95 hyperlink-style text button under the actions */
+.suggest-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.suggest-link {
+  font-family: var(--win-font);
+  font-size: 10px;
+  line-height: 1;
+  background: none;
+  border: none;
+  padding: 3px 0;
+  color: var(--win-title-text-inactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.suggest-link:hover { color: var(--valhalla-orange); }
+
+.suggest-link:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: 1px;
+}
+
 /* Share / copy-link button */
 .share-btn {
   display: inline-flex;
@@ -783,6 +813,11 @@ function getOpenStatus(bar) {
   .drawer-bar-actions .share-btn.small {
     min-height: 40px;
     padding: 2px 10px;
+  }
+  .suggest-link {
+    min-height: 40px;
+    padding: 0 4px;
+    font-size: 12px;
   }
 }
 </style>

@@ -233,6 +233,28 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    // "Suggest an edit": corrections sent by visitors, reviewed in the admin
+    // Inbox. bar_id is NULL for kind 'new_bar'. `payload` holds only what the
+    // visitor wants changed (validated per kind, see lib/suggestions.js).
+    // `contact` is optional and admin-only. `ip_hash` is a keyed hash of the
+    // sender's IP (lib/ipHash.js), never the address itself.
+    name: '016-suggestions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS bar_suggestions (
+        id         SERIAL PRIMARY KEY,
+        bar_id     INTEGER REFERENCES bars(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL CHECK (kind IN ('hours','price','closed','moved','info','new_bar')),
+        payload    JSONB NOT NULL DEFAULT '{}'::jsonb,
+        note       TEXT,
+        contact    TEXT,
+        status     TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','applied','dismissed')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        ip_hash    TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_bar_suggestions_status ON bar_suggestions (status, created_at DESC);
+    `,
+  },
 ]
 
 export async function runMigrations() {

@@ -5,6 +5,8 @@ import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
 import AdminReviews from './AdminReviews.vue'
+import AdminInbox from './AdminInbox.vue'
+import { useSuggestionInbox } from '../composables/useSuggestEdit.js'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
@@ -25,6 +27,9 @@ const dialog = useDialog()
 const { t } = useI18n(computed(() => props.lang))
 
 const mainTab = ref('placement')
+// Open edit suggestions, shown on the tab as "Inbox (N)"
+const { openCount: inboxOpenCount, refreshOpenCount } = useSuggestionInbox()
+refreshOpenCount()
 const mainTabOptions = computed(() => [
   { value: 'placement', label: 'Placement' },
   { value: 'edit-bar', label: 'Edit Bar' },
@@ -32,6 +37,7 @@ const mainTabOptions = computed(() => [
   { value: 'tags', label: 'Tags' },
   { value: 'buildings', label: 'Buildings' },
   { value: 'reviews', label: t('adminTabReviews') },
+  { value: 'inbox', label: t('adminTabInbox', { n: inboxOpenCount.value }) },
 ])
 
 // === Placement tab ===
@@ -1439,6 +1445,9 @@ function setLabelOffset(axis, val) {
         <!-- REVIEWS TAB -->
         <AdminReviews v-if="mainTab === 'reviews'" :lang="lang" />
 
+        <!-- INBOX TAB (edit suggestions) -->
+        <AdminInbox v-if="mainTab === 'inbox'" :lang="lang" @reload="emit('reload')" />
+
       </WinTabs>
     </template>
   </div>
@@ -1459,10 +1468,16 @@ function setLabelOffset(axis, val) {
   flex-shrink: 0;
 }
 
-/* Six main tabs have to fit the 280px admin window: tighter tab padding */
+/* Seven main tabs don't fit the 280px admin window on one line: tighter tab
+   padding, and the strip wraps onto a second row (Win95 multi-row tabs) */
+.admin-main-tabs > :deep(.win-tabs-header) {
+  flex-wrap: wrap;
+}
+
 .admin-main-tabs > :deep(.win-tabs-header > .win-tab) {
   padding-left: 5px;
   padding-right: 5px;
+  white-space: nowrap;
 }
 
 /* Sub tabs */

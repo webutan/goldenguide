@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useWindowManager } from '../../composables/useWindowManager.js'
 import { useI18n } from '../../composables/useI18n.js'
+import { useSuggestEdit } from '../../composables/useSuggestEdit.js'
 
 const props = defineProps({
   visitedCount: { type: Number, default: 0 },
@@ -19,6 +20,7 @@ const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang'])
 const { windows, toggle, isActive } = useWindowManager()
 
 const startOpen = ref(false)
+const { openMissingBar } = useSuggestEdit()
 
 function toggleStart() {
   startOpen.value = !startOpen.value
@@ -112,6 +114,10 @@ onUnmounted(() => {
     <div v-if="startOpen" class="start-menu" @click="closeStart">
       <div class="start-menu-sidebar">{{ t('goldenGai') }}</div>
       <div class="start-menu-items">
+        <div class="start-menu-item" role="button" @click="openMissingBar()">
+          <span class="start-menu-glyph">&#9998;</span>
+          <span>{{ t('suggestMissingMenu') }}</span>
+        </div>
         <div class="start-menu-item" @click="emit('toggleAdmin')">
           <span>{{ isAdmin ? '&#9745;' : '&#9744;' }}</span>
           <span>{{ t('adminMode') }}</span>
@@ -314,6 +320,12 @@ onUnmounted(() => {
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
+}
+
+.start-menu-glyph {
+  width: 1em;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .start-menu-item:hover {
@@ -541,6 +553,15 @@ onUnmounted(() => {
   }
   .view-label {
     display: none;
+  }
+
+  /* Start menu rows tall enough to tap */
+  .start-menu {
+    width: 230px;
+  }
+  .start-menu-item {
+    min-height: 40px;
+    padding: 4px 12px;
   }
 
   /* Hide start button text */
