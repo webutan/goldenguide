@@ -78,6 +78,10 @@ const translations = {
   'checkIn': { en: 'Check In', jp: 'チェックイン' },
   'checkedIn': { en: 'Checked In ✓', jp: 'チェックイン済み ✓' },
   'whoIsHere': { en: "Who's Here", jp: '今どこにいる' },
+
+  // Taskbar clock
+  'clockTokyo': { en: 'Tokyo', jp: '東京' },
+  'clockYourTime': { en: 'Your time', jp: '現地時間' },
 }
 
 export function useI18n(lang) {
