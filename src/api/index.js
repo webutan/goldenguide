@@ -6,7 +6,7 @@ export function setAdminPassword(pwd) {
   adminPassword = pwd
 }
 
-function adminHeaders(extra = {}) {
+export function adminHeaders(extra = {}) {
   return { 'X-Admin-Password': adminPassword, ...extra }
 }
 

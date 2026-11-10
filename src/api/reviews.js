@@ -1,4 +1,48 @@
+import { adminHeaders } from './index.js'
+
 const BASE = import.meta.env.VITE_API_BASE || ''
+
+// Throws an Error carrying the HTTP status (429 = rate limited, 401 = not admin).
+async function expectOk(res, what) {
+  if (res.ok) return res.json()
+  const data = await res.json().catch(() => ({}))
+  const err = new Error(data.error || `Failed to ${what}: ${res.status}`)
+  err.status = res.status
+  throw err
+}
+
+/** Flag a review. Public; one report per visitor per review counts. */
+export async function reportReview(id) {
+  const res = await fetch(`${BASE}/api/reviews/${id}/report`, { method: 'POST' })
+  return expectOk(res, 'report review')
+}
+
+/** Admin: moderation list. status = 'reported' | 'hidden' | 'all'. */
+export async function fetchAdminReviews(status = 'reported') {
+  const res = await fetch(`${BASE}/api/reviews/admin?status=${encodeURIComponent(status)}`, {
+    headers: adminHeaders(),
+  })
+  return expectOk(res, 'fetch reviews')
+}
+
+/** Admin: hide or un-hide a review. Resolves with the updated review. */
+export async function setReviewHidden(id, hidden) {
+  const res = await fetch(`${BASE}/api/reviews/${id}`, {
+    method: 'PATCH',
+    headers: adminHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ hidden }),
+  })
+  return expectOk(res, 'update review')
+}
+
+/** Admin: delete a review for good. */
+export async function deleteReview(id) {
+  const res = await fetch(`${BASE}/api/reviews/${id}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  })
+  return expectOk(res, 'delete review')
+}
 
 export async function fetchBarReviews(barId) {
   const res = await fetch(`${BASE}/api/reviews/bar/${barId}`)

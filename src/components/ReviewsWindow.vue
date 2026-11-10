@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
+import ReviewActions from './ReviewActions.vue'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -37,6 +38,7 @@ function barName(review) {
       <div class="review-item-nick">{{ review.nickname }}</div>
       <p v-if="review.text && review.text.trim()" class="review-item-text">{{ review.text }}</p>
       <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" :alt="t('reviewDrawing')" />
+      <ReviewActions :review="review" :lang="lang" />
     </div>
   </div>
 </template>

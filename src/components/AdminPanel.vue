@@ -4,6 +4,7 @@ import WinTabs from './win2000/WinTabs.vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
+import AdminReviews from './AdminReviews.vue'
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
@@ -24,13 +25,14 @@ const dialog = useDialog()
 const { t } = useI18n(computed(() => props.lang))
 
 const mainTab = ref('placement')
-const mainTabOptions = [
+const mainTabOptions = computed(() => [
   { value: 'placement', label: 'Placement' },
   { value: 'edit-bar', label: 'Edit Bar' },
   { value: 'photos', label: 'Photos' },
   { value: 'tags', label: 'Tags' },
   { value: 'buildings', label: 'Buildings' },
-]
+  { value: 'reviews', label: t('adminTabReviews') },
+])
 
 // === Placement tab ===
 const search = ref('')
@@ -669,7 +671,7 @@ function setLabelOffset(axis, val) {
         <WinButton style="width:100%" @click="emit('open-db')">&#128196; Database</WinButton>
       </div>
 
-      <WinTabs v-model="mainTab" :tabs="mainTabOptions">
+      <WinTabs v-model="mainTab" :tabs="mainTabOptions" class="admin-main-tabs">
 
         <!-- Placement tab -->
         <template v-if="mainTab === 'placement'">
@@ -1366,6 +1368,9 @@ function setLabelOffset(axis, val) {
           </div>
         </template>
 
+        <!-- REVIEWS TAB -->
+        <AdminReviews v-if="mainTab === 'reviews'" :lang="lang" />
+
       </WinTabs>
     </template>
   </div>
@@ -1384,6 +1389,12 @@ function setLabelOffset(axis, val) {
 .admin-db-row {
   padding: 4px 4px 2px;
   flex-shrink: 0;
+}
+
+/* Six main tabs have to fit the 280px admin window: tighter tab padding */
+.admin-main-tabs > :deep(.win-tabs-header > .win-tab) {
+  padding-left: 5px;
+  padding-right: 5px;
 }
 
 /* Sub tabs */

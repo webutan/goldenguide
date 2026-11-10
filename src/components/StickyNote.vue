@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import ReviewActions from './ReviewActions.vue'
 
 const props = defineProps({
   review: { type: Object, required: true },
@@ -38,6 +39,9 @@ const posY = computed(() =>
       top: posY + 'px',
     }"
   >
+    <!-- Admin mode only (the public Report link lives in the review lists).
+         At the top: the bottom of a note can sit under the taskbar. -->
+    <ReviewActions class="sticky-actions" :review="review" :lang="lang" admin-only />
     <div class="sticky-bar-name">{{ barName }}</div>
     <div v-if="review.text && review.text.trim()" class="sticky-text">{{ review.text }}</div>
     <img v-if="review.drawing" :src="review.drawing" class="sticky-drawing" alt="" />
@@ -88,5 +92,19 @@ const posY = computed(() =>
   color: rgba(0, 0, 0, 0.5);
   text-align: right;
   margin-top: 4px;
+}
+
+/* The note ignores the pointer; only the admin controls take clicks */
+.sticky-actions {
+  margin: -2px 0 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px dotted rgba(0, 0, 0, 0.35);
+  justify-content: space-between;
+}
+
+.sticky-actions :deep(.ra-link),
+.sticky-actions :deep(.ra-link:hover:not(:disabled)) {
+  color: #1a1a1a;
+  font-weight: bold;
 }
 </style>

@@ -2,6 +2,7 @@
 import { computed, onMounted, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
+import ReviewActions from './ReviewActions.vue'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -55,6 +56,7 @@ function timeAgo(dateStr) {
         </div>
         <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
         <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" :alt="t('reviewDrawing')" />
+        <ReviewActions :review="review" :lang="lang" />
       </div>
     </div>
   </div>
@@ -250,5 +252,8 @@ function timeAgo(dateStr) {
   .rp-close { display: none; }
 
   .rp-mobile-close { display: flex; }
+
+  /* Let the last card (and its Report link) scroll clear of the fixed close button */
+  .rp-body { padding-bottom: 64px; }
 }
 </style>
