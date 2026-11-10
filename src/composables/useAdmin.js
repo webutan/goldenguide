@@ -1,9 +1,13 @@
 import { ref } from 'vue'
 import { setAdminPassword } from '../api/index.js'
+import { useDialog } from './useDialog.js'
 
 const isAdmin = ref(false)
 
 export function useAdmin() {
+  const dialog = useDialog()
+  const { t } = dialog
+
   async function toggleAdmin() {
     if (isAdmin.value) {
       isAdmin.value = false
@@ -11,7 +15,7 @@ export function useAdmin() {
       return
     }
 
-    const pwd = window.prompt('Admin password:')
+    const pwd = await dialog.prompt(t('adminPasswordPrompt'), { title: t('adminLoginTitle'), password: true })
     if (!pwd) return
 
     const res = await fetch('/api/admin/check', {
@@ -19,7 +23,10 @@ export function useAdmin() {
     })
 
     if (!res.ok) {
-      window.alert(res.status === 401 ? 'Incorrect password.' : 'Server error — check ADMIN_PASSWORD is configured.')
+      await dialog.alert(
+        res.status === 401 ? t('adminWrongPassword') : t('adminServerError'),
+        { title: t('adminLoginTitle'), icon: 'error' },
+      )
       return
     }
 
