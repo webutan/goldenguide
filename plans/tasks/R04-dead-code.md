@@ -46,3 +46,5 @@ Also (found in R02):
 - `hoveredBarId` (drawer card → map) still goes through `App.vue`; it can stay set if the drawer unmounts on an admin toggle while a card is hovered.
 - Search highlights persist after leaving the map with a query typed (MapSearch remounts empty).
 - A failed `reload()` sets `error` and unmounts the whole app tree, map included: keep the last good data and show a Win95 error dialog instead.
+
+Also (found in G01): `src/components/MapBarPanel.vue` is not imported anywhere (dead); the mobile bar card's action buttons ("Mark as Visited", "Reviews"...) are 23 px tall unless they share a row with the share button; the "Link copied!" tooltip can outlive its card by up to 2 s; the first-visit rules balloon overlaps the bottom of the Explorer window at 1280x800 until dismissed; clicking a building on the map does not change the URL (only an opened bar card does).
