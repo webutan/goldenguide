@@ -1,9 +1,23 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, shallowReactive, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
+import MapPartitions from './map/MapPartitions.vue'
+import MapLabels from './map/MapLabels.vue'
+import MapBadges from './map/MapBadges.vue'
+import MapAnnotations from './map/MapAnnotations.vue'
+import MapTooltip from './map/MapTooltip.vue'
 import { useVisited } from '../composables/useVisited.js'
 import { barPasses, hasActiveFilters as hasAnyFilter } from '../utils/barFilters.js'
+import {
+  BUILDING_STATE_CLASSES,
+  passingBarIdSet,
+  computePartitionGeometry,
+  computePartitionSlotState,
+  computeBuildingStyles,
+  diffBuildingStyles,
+} from '../utils/mapGeometry.js'
+import { devCount, devTrackRenders } from '../utils/devPerf.js'
 import { useI18n } from '../composables/useI18n.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
@@ -46,6 +60,8 @@ const props = defineProps({
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'hoverBuilding', 'deselect'])
 
 const { t } = useI18n(computed(() => props.lang))
+
+devTrackRenders('GoldenGaiMap')
 
 const containerRef = ref(null)
 const svgRef = ref(null)
@@ -149,18 +165,15 @@ const hasActiveFilters = computed(() => hasAnyFilter(mapFilters.value))
 // Whether floor filter is active (separate from tag/price filters)
 const hasFloorFilter = computed(() => props.floorFilter != null)
 
-const barPassesFilters = (bar) =>
-  barPasses(bar, mapFilters.value, { openBarIds: props.openBarIds, isFavorited, isVisited })
-
-// Street-based building colors (replaces count-based color system)
-const STREET_COLORS = {
-  'hanazono-1':  '#8B2500',   // deep red-orange
-  'hanazono-3':  '#005559',   // teal
-  'hanazono-5':  '#3a5c20',   // olive green
-  'hanazono-8':  '#6a1a48',   // dark wine
-  'maneki-dori': '#4a3010',   // dark brown
-}
-const STREET_COLOR_DEFAULT = '#1a0e2a'  // fallback: dark purple
+// The one place the filter function runs: IDs (as strings) of the bars that
+// pass the active filters, or null when no filter is active. Badges, dimming,
+// labels and the tooltip all read this set.
+const passingBarIds = computed(() =>
+  passingBarIdSet(props.bars, hasActiveFilters.value, (bar) =>
+    barPasses(bar, mapFilters.value, { openBarIds: props.openBarIds, isFavorited, isVisited })
+  )
+)
+const barPassesFilters = (bar) => passingBarIds.value === null || passingBarIds.value.has(String(bar.id))
 
 // For each building, find the most common street among its bars
 const buildingDominantStreet = computed(() => {
@@ -188,7 +201,7 @@ const buildingBarCountBadges = computed(() => {
 
     // Check if this building uses independent-building mode
     if (props.partitions[bldgId]?.isIndependentBuilding) {
-      const pdata = partitionRects.value[bldgId]
+      const pdata = partitionGeometry.value[bldgId]
       if (!pdata) continue
       const partData = props.partitions[bldgId] || {}
       const bldgOffsetX = partData.labelOffsetX ?? 0
@@ -196,7 +209,7 @@ const buildingBarCountBadges = computed(() => {
       for (const rect of pdata.rects) {
         if (!rect.barIds || rect.barIds.length === 0) continue
         const bars = rect.barIds.map(id => barById.value[id]).filter(Boolean)
-        const filtered = hasActiveFilters.value ? bars.filter(barPassesFilters).length : bars.length
+        const filtered = bars.filter(barPassesFilters).length
         const key = `${bldgId}__${rect.partIndex}`
         const partObj = (partData.partitions || [])[rect.partIndex] || {}
         const offsetX = partObj.labelOffsetX ?? bldgOffsetX
@@ -212,30 +225,11 @@ const buildingBarCountBadges = computed(() => {
       continue
     }
 
-    const total = barsInBldg.length
-    const filtered = hasActiveFilters.value
-      ? barsInBldg.filter(barPassesFilters).length
-      : total
+    const filtered = barsInBldg.filter(barPassesFilters).length
     result[bldgId] = { cx: bldg.cx, cy: bldg.cy, count: filtered, dimmed: hasActiveFilters.value && filtered === 0, active: hasActiveFilters.value }
   }
   return result
 })
-
-// Floor color system — two variants per floor (primary, lighter)
-const FLOOR_COLORS = {
-  '-3': ['#0f2040', '#1e3a5f'],
-  '-2': ['#2a1845', '#3d2a6a'],
-  '-1': ['#1a3868', '#2a508a'],
-   1:  ['#934400', '#b85800'],
-   2:  ['#005559', '#007a70'],
-   3:  ['#4a6030', '#607840'],
-   4:  ['#7a2050', '#9a3070'],
-   5:  ['#5a3020', '#7a4838'],
-}
-
-function floorColors(floor) {
-  return FLOOR_COLORS[floor] ?? FLOOR_COLORS[1]
-}
 
 // Lookup bar by ID
 const barById = computed(() => {
@@ -255,35 +249,9 @@ const barFloorMap = computed(() => {
   return map
 })
 
-// Buildings that match active filters (tags + price)
-const buildingsMatchingTags = computed(() => {
-  if (!hasActiveFilters.value) return null // null = no filter active
-  const matching = new Set()
-  for (const [buildingId, barsInBldg] of Object.entries(barsByBuilding.value)) {
-    if (barsInBldg.some(barPassesFilters)) matching.add(buildingId)
-  }
-  return matching
-})
-
-// Individual bar IDs that pass filters (for partition-level dimming)
-// Uses String() to match partition barIds which come from <select> (always strings)
-const barsMatchingFilters = computed(() => {
-  if (!hasActiveFilters.value) return null
-  const matching = new Set()
-  for (const bar of props.bars) {
-    if (barPassesFilters(bar)) matching.add(String(bar.id))
-  }
-  return matching
-})
-
 const unplacedBars = computed(() => {
   return props.bars.filter(b => !b.building_id)
 })
-
-// Return the primary color for a bar — uses its partition color if assigned
-function barFloorPrimaryColor(bar) {
-  return barPartitionColor.value[String(bar.id)] || floorColors(bar.floor ?? 1)[0]
-}
 
 // Convert ASCII digits/letters to full-width Unicode equivalents.
 // Full-width chars all have the same advance width as CJK glyphs, preventing
@@ -379,7 +347,7 @@ const buildingLabelData = computed(() => {
         dx = (i - (n - 1) / 2) * slotW
         dy = 0
       }
-      const passes = !hasActiveFilters.value || barPassesFilters(bar)
+      const passes = barPassesFilters(bar)
       const isSearchHL = props.searchHighlightedBars.size > 0 && props.searchHighlightedBars.has(String(bar.id))
       const faved = isFavorited(bar.id)
       const visited = isVisited(bar.id)
@@ -414,7 +382,7 @@ const buildingLabelData = computed(() => {
 
     // Independent building mode: one label group per partition, positioned at its center
     if (partData.isIndependentBuilding) {
-      const pdata = partitionRects.value[bldgId]
+      const pdata = partitionGeometry.value[bldgId]
       if (!pdata) continue
       for (const rect of pdata.rects) {
         const partBarIds = rect.barIds || []
@@ -480,66 +448,70 @@ const buildingLabelData = computed(() => {
   return result
 })
 
-// Selected building state (persists until cleared)
-const selectedBuilding = ref(null)
+// Hovered / selected building. Kept in one reactive object that is handed to
+// MapPartitions as-is, so a hover re-renders only the partition layer and not
+// this component.
+const interaction = reactive({ hovered: null, selected: null })
 
-function setSelectedBuilding(id) {
-  if (selectedBuilding.value && svgRef.value) {
-    const old = svgRef.value.querySelector(`#${CSS.escape(selectedBuilding.value)}`)
-    if (old) old.classList.remove('building-selected')
-  }
-  selectedBuilding.value = id
-  if (id && svgRef.value) {
-    const el = svgRef.value.querySelector(`#${CSS.escape(id)}`)
-    if (el) el.classList.add('building-selected')
-  }
+// The one place a building path is looked up or gets its hover/selection class.
+function buildingEl(id) {
+  if (!id || !svgRef.value) return null
+  return svgRef.value.querySelector(`#${CSS.escape(id)}`)
 }
 
-// Hover tooltip state
-const hoveredBuilding = ref(null)
-const tooltip = ref({ visible: false, x: 0, y: 0, bars: [] })
+function setBuildingFlag(id, cls, on) {
+  const el = buildingEl(id)
+  if (el) el.classList.toggle(cls, on)
+}
+
+function setSelectedBuilding(id) {
+  setBuildingFlag(interaction.selected, 'building-selected', false)
+  interaction.selected = id
+  setBuildingFlag(id, 'building-selected', true)
+}
+
+// Hover tooltip state (mutated in place; only MapTooltip reads it)
+const TOOLTIP_DELAY_MS = 150
+const tooltip = shallowReactive({ visible: false, x: 0, y: 0, bars: [] })
 let hoverTimer = null
+let tooltipFrame = null
+// Latest pointer position over the map, so the tooltip opens at (and then
+// follows) the cursor rather than where the pointer first entered the building
+const lastPointer = { clientX: 0, clientY: 0 }
 
-// Tooltip bars grouped by floor, sorted descending
-const tooltipFloorGroups = computed(() => {
-  const groups = {}
-  for (const bar of tooltip.value.bars) {
-    const f = bar.floor ?? 1
-    if (!groups[f]) groups[f] = []
-    groups[f].push(bar)
-  }
-  return Object.entries(groups)
-    .map(([f, bars]) => ({
-      floor: Number(f),
-      floorLabel: Number(f) < 0 ? `B${Math.abs(Number(f))}F` : `${f}F`,
-      bars,
-    }))
-    .sort((a, b) => b.floor - a.floor)
-})
-
-function showTooltip(buildingId, mouseEvent) {
-  const barsInBuilding = barsByBuilding.value[buildingId]
-  if (!barsInBuilding || barsInBuilding.length === 0) return
-
-  const barsToShow = hasActiveFilters.value
-    ? barsInBuilding.filter(barPassesFilters)
-    : barsInBuilding
-  if (barsToShow.length === 0) return
-
+function positionTooltip() {
+  if (!containerRef.value) return
   const rect = containerRef.value.getBoundingClientRect()
   // getBoundingClientRect returns viewport coords; CSS positioning uses local (pre-zoom) coords.
   // Divide by the effective zoom so the tooltip tracks the cursor correctly.
   const zoom = rect.width / containerRef.value.offsetWidth || 1
-  const rawX = (mouseEvent.clientX - rect.left) / zoom + 12
-  const rawY = (mouseEvent.clientY - rect.top) / zoom - 8
+  const rawX = (lastPointer.clientX - rect.left) / zoom + 12
+  const rawY = (lastPointer.clientY - rect.top) / zoom - 8
   const tooltipW = 220
   const tooltipH = 120
-  tooltip.value = {
-    visible: true,
-    x: Math.min(rawX, containerRef.value.offsetWidth - tooltipW),
-    y: Math.min(rawY, containerRef.value.offsetHeight - tooltipH),
-    bars: barsToShow,
-  }
+  tooltip.x = Math.min(rawX, containerRef.value.offsetWidth - tooltipW)
+  tooltip.y = Math.min(rawY, containerRef.value.offsetHeight - tooltipH)
+}
+
+function showTooltip(buildingId) {
+  const barsInBuilding = barsByBuilding.value[buildingId]
+  if (!barsInBuilding || barsInBuilding.length === 0) return
+
+  const barsToShow = barsInBuilding.filter(barPassesFilters)
+  if (barsToShow.length === 0) return
+
+  positionTooltip()
+  tooltip.bars = barsToShow
+  tooltip.visible = true
+}
+
+// At most one reposition per frame while the pointer moves inside a building
+function followTooltip() {
+  if (!tooltip.visible || tooltipFrame !== null) return
+  tooltipFrame = requestAnimationFrame(() => {
+    tooltipFrame = null
+    if (tooltip.visible) positionTooltip()
+  })
 }
 
 function hideTooltip() {
@@ -547,7 +519,14 @@ function hideTooltip() {
     clearTimeout(hoverTimer)
     hoverTimer = null
   }
-  tooltip.value = { visible: false, x: 0, y: 0, bars: [] }
+  if (tooltipFrame !== null) {
+    cancelAnimationFrame(tooltipFrame)
+    tooltipFrame = null
+  }
+  if (tooltip.visible) {
+    tooltip.visible = false
+    tooltip.bars = []
+  }
 }
 
 function resolveBuilding(e) {
@@ -558,18 +537,19 @@ function resolveBuilding(e) {
   const partEl = e.target.closest('[data-partition-building]')
   if (partEl) {
     const bldgId = partEl.dataset.partitionBuilding
-    const el = svgRef.value && svgRef.value.querySelector(`#${CSS.escape(bldgId)}`)
-    return { id: bldgId, el }
+    return { id: bldgId, el: buildingEl(bldgId) }
   }
   return { id: null, el: null }
 }
 
 function onSvgMouseMove(e) {
+  lastPointer.clientX = e.clientX
+  lastPointer.clientY = e.clientY
   if (props.adminMode && props.placingBar) {
     const { id: newId, el: target } = resolveBuilding(e)
-    if (newId !== hoveredBuilding.value) {
+    if (newId !== interaction.hovered) {
       clearHighlight()
-      hoveredBuilding.value = newId
+      interaction.hovered = newId
       if (target) {
         target.classList.add('building-hover')
       }
@@ -578,21 +558,24 @@ function onSvgMouseMove(e) {
   }
   // Normal mode: highlight buildings with bars
   const { id: newId, el: target } = resolveBuilding(e)
-  if (newId !== hoveredBuilding.value) {
+  if (newId !== interaction.hovered) {
     clearHighlight()
     hideTooltip()
     if (newId && buildingsWithBars.value.has(newId)) {
-      hoveredBuilding.value = newId
+      interaction.hovered = newId
       if (target) target.classList.add('building-hover')
       emit('hoverBuilding', newId)
-      // Start 0.5s timer for tooltip
+      // Show the tooltip after a short delay, at wherever the pointer is by then
       hoverTimer = setTimeout(() => {
-        showTooltip(newId, e)
-      }, 150)
+        hoverTimer = null
+        showTooltip(newId)
+      }, TOOLTIP_DELAY_MS)
     } else {
-      hoveredBuilding.value = null
+      interaction.hovered = null
       emit('hoverBuilding', null)
     }
+  } else {
+    followTooltip()
   }
 }
 
@@ -603,53 +586,54 @@ function onSvgMouseLeave() {
 }
 
 function clearHighlight() {
-  if (hoveredBuilding.value && svgRef.value) {
-    const el = svgRef.value.querySelector(`#${hoveredBuilding.value}`)
-    if (el) el.classList.remove('building-hover')
-  }
-  hoveredBuilding.value = null
+  setBuildingFlag(interaction.hovered, 'building-hover', false)
+  interaction.hovered = null
 }
 
-// Color buildings by street; dim those with no filter matches
-function updateBuildingColors() {
-  if (!svgRef.value) return
-  const paths = svgRef.value.querySelectorAll('path[id^="bldg-"]')
-  const tagFilter = buildingsMatchingTags.value
-  const searchHL = props.searchHighlighted
+// === Building colours (declarative) ===
+// Wanted fill + state classes of every building path that differs from the raw
+// SVG: street colour, neutral base under partitions, filter dimming and search
+// highlight. Hover / selection classes are not part of this (see setBuildingFlag).
+const buildingStyle = computed(() => computeBuildingStyles({
+  barsByBuilding: barsByBuilding.value,
+  partitions: props.partitions,
+  dominantStreet: buildingDominantStreet.value,
+  passingBarIds: passingBarIds.value,
+  searchHighlighted: props.searchHighlighted,
+}))
 
-  for (const path of paths) {
-    // Search highlighting
-    if (searchHL.size > 0 && searchHL.has(path.id)) {
-      path.classList.add('search-highlight')
-    } else {
-      path.classList.remove('search-highlight')
+// The base map is raw SVG injected with v-html, so the styles are applied to
+// the DOM by hand: diff against what was applied last and touch only the paths
+// that changed.
+let buildingPaths = null      // id → path elements of the injected SVG
+let buildingPathsFor = null   // the mapContent the index was built from
+let appliedBuildingStyle = {}
+
+watchEffect(() => {
+  const wanted = buildingStyle.value
+  const content = mapContent.value
+  if (!content || !svgRef.value) return
+  if (buildingPathsFor !== content) {
+    buildingPaths = new Map()
+    for (const path of svgRef.value.querySelectorAll('path[id^="bldg-"]')) {
+      if (!buildingPaths.has(path.id)) buildingPaths.set(path.id, [])
+      buildingPaths.get(path.id).push(path)
     }
-
-    const barsInBldg = barsByBuilding.value[path.id]
-    if (barsInBldg && barsInBldg.length > 0) {
-      path.classList.add('has-bars')
-      const isPartitioned = !!(props.partitions[path.id]?.partitions?.length)
-      if (isPartitioned) {
-        // Partition rects handle per-rect coloring; use a neutral base and skip tag-dimmed
-        path.style.setProperty('--bldg-fill', '#111122')
-        path.classList.remove('tag-dimmed')
-      } else {
-        const overrideColor = props.partitions[path.id]?.buildingColor
-        const dominantStreet = buildingDominantStreet.value[path.id]
-        const color = overrideColor || STREET_COLORS[dominantStreet] || STREET_COLOR_DEFAULT
-        path.style.setProperty('--bldg-fill', color)
-        if (tagFilter !== null && !tagFilter.has(path.id)) {
-          path.classList.add('tag-dimmed')
-        } else {
-          path.classList.remove('tag-dimmed')
-        }
+    buildingPathsFor = content
+    appliedBuildingStyle = {}
+  }
+  for (const { id, fill, classes } of diffBuildingStyles(appliedBuildingStyle, wanted)) {
+    const wantedClasses = classes ? classes.split(' ') : []
+    for (const path of buildingPaths.get(id) || []) {
+      for (const cls of BUILDING_STATE_CLASSES) {
+        path.classList.toggle(cls, wantedClasses.includes(cls))
       }
-    } else {
-      path.classList.remove('has-bars', 'tag-dimmed')
-      path.style.removeProperty('--bldg-fill')
+      if (fill === null) path.style.removeProperty('--bldg-fill')
+      else path.style.setProperty('--bldg-fill', fill)
     }
   }
-}
+  appliedBuildingStyle = wanted
+}, { flush: 'post' })
 
 // Panzoom
 function fitToContainer(zoomMultiplier = 1) {
@@ -732,8 +716,6 @@ function initPanzoom() {
   baseFitScale.value = initScale
   // Center on bldg-5 area on initial load
   centerOnPoint(1679.29, 2495.3)
-  // Delay color update to ensure SVG is rendered
-  setTimeout(updateBuildingColors, 100)
 }
 
 function onKeyDown(e) {
@@ -766,35 +748,6 @@ watch(mapContent, () => {
 watch(() => props.placingBar, (val) => {
   if (!val) clearHighlight()
 })
-
-// Re-color buildings when bars data or tag filters change
-watch(buildingsWithBars, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(buildingsMatchingTags, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.searchHighlighted, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.floorFilter, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.activeTags, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => [props.chargeMin, props.chargeMax, props.drinkMin, props.drinkMax, props.openNowFilter], () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.partitions, () => {
-  setTimeout(updateBuildingColors, 50)
-}, { deep: true })
 
 // === GPS location tracking ===
 
@@ -955,7 +908,7 @@ onUnmounted(() => {
 
 function panToBuilding(buildingId) {
   if (!svgRef.value || !panzoomInstance || !containerRef.value) return
-  const el = svgRef.value.querySelector(`[id="${buildingId}"]`)
+  const el = buildingEl(buildingId)
   if (!el) return
 
   const bbox = el.getBBox()
@@ -1012,11 +965,6 @@ async function addAnnotation() {
   } catch (err) {
     console.error('Failed to create annotation:', err)
   }
-}
-
-function annotationText(ann) {
-  if (props.lang === 'jp' && ann.text_jp) return ann.text_jp
-  return ann.text_en || ''
 }
 
 async function updateAnnotation(id, field, value) {
@@ -1117,102 +1065,26 @@ const partitionedBuildings = computed(() => {
   return s
 })
 
-const partitionRects = computed(() => {
-  const result = {}
-  const searchSet = props.searchHighlightedBars
-
-  for (const [bldgId, data] of Object.entries(props.partitions)) {
-    const bldg = buildingMap[bldgId]
-    if (!bldg || !data.partitions || data.partitions.length === 0) continue
-
-    const { minX, minY, maxX, maxY, width, height } = bldg
-    const count = data.partitions.length
-    const dir = count === 3 ? 'horizontal'
-      : data.splitDirection === 'auto'
-        ? (width > height ? 'vertical' : 'horizontal')
-        : (data.splitDirection || 'horizontal')
-
-    // SVG-space angle: user's splitAngle offset compensates for the map's own rotation
-    // so that splitAngle=0 means "aligned with the screen", not the raw SVG axes.
-    const svgAngle = (data.splitAngle || 0) - MAP_ROTATION
-
-    const splitX = minX + (maxX - minX) * ((data.splitCenterX ?? 50) / 100)
-    const splitY = minY + (maxY - minY) * ((data.splitCenterY ?? 50) / 100)
-    // Extend well beyond bounding box so rects fully cover the building after clipping
-    const pad = Math.max(width, height) * 2
-
-    const weights = data.partitions.map(p => p.weight || 1)
-    const totalWeight = weights.reduce((a, b) => a + b, 0)
-
-    const rects = data.partitions.map((p, i) => {
-      // Support both barIds (array) and legacy barId (single string)
-      const barIds = p.barIds
-        ? p.barIds.map(String).filter(Boolean)
-        : (p.barId ? [String(p.barId)] : [])
-      const bars = barIds.map(id => barById.value[id]).filter(Boolean)
-      const firstBar = bars[0] ?? null
-
-      // Dimmed: no bar assigned, or filters active with no match in this partition
-      const dimmed = barIds.length === 0
-        ? true
-        : hasActiveFilters.value
-          ? !barIds.some(id => { const b = barById.value[id]; return b && barPassesFilters(b) })
-          : false
-
-      // Highlighted if any bar in this partition is hovered or search-matched
-      const isHoveredBar = props.hoveredBarId != null
-        && barIds.includes(String(props.hoveredBarId))
-      const isSearchHL = searchSet.size > 0 && barIds.some(id => searchSet.has(id))
-      const highlighted = isHoveredBar || isSearchHL
-
-      let x, y, w, h
-      if (count === 4) {
-        const col = i % 2
-        const row = Math.floor(i / 2)
-        x = col === 0 ? splitX - pad : splitX
-        y = row === 0 ? splitY - pad : splitY
-        w = pad
-        h = pad
-      } else if (dir === 'vertical') {
-        const totalPad = pad * 2
-        const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        x = splitX - pad + totalPad * weightBefore / totalWeight
-        y = splitY - pad
-        w = totalPad * weights[i] / totalWeight
-        h = pad * 2
-      } else {
-        const totalPad = pad * 2
-        const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        x = splitX - pad
-        y = splitY - pad + totalPad * weightBefore / totalWeight
-        w = pad * 2
-        h = totalPad * weights[i] / totalWeight
-      }
-
-      // Color: use per-partition custom color first, then derive from first bar's floor
-      const color = p.color
-        || (firstBar ? floorColors(firstBar.floor ?? 1)[0] : STREET_COLOR_DEFAULT)
-
-      // Visible center: midpoint of this rect clamped to building bounding box
-      const vcx = Math.max(minX, Math.min(maxX, x + w / 2))
-      const vcy = Math.max(minY, Math.min(maxY, y + h / 2))
-
-      return {
-        x, y, width: w, height: h,
-        color, dimmed, highlighted,
-        barIds, partIndex: i,
-        visibleCenter: { x: vcx, y: vcy },
-      }
-    })
-    result[bldgId] = { rects, angle: svgAngle, cx: splitX, cy: splitY, dir, count }
-  }
-  return result
+// Pure geometry of the split buildings: depends only on the partition data,
+// the building boxes and the bars. Hover, search and filters must not be read
+// here, or every hover would recompute every split building.
+const partitionGeometry = computed(() => {
+  devCount('geometry')
+  return computePartitionGeometry(props.partitions, buildingMap, barById.value, MAP_ROTATION)
 })
+
+// Highlight / dim state per building and slot (cheap; changes on hover, search and filters)
+const partitionSlotState = computed(() => computePartitionSlotState(partitionGeometry.value, {
+  barById: barById.value,
+  passingBarIds: passingBarIds.value,
+  hoveredBarId: props.hoveredBarId,
+  searchBarIds: props.searchHighlightedBars,
+}))
 
 // Map bar ID → its partition color (for tooltip swatches)
 const barPartitionColor = computed(() => {
   const map = {}
-  for (const pdata of Object.values(partitionRects.value)) {
+  for (const pdata of Object.values(partitionGeometry.value)) {
     for (const rect of pdata.rects) {
       for (const id of rect.barIds) {
         map[id] = rect.color
@@ -1224,7 +1096,7 @@ const barPartitionColor = computed(() => {
 
 // Find which partition was clicked by checking SVG coordinates
 function findClickedPartition(buildingId, svgX, svgY) {
-  const pdata = partitionRects.value[buildingId]
+  const pdata = partitionGeometry.value[buildingId]
   if (!pdata) return null
   const { rects, angle, cx, cy } = pdata
   // Rotate click point into the partition coordinate space (inverse of splitAngle)
@@ -1402,112 +1274,29 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       </defs>
       <g v-html="mapContent" class="map-bg" />
 
-      <!-- Partition color overlays (clipped to each building shape).
-           IMPORTANT: clip-path is on the OUTER <g> (no transform) so the clip region
-           is in the building's coordinate space. The rotation (splitAngle) is on the
-           INNER <g> so the split line rotates while the clip boundary stays on the building. -->
-      <g class="partition-overlay">
-        <g
-          v-for="(pdata, bldgId) in partitionRects"
-          :key="bldgId"
-          :clip-path="`url(#pclip-${bldgId})`"
-          style="pointer-events: none"
-        >
-          <g :transform="pdata.angle !== 0 ? `rotate(${pdata.angle}, ${pdata.cx}, ${pdata.cy})` : undefined">
-            <rect
-              v-for="(rect, ri) in pdata.rects"
-              :key="ri"
-              :x="rect.x" :y="rect.y"
-              :width="rect.width" :height="rect.height"
-              :fill="rect.highlighted ? '#ffffff' : rect.color"
-              :opacity="
-                rect.dimmed
-                  ? ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.3 : 0.12)
-                  : (rect.highlighted ? 0.9 : ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.95 : 0.75))
-              "
-            />
-          </g>
-        </g>
-      </g>
+      <!-- Partition color overlays (clipped to each building shape) -->
+      <MapPartitions
+        :geometry="partitionGeometry"
+        :slot-state="partitionSlotState"
+        :interaction="interaction"
+      />
 
       <!-- Bar name labels (visible when sufficiently zoomed in) -->
       <Transition name="labels-fade">
-      <g v-if="showLabels" class="building-labels" style="pointer-events: none">
-        <g
-          v-for="(bldgLabels, bldgId) in buildingLabelData"
-          :key="bldgId"
-          :transform="`translate(${bldgLabels.cx}, ${bldgLabels.cy}) rotate(${bldgLabels.groupRotation})`"
-        >
-          <text
-            v-for="label in bldgLabels.items"
-            :key="label.barId"
-            :x="label.dx"
-            :y="label.dy"
-            :font-size="label.fontSize"
-            :fill="label.fill"
-            :opacity="label.opacity"
-            :style="label.writingMode ? `font-weight:bold;writing-mode:${label.writingMode}` : 'font-weight:bold'"
-            text-anchor="middle"
-            dominant-baseline="central"
-            font-family="var(--win-font), sans-serif"
-          >{{ label.text }}</text>
-        </g>
-      </g>
+        <MapLabels v-if="showLabels" :labels="buildingLabelData" />
       </Transition>
 
       <!-- Bar count badges: always shown when zoomed out -->
-      <g v-if="!showLabels" class="filter-count-badges" style="pointer-events: none">
-        <g
-          v-for="(badge, bldgId) in buildingBarCountBadges"
-          :key="bldgId"
-          :transform="`translate(${badge.cx}, ${badge.cy}) rotate(${-MAP_ROTATION})`"
-        >
-          <text
-            x="0" y="0"
-            text-anchor="middle"
-            dominant-baseline="central"
-            font-size="80"
-            font-weight="bold"
-            :fill="badge.dimmed ? '#666' : (badge.active ? '#ffcc44' : '#ffffff')"
-            :opacity="badge.dimmed ? 0.3 : 1"
-            stroke="#1a0800"
-            stroke-width="14"
-            paint-order="stroke"
-            font-family="var(--win-font), sans-serif"
-          >{{ badge.count }}</text>
-        </g>
-      </g>
+      <MapBadges v-if="!showLabels" :badges="buildingBarCountBadges" :rotation="-MAP_ROTATION" />
 
       <!-- Annotations -->
-      <g class="annotations">
-        <template v-for="ann in annotations" :key="ann.id">
-          <image v-if="ann.image_url"
-            :href="`/uploads/${ann.image_url}`"
-            :x="ann.x - (ann.image_width || 200) / 2"
-            :y="ann.y - (ann.image_height || 200) / 2"
-            :width="ann.image_width || 200"
-            :height="ann.image_height || 200"
-            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
-            preserveAspectRatio="xMidYMid meet"
-            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
-            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
-            @mousedown="onAnnotationMouseDown($event, ann)"
-          />
-          <text v-else
-            :x="ann.x"
-            :y="ann.y"
-            :fill="ann.color"
-            :font-size="ann.font_size"
-            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
-            text-anchor="middle"
-            font-family="var(--win-font), monospace"
-            font-weight="bold"
-            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
-            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
-            @mousedown="onAnnotationMouseDown($event, ann)"
-          >{{ annotationText(ann) }}</text>
-        </template>
-      </g>
+      <MapAnnotations
+        :annotations="annotations"
+        :admin-mode="adminMode"
+        :selected-id="selectedAnnotation"
+        :lang="lang"
+        @annotation-mousedown="onAnnotationMouseDown"
+      />
       <!-- User GPS location marker -->
       <g v-if="userSvgPos" :transform="`translate(${userSvgPos.x}, ${userSvgPos.y})`" class="user-location-marker" style="pointer-events: none">
         <circle class="user-pulse-ring" r="60" />
@@ -1518,37 +1307,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
     </div><!-- close map-svg-wrap -->
 
     <!-- Hover tooltip -->
-    <div
-      v-if="tooltip.visible"
-      class="map-tooltip"
-      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
-    >
-      <template v-for="group in tooltipFloorGroups" :key="group.floor">
-        <div v-if="tooltipFloorGroups.length > 1" class="tooltip-floor-header">{{ group.floorLabel }}</div>
-        <div v-for="bar in group.bars" :key="bar.id" class="tooltip-bar">
-          <span
-            class="tooltip-color-swatch"
-            :style="{ background: barFloorPrimaryColor(bar) }"
-          ></span>
-          <img
-            v-if="bar.photo"
-            :src="`/uploads/${bar.photo}`"
-            :alt="lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp)"
-            class="tooltip-img"
-          />
-          <div class="tooltip-info">
-            <div class="tooltip-name">
-              <span v-if="isFavorited(bar.id)" class="tooltip-fav">&#9829;</span>
-              <span v-if="isVisited(bar.id)" class="tooltip-visited">&#10003;</span>
-              {{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}
-            </div>
-            <div v-if="bar.name_en && bar.name_jp" class="tooltip-sub">{{ lang === 'jp' ? bar.name_en : bar.name_jp }}</div>
-            <div v-if="bar.charge" class="tooltip-meta">&#165;{{ bar.charge }} cover</div>
-            <div v-if="bar.hours" class="tooltip-meta">{{ bar.hours }}</div>
-          </div>
-        </div>
-      </template>
-    </div>
+    <MapTooltip :tooltip="tooltip" :bar-colors="barPartitionColor" :lang="lang" />
 
     <div v-if="!isMobile" class="map-controls" style="right: 8px">
       <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
@@ -1748,94 +1507,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
   cursor: crosshair;
 }
 
-/* Hover tooltip */
-.map-tooltip {
-  position: absolute;
-  z-index: 100;
-  background: var(--win-bg);
-  box-shadow:
-    inset 1px 1px 0 var(--win-border-light),
-    inset -1px -1px 0 var(--win-border-dark),
-    3px 3px 6px rgba(0, 0, 0, 0.5);
-  padding: 3px;
-  pointer-events: none;
-  max-width: 220px;
-}
-
-.tooltip-floor-header {
-  font-family: var(--win-font);
-  font-size: 9px;
-  font-weight: bold;
-  color: var(--win-text-disabled);
-  text-transform: uppercase;
-  padding: 2px 3px 1px;
-  background: var(--win-bg-dark);
-  letter-spacing: 0.5px;
-}
-
-.tooltip-bar {
-  display: flex;
-  gap: 6px;
-  padding: 3px;
-}
-
-.tooltip-bar + .tooltip-bar {
-  border-top: 1px solid var(--win-border-dark);
-}
-
-.tooltip-img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  flex-shrink: 0;
-  box-shadow:
-    inset 1px 1px 0 var(--win-border-dark),
-    inset -1px -1px 0 var(--win-border-light);
-}
-
-.tooltip-info {
-  min-width: 0;
-}
-
-.tooltip-name {
-  font-family: var(--win-font);
-  font-size: var(--win-font-size);
-  color: var(--valhalla-orange);
-  font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tooltip-fav {
-  color: #e87898;
-  margin-right: 2px;
-}
-
-.tooltip-visited {
-  color: #70d0a0;
-  margin-right: 2px;
-}
-
-.tooltip-sub {
-  font-family: var(--win-font);
-  font-size: 10px;
-  color: var(--win-text-disabled);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tooltip-meta {
-  font-family: var(--win-font);
-  font-size: 10px;
-  color: var(--win-text-disabled);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-
 :deep(.building-highlight-pulse) {
   animation: building-pulse 0.5s ease-in-out 4;
 }
@@ -1863,33 +1534,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
 .labels-fade-enter-from,
 .labels-fade-leave-to {
   opacity: 0;
-}
-
-/* Building name labels */
-.building-labels text {
-  paint-order: stroke fill;
-  stroke: rgba(0, 0, 0, 0.9);
-  stroke-width: 5;
-  stroke-linejoin: round;
-  font-family: var(--win-font), 'MS Gothic', sans-serif;
-  letter-spacing: 0.5px;
-}
-
-/* Annotations */
-.annotation-text {
-  opacity: 0.6;
-  letter-spacing: 4px;
-}
-
-.annotation-admin {
-  opacity: 0.8;
-}
-
-.annotation-selected {
-  opacity: 1;
-  stroke: var(--valhalla-orange);
-  stroke-width: 1;
-  paint-order: stroke;
 }
 
 /* Annotation toolbar */
@@ -1972,14 +1616,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
   z-index: 5;
-}
-
-/* Tooltip partition color swatch */
-.tooltip-color-swatch {
-  width: 6px;
-  flex-shrink: 0;
-  align-self: stretch;
-  border-radius: 1px;
 }
 
 /* Larger zoom buttons */
