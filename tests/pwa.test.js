@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isAppNavigationPath, isPublicApiRequest, runtimeCacheFor, PUBLIC_API_PATHS } from '../src/utils/swRules.js'
+import { isAppNavigationPath, isPublicApiRequest, runtimeCacheFor, entryScriptOf, PUBLIC_API_PATHS } from '../src/utils/swRules.js'
 import { recordVisit, shouldOfferInstall, isVisitState, VISIT_GAP_MS } from '../src/utils/installOffer.js'
 
 const req = (path, headers = {}) => [new URL(path, 'https://example.test'), new Headers(headers)]
@@ -38,6 +38,14 @@ describe('service worker rules', () => {
     expect(isPublicApiRequest(...req('/api/bars', { 'X-Admin-Password': 'secret' }))).toBe(false)
     expect(isPublicApiRequest(...req('/api/bars', { 'x-admin-password': '' }))).toBe(false)
     expect(isPublicApiRequest(...req('/api/tags', { Authorization: 'Bearer x' }))).toBe(false)
+  })
+
+  it('finds the entry script of a shell', () => {
+    const html = '<head><link rel="stylesheet" crossorigin href="/assets/index-abc.css"><script type="module" crossorigin src="/assets/index-C9N-jq_a.js"></script></head>'
+    expect(entryScriptOf(html)).toBe('/assets/index-C9N-jq_a.js')
+    expect(entryScriptOf('<script type="application/ld+json">{}</script>')).toBeNull()
+    expect(entryScriptOf('<script src="https://platform.twitter.com/widgets.js"></script>')).toBeNull()
+    expect(entryScriptOf('')).toBeNull()
   })
 
   it('picks the runtime cache by path', () => {

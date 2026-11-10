@@ -6,9 +6,10 @@
 //   navigations (/, /map, /directory, /bar/<slug>, any other app URL)
 //       network first, never cached. The server's answer is passed through as
 //       it is (per-page <head>, the 404 + "not-found" marker for an unknown
-//       bar). Only when the network fails, answers 5xx or takes longer than
-//       NAV_TIMEOUT_MS does the precached shell answer instead; the app then
-//       routes the URL itself.
+//       bar). Only when the network fails, answers 5xx, takes longer than
+//       NAV_TIMEOUT_MS or sends a shell whose hashed files no longer exist
+//       does the precached shell answer instead; the app then routes the URL
+//       itself.
 //   precached files (shell, app JS/CSS, fonts, map SVG, icons, cursors)
 //       from the precache, revisioned per build.
 //   GET /api/bars, /api/tags, /api/partitions, /api/annotations (public only)
@@ -27,7 +28,7 @@ import { registerRoute } from 'workbox-routing'
 import { StaleWhileRevalidate, CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 import {
-  PUBLIC_API_PATHS, NAV_TIMEOUT_MS, isAppNavigationPath, isPublicApiRequest, runtimeCacheFor,
+  PUBLIC_API_PATHS, NAV_TIMEOUT_MS, isAppNavigationPath, isPublicApiRequest, runtimeCacheFor, entryScriptOf,
 } from './utils/swRules.js'
 
 const ORIGIN = self.location.origin
@@ -39,12 +40,30 @@ async function postToClients(message) {
 
 // ── Navigations ───────────────────────────────────────────────────────────────
 
+// Right after a deploy the server can still hand out the previous build's
+// shell for a few seconds (the API caches its template), naming hashed files
+// that are gone. A shell whose entry script is in this worker's precache is
+// fine. Otherwise it is either newer than this worker (pass it on) or stale:
+// ask the server whether that script exists.
+async function shellAssetsExist(response) {
+  try {
+    const html = await response.clone().text()
+    const entry = entryScriptOf(html)
+    if (!entry || getCacheKeyForURL(entry)) return true
+    const probe = await fetch(entry, { method: 'HEAD', cache: 'no-store' })
+    return probe.ok
+  } catch {
+    return false
+  }
+}
+
 async function handleNavigation({ request }) {
   const shell = await matchPrecache('index.html')
-  const network = fetch(request).then((response) => {
+  const network = fetch(request).then(async (response) => {
+    if (!shell) return response
     // A broken upstream (502 from a tunnel etc.): the saved app beats an error page
-    if (response.status >= 500 && shell) return shell.clone()
-    return response
+    if (response.status >= 500) return shell.clone()
+    return (await shellAssetsExist(response)) ? response : shell.clone()
   })
   if (!shell) return network
 

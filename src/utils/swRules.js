@@ -37,6 +37,12 @@ export function isPublicApiRequest(url, headers) {
   return !(headers && (headers.has('X-Admin-Password') || headers.has('Authorization')))
 }
 
+/** The hashed entry script a shell (index.html) loads, or null. */
+export function entryScriptOf(html) {
+  const match = /<script\b[^>]*\bsrc="(\/assets\/[^"]+\.js)"/i.exec(String(html || ''))
+  return match ? match[1] : null
+}
+
 /** Runtime cache for a static path: 'uploads' | 'art' | 'assets' | null. */
 export function runtimeCacheFor(pathname) {
   const path = String(pathname || '')
