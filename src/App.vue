@@ -527,10 +527,23 @@ function readRoute() {
   }
 }
 
+// The page the API serves with a 404 for an unknown bar carries this marker
+// (server/lib/seo.js). A <meta>, not an inline script, so it works under a CSP.
+const serverSaidNotFound =
+  document.querySelector('meta[name="golden-gai-status"]')?.getAttribute('content') === 'not-found'
+let firstRoute = true
+
+function showBarNotFound() {
+  useDialog().alert(t('barNotFound'), { title: t('barNotFoundTitle'), icon: 'error' })
+}
+
 // Puts a parsed URL into the app. An unknown slug, or one of a bar that is
 // not in the public list (inactive), is simply the map: the address bar is
-// then rewritten to /map by useUrlState.
+// then rewritten to /map by useUrlState. When the page was opened on such a
+// link, a "not found" dialog says so.
 function applyRoute(route, historyState) {
+  const opening = firstRoute
+  firstRoute = false
   if (route.lang) {
     lang.value = route.lang
     urlLang.value = route.lang
@@ -559,6 +572,7 @@ function applyRoute(route, historyState) {
   if (!bar) {
     closePopup()
     activeView.value = route.view
+    if (opening && (route.slug || serverSaidNotFound)) showBarNotFound()
   } else if (overDirectory) {
     twitterBar.value = null
     reviewPanelBar.value = null

@@ -21,6 +21,12 @@ export const PUBLIC_WRITE_MAX = 10
 export const FEED_WINDOW_MS = 1 * MINUTE
 export const FEED_MAX = 60
 
+// SEO pages (/bar/<slug>, /sitemap.xml, /robots.txt, /, /map, /directory)
+// per IP. Generous: a crawler walking the sitemap should never hit it, and a
+// visitor who does still gets the app (nginx serves the static shell on 429).
+export const SEO_WINDOW_MS = 1 * MINUTE
+export const SEO_MAX = 300
+
 // Chat (Socket.io) per IP.
 export const CHAT_MESSAGE_MIN_INTERVAL_MS = 1 * SECOND
 export const CHAT_MESSAGE_WINDOW_MS = 1 * MINUTE
@@ -54,6 +60,7 @@ export function createIpLimiter({ windowMs, max }) {
 export const reviewLimiter = createIpLimiter({ windowMs: REVIEW_WINDOW_MS, max: REVIEW_MAX })
 export const publicWriteLimiter = createIpLimiter({ windowMs: PUBLIC_WRITE_WINDOW_MS, max: PUBLIC_WRITE_MAX })
 export const feedLimiter = createIpLimiter({ windowMs: FEED_WINDOW_MS, max: FEED_MAX })
+export const seoLimiter = createIpLimiter({ windowMs: SEO_WINDOW_MS, max: SEO_MAX })
 
 /**
  * Failed admin logins per IP. Not an Express middleware: the `admin`

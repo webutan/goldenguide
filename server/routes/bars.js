@@ -66,7 +66,8 @@ router.get('/', async (req, res) => {
   }
 })
 
-// GET /api/bars/:slug — single bar with photos
+// GET /api/bars/:slug — single bar with photos. An inactive bar is a 404
+// unless the request is admin.
 router.get('/:slug', async (req, res) => {
   try {
     const barResult = await pool.query(`
@@ -89,11 +90,12 @@ router.get('/:slug', async (req, res) => {
       GROUP BY b.id
     `, [req.params.slug])
 
-    if (barResult.rows.length === 0) {
+    const bar = barResult.rows[0]
+    if (!bar || (!bar.is_active && !isAdminRequest(req))) {
       return res.status(404).json({ error: 'Bar not found' })
     }
     res.set('Cache-Control', 'no-store')
-    res.json(barResult.rows[0])
+    res.json(bar)
   } catch (err) {
     console.error('GET /api/bars/:slug error:', err)
     res.status(500).json({ error: 'Internal server error' })

@@ -210,6 +210,9 @@ const translations = {
   'linkCopied': { en: 'Link copied!', jp: 'リンクをコピーしました！' },
   'shareLinkTitle': { en: 'Share this bar', jp: 'このバーを共有' },
   'shareCopyByHand': { en: 'Could not copy automatically. Select the link below and copy it:', jp: '自動でコピーできませんでした。下のリンクを選択してコピーしてください：' },
+  // Opened on /bar/<slug> for a bar that does not exist (G02)
+  'barNotFoundTitle': { en: 'Bar not found', jp: 'お店が見つかりません' },
+  'barNotFound': { en: 'Cannot find this bar.\n\nIt may have closed, or the link may be wrong. Make sure the address is correct.', jp: 'このお店が見つかりません。\n\n閉店したか、リンクが間違っている可能性があります。アドレスを確認してください。' },
   'rulesHintQuestion': { en: 'First time in Golden Gai?', jp: 'ゴールデン街は初めて？' },
   'rulesHintAction': { en: 'Read the rules', jp: 'ルールを読む' },
   'geomApplyAllConfirm': { en: 'Reset the label offsets of {n} building(s) and switch them all to the auto centre/split?\n\nEach building is saved straight away. Slot sizes tuned for the original layout may need adjusting afterwards.', jp: '{n}件の建物のラベルのオフセットをリセットして、すべて自動の中心・分割に切り替えますか？\n\n各建物はすぐに保存されます。従来のレイアウトに合わせたスロットのサイズは、あとで調整が必要になる場合があります。' },
