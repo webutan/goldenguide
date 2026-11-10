@@ -11,7 +11,8 @@ function adminHeaders(extra = {}) {
 }
 
 export async function fetchBars() {
-  const res = await fetch(`${BASE}/bars`)
+  // Admin mode sends the password so the API also returns inactive bars
+  const res = await fetch(`${BASE}/bars`, adminPassword ? { headers: adminHeaders() } : undefined)
   if (!res.ok) throw new Error('Failed to fetch bars')
   return res.json()
 }

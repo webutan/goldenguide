@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url'
 import multer from 'multer'
 import pool from '../db.js'
 import admin from '../middleware/admin.js'
+import { parsePositiveInt, normalizePhotoType, PHOTO_TYPES } from '../lib/validate.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 export const UPLOADS_DIR = resolve(__dirname, '..', 'uploads')
@@ -75,10 +76,12 @@ const router = Router()
 
 // GET /api/bars/:bar_id/photos
 router.get('/bars/:bar_id/photos', async (req, res) => {
+  const barId = parsePositiveInt(req.params.bar_id)
+  if (barId === null) return res.status(400).json({ error: 'Invalid bar id' })
   try {
     const result = await pool.query(
       'SELECT * FROM photos WHERE bar_id = $1 ORDER BY sort_order, uploaded_at',
-      [req.params.bar_id]
+      [barId]
     )
     res.json(result.rows)
   } catch (err) {
@@ -94,9 +97,10 @@ router.post('/bars/:bar_id/photos', admin, imageUpload('photo'), async (req, res
     if (!req.file) {
       return res.status(400).json({ error: 'No file received. Ensure the field name is "photo".' })
     }
-    const barId = parseInt(req.params.bar_id, 10)
-    if (!Number.isInteger(barId) || barId <= 0) return res.status(400).json({ error: 'Invalid bar id' })
-    const photoType = req.body.type || 'general'
+    const barId = parsePositiveInt(req.params.bar_id)
+    if (barId === null) return res.status(400).json({ error: 'Invalid bar id' })
+    const photoType = normalizePhotoType(req.body?.type)
+    if (!photoType) return res.status(400).json({ error: `Invalid photo type. Use one of: ${PHOTO_TYPES.join(', ')}` })
     filename = await saveImage(req.file, `bars/${barId}`)
     if (!filename) return res.status(415).json({ error: UNSUPPORTED_TYPE_ERROR })
 
