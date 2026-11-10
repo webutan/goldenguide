@@ -371,7 +371,9 @@ watch(explorerWinRef, (el) => {
   if (!el) return
   nextTick(() => {
     const h = el.$el?.offsetHeight ?? 0
-    const desktopH = window.innerHeight - 32
+    // Height of the area the window lives in, in its own px. (#app is zoomed
+    // on desktop, so window.innerHeight is not in the same units.)
+    const desktopH = el.$el?.offsetParent?.clientHeight ?? window.innerHeight - 32
     const y = Math.max(8, Math.floor((desktopH - h) / 2))
     el.setPosition(8, y)
   })
