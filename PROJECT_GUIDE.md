@@ -212,12 +212,15 @@ Copy `.env.example` to `.env` and fill in:
 | `ADMIN_PASSWORD` | Yes | Password required to enable admin mode in the UI |
 | `CORS_ORIGIN` | Recommended | Allowed origin for CORS (e.g. Cloudflare tunnel URL). Defaults to `'*'` if unset. |
 | `TWITTER_BEARER_TOKEN` | Optional | X/Twitter API v2 bearer token for the Feed refresh job. Empty = feed refresh disabled. |
+| `PUBLIC_URL` | Recommended | Public address of the site (`https://example.com`, no trailing slash) for the absolute URLs in link previews, canonical links, `sitemap.xml` and `robots.txt`. Empty = taken from each request's `Host` + `X-Forwarded-Proto`. |
+| `SPA_TEMPLATE_URL` | Optional | Where the API fetches the built `index.html` (default `http://web/index.html`). |
 
 `docker-compose.yml` passes every variable above (except `DB_PASSWORD`/`APP_PORT`, which compose itself uses) into the `api` container explicitly. The API's `dotenv` lookup does **not** find the repo's `.env` inside the container, so any new server variable must also be added to `api.environment` in `docker-compose.yml`.
 
 **Operational notes**
 - `GET /api/health` runs `SELECT 1` and returns `200 {ok:true}` or `503`. The `api` service has a compose `healthcheck` on it (`docker compose ps` shows `healthy`/`unhealthy`).
 - The API sets `trust proxy` to `1` (nginx is the single hop), so rate limits key on the real client IP from `X-Forwarded-For`. If another proxy is added in front of nginx that forwards to it directly, revisit this value.
+- **Link previews / SEO** (`server/routes/seo.js`, pure helpers in `server/lib/seo.js`): nginx proxies `/bar/<slug>`, `/`, `/map`, `/directory`, `/sitemap.xml` and `/robots.txt` to the API. The API fetches the built `index.html` from the `web` container (cached 5 min, last good copy kept if a refresh fails) and replaces the default `<head>` tags from `index.html` with per-page ones (title, description, Open Graph/Twitter, canonical, hreflang, JSON-LD). An unknown or inactive bar is a 404 with `noindex` and a `<meta name="golden-gai-status" content="not-found">` marker that makes the app show its "not found" dialog. If the API is down, slow (4 s) or answers 429/5xx, nginx serves the static `index.html` instead, so the app always loads. After deploying a new `web` image, restart `api` too (or wait 5 min): its cached shell names the previous build's hashed assets. The default share image is `public/og/default.png`, regenerated with `node scripts/make-og-image.mjs`.
 - The `pg` pool has an `error` listener, so a Postgres restart no longer crashes the API; queries fail with 503/500 until the DB is back, then recover on their own.
 - The `db` service no longer bind-mounts the repo (it used to mount `./` at `/import`, which exposed `.env` inside the DB container; nothing used it). To load a SQL dump, pipe it in: `docker compose exec -T db psql -U golden_gai -d golden_gai < dump.sql`.
 - Photo uploads still live in the named `uploads` volume. Moving them to a NAS bind mount is recommended; see `KNOWN_ISSUES.md` → *Docker named volume vs bind mount for uploads* (manual, owner-run migration).
