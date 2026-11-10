@@ -33,7 +33,7 @@ Every user-visible string goes through `t()` from `src/composables/useI18n.js` w
 ## How to verify (required before you finish)
 
 1. `npm run build` must succeed with no new warnings, apart from the existing chunk-size warning (until R06).
-2. If `npm test` exists (task **Q00**), it must pass, and you should add tests for any pure logic you touch.
+2. `npm test` must pass, and you should add tests for any pure logic you touch. It also runs the server tests, one of which (`tests/serverSuggestions.test.js`) needs the server's own dependencies: run `npm ci` in the repo root **and** in `server/` first (a fresh worktree has neither).
 3. For backend changes: `node --check` each changed server file. If Postgres is available (`docker compose up db`), start the API with `npm run dev:server` and exercise the endpoint with `curl`.
 4. For UI changes: run `npm run dev` and look at the change in Chromium via Playwright (pre-installed: `require('playwright')`), at **1280×800 and 390×844 (mobile)**. Save screenshots to your scratchpad and describe what you saw. In dev mode the onboarding flow always runs (`DEV` guard in `App.vue`), so click through it or temporarily stub it, but don't commit the stub.
 5. Re-read the "Acceptance criteria" in your task and tick each one off in your final summary.
