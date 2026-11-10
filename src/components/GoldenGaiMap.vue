@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
 import { useVisited } from '../composables/useVisited.js'
+import { barPasses, hasActiveFilters as hasAnyFilter } from '../utils/barFilters.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
 import {
@@ -125,41 +126,28 @@ const buildingsWithBars = computed(() => {
   return new Set(Object.keys(barsByBuilding.value))
 })
 
+// Shared filter state built from props (see src/utils/barFilters.js)
+const mapFilters = computed(() => ({
+  tags: props.activeTags || [],
+  tagMode: props.tagMode,
+  chargeMin: props.chargeMin,
+  chargeMax: props.chargeMax,
+  drinkMin: props.drinkMin,
+  drinkMax: props.drinkMax,
+  floor: props.floorFilter,
+  openNow: props.openNowFilter,
+  favorites: props.favoritesFilter,
+  visited: props.visitedFilter,
+}))
+
 // Whether any filter is active (includes floor filter)
-const hasActiveFilters = computed(() => {
-  return (props.activeTags && props.activeTags.length > 0) ||
-    props.chargeMin != null || props.chargeMax != null ||
-    props.drinkMin != null || props.drinkMax != null ||
-    props.floorFilter != null ||
-    props.openNowFilter ||
-    props.favoritesFilter ||
-    props.visitedFilter
-})
+const hasActiveFilters = computed(() => hasAnyFilter(mapFilters.value))
 
 // Whether floor filter is active (separate from tag/price filters)
 const hasFloorFilter = computed(() => props.floorFilter != null)
 
-function barPassesFilters(bar) {
-  // Floor filter: exclude bars not on the selected floor
-  if (props.floorFilter != null && (bar.floor ?? 1) !== props.floorFilter) return false
-  if (props.activeTags && props.activeTags.length > 0) {
-    const tagIds = (bar.tags || []).map(t => typeof t === 'string' ? t : t.id)
-    const check = props.tagMode === 'and'
-      ? props.activeTags.every(at => tagIds.includes(at))
-      : props.activeTags.some(at => tagIds.includes(at))
-    if (!check) return false
-  }
-  const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
-  const drinkPrice = bar.drink_price != null && bar.drink_price !== '' ? Number(bar.drink_price) : null
-  if (props.chargeMin != null && charge != null && !isNaN(charge) && charge < props.chargeMin) return false
-  if (props.chargeMax != null && charge != null && !isNaN(charge) && charge > props.chargeMax) return false
-  if (props.drinkMin != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice < props.drinkMin) return false
-  if (props.drinkMax != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice > props.drinkMax) return false
-  if (props.openNowFilter && !props.openBarIds.has(String(bar.id))) return false
-  if (props.favoritesFilter && !isFavorited(bar.id)) return false
-  if (props.visitedFilter && !isVisited(bar.id)) return false
-  return true
-}
+const barPassesFilters = (bar) =>
+  barPasses(bar, mapFilters.value, { openBarIds: props.openBarIds, isFavorited, isVisited })
 
 // Street-based building colors (replaces count-based color system)
 const STREET_COLORS = {
