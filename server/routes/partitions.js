@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import admin from '../middleware/admin.js'
+import { validatePartitionBody } from '../lib/validate.js'
 
 const router = Router()
 
@@ -25,6 +26,8 @@ router.put('/:buildingId', admin, async (req, res) => {
   try {
     const { buildingId } = req.params
     const data = req.body
+    const invalid = validatePartitionBody(data)
+    if (invalid) return res.status(400).json({ error: invalid })
     await pool.query(
       `INSERT INTO building_partitions (building_id, data)
        VALUES ($1, $2)

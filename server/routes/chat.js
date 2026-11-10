@@ -4,12 +4,14 @@ const HISTORY_LIMIT = 100
 const PRUNE_LIMIT = 500
 const RATE_LIMIT_MS = 1000
 
+const PRUNE_EVERY = 50 // only prune on every Nth insert
+
+// Delete everything older than the newest PRUNE_LIMIT messages. Uses the id
+// cutoff (a single index lookup) instead of NOT IN over a subquery.
 function pruneOldMessages(client) {
   return client.query(`
     DELETE FROM chat_messages
-    WHERE id NOT IN (
-      SELECT id FROM chat_messages ORDER BY id DESC LIMIT $1
-    )
+    WHERE id <= (SELECT id FROM chat_messages ORDER BY id DESC OFFSET $1 LIMIT 1)
   `, [PRUNE_LIMIT])
 }
 
@@ -98,7 +100,7 @@ export function registerChatNamespace(io) {
         )
         const saved = rows[0]
         chat.emit('chat:message', saved)
-        await pruneOldMessages(client)
+        if (saved.id % PRUNE_EVERY === 0) await pruneOldMessages(client)
       } catch (err) {
         console.error('Chat save error:', err.message)
       } finally {

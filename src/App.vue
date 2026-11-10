@@ -32,6 +32,8 @@ import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObj
 const { bars, tags, loading, error, reload } = useApi()
 const { visitedCount } = useVisited()
 const { isAdmin, toggleAdmin } = useAdmin()
+// The bar list differs by mode (admins also get inactive bars), so refetch on toggle
+watch(isAdmin, () => reload())
 const wm = useWindowManager()
 const { openBarIds } = useOpenNow(bars)
 
