@@ -311,6 +311,20 @@ function barLabelText(bar) {
   return prefix ? `${prefix} ${name} ${floorLabel}` : `${name} ${floorLabel}`
 }
 
+// Rotation of a building's label group before the admin's own rotation.
+// Counter-rotates the map's rotation so labels are screen-aligned; 'horizontal'
+// (names side by side, each reading down its slot) gets a quarter turn more.
+// 'tate' does not: writing-mode already runs the text top to bottom, and the
+// extra quarter turn laid it on its side, reading right to left.
+function labelBaseRotation(orientation) {
+  return orientation === 'horizontal' ? -MAP_ROTATION + 90 : -MAP_ROTATION
+}
+
+// Direction the label text runs on screen (0 = left to right, 90 = down)
+function labelScreenAngle(orientation, groupRotation) {
+  return groupRotation + MAP_ROTATION + (orientation === 'tate' ? 90 : 0)
+}
+
 // Compute label layout for every building (only when zoomed in enough).
 //
 // Key insight: the map SVG is inside a rotate(MAP_ROTATION) group. If we place
@@ -444,11 +458,10 @@ const buildingLabelData = computed(() => {
             items = alt
           }
         }
-        const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
-        const groupRotation = baseRotation + partAdminRotation
+        const groupRotation = labelBaseRotation(orientation) + partAdminRotation
         const cx = rect.visibleCenter.x + partOffsetX
         const cy = rect.visibleCenter.y + partOffsetY
-        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
+        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: labelScreenAngle(orientation, groupRotation), items }
       }
       continue
     }
@@ -468,13 +481,10 @@ const buildingLabelData = computed(() => {
     const cx = bldg.minX + bldg.width / 2 + offsetX
     const cy = bldg.minY + bldg.height / 2 + offsetY
 
-    // Counter-rotate the map's own rotation so labels are screen-aligned.
-    // +90° extra for side-by-side (horizontal and tate modes).
-    const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
-    const groupRotation = baseRotation + adminRotation
+    const groupRotation = labelBaseRotation(orientation) + adminRotation
 
     const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride)
-    result[bldgId] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
+    result[bldgId] = { cx, cy, groupRotation, screenAngle: labelScreenAngle(orientation, groupRotation), items }
   }
   return result
 })
