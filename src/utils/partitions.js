@@ -20,6 +20,17 @@ export function slotBarIds(slot) {
   return slot.barId != null && slot.barId !== '' ? [String(slot.barId)] : []
 }
 
+/**
+ * `config` without the slot at `index`. Every other slot is kept exactly as
+ * it is (bars, weight, colour, label settings), as are the building-level
+ * settings. An index that is not a slot returns `config` unchanged.
+ */
+export function removeSlotAt(config, index) {
+  const slots = config && Array.isArray(config.partitions) ? config.partitions : []
+  if (!Number.isInteger(index) || index < 0 || index >= slots.length) return config
+  return { ...config, partitions: slots.filter((_, i) => i !== index) }
+}
+
 /** { buildingId: [bar, ...] } for every placed bar. */
 export function groupBarsByBuilding(bars) {
   const groups = {}

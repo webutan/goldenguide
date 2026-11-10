@@ -1,31 +1,57 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
-  fetchBarReviews, fetchWeeklyReviews, postReview,
+  fetchBarReviews, fetchWeeklyReviews, postReview, fetchAdminReviews,
   reportReview as apiReportReview, setReviewHidden, deleteReview as apiDeleteReview,
 } from '../api/reviews.js'
 import { useDialog } from './useDialog.js'
+import { isAdmin } from './useAdmin.js'
+import { mergeBarReviews } from '../utils/reviewLists.js'
 import { readJSON, writeJSON, isNumberArray } from '../utils/storage.js'
 import { rateLimitMessage } from '../utils/retryAfter.js'
 
 const REPORTED_KEY = 'golden-gai-reported-reviews'
 const REPORTED_MAX = 200
 
+// How many hidden reviews of one bar the panel shows in admin mode
+const HIDDEN_PER_BAR = 100
+
 const reviews = ref([])
 const weeklyReviews = ref([])
+// Admin mode only: the current bar's hidden reviews, from the admin endpoint
+// (the public one never returns them). Rows carry `has_drawing`, not the
+// drawing; one hidden a moment ago keeps the drawing it was loaded with.
+const hiddenReviews = ref([])
+// What the bar's review panel lists: for visitors the public reviews, for an
+// admin the hidden ones as well, in place.
+const barReviews = computed(() =>
+  isAdmin.value ? mergeBarReviews(reviews.value, hiddenReviews.value) : reviews.value
+)
 // Bar whose reviews are in `reviews` (so moderation can refresh the list).
 let currentBarId = null
+let barLoadSeq = 0
 // Reviews this visitor has already reported: the button turns into "Reported".
 // Only a convenience; the server enforces one report per IP per review.
 const reportedIds = ref(readJSON(REPORTED_KEY, [], isNumberArray))
 
 async function loadBarReviews(barId) {
   currentBarId = barId
-  try {
-    reviews.value = await fetchBarReviews(barId)
-  } catch (err) {
-    console.error('loadBarReviews error:', err.message)
-    reviews.value = []
-  }
+  const seq = ++barLoadSeq
+  const [publicList, hiddenList] = await Promise.all([
+    fetchBarReviews(barId).catch(err => {
+      console.error('loadBarReviews error:', err.message)
+      return []
+    }),
+    isAdmin.value
+      ? fetchAdminReviews({ status: 'hidden', barId, limit: HIDDEN_PER_BAR }).then(page => page.items).catch(err => {
+        console.error('loadBarReviews (hidden) error:', err.message)
+        return []
+      })
+      : [],
+  ])
+  // A newer load (another bar, or a refresh) has taken over
+  if (seq !== barLoadSeq) return
+  reviews.value = publicList
+  hiddenReviews.value = hiddenList
 }
 
 async function loadWeeklyReviews() {
@@ -93,8 +119,19 @@ async function adminActionFailed(err) {
 async function setHidden(review, hidden) {
   try {
     const updated = await setReviewHidden(review.id, hidden)
-    if (hidden) dropFromPublicLists(review.id)
-    else refreshPublicLists()
+    if (hidden) {
+      dropFromPublicLists(review.id)
+      // The open bar panel keeps it, greyed out, so it can be un-hidden there
+      if (isAdmin.value && updated.bar_id === currentBarId) {
+        hiddenReviews.value = [
+          { ...review, ...updated },
+          ...hiddenReviews.value.filter(r => r.id !== review.id),
+        ]
+      }
+    } else {
+      // It stays listed as hidden until the fresh lists arrive
+      refreshPublicLists()
+    }
     return updated
   } catch (err) {
     await adminActionFailed(err)
@@ -118,12 +155,13 @@ async function removeReview(review) {
     return false
   }
   dropFromPublicLists(review.id)
+  hiddenReviews.value = hiddenReviews.value.filter(r => r.id !== review.id)
   return true
 }
 
 export function useReviews() {
   return {
-    reviews, weeklyReviews, loadBarReviews, loadWeeklyReviews, submitReview,
+    reviews, barReviews, weeklyReviews, loadBarReviews, loadWeeklyReviews, submitReview,
     hasReported, reportReview, setHidden, removeReview,
   }
 }

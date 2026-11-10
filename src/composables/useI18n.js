@@ -381,6 +381,22 @@ const translations = {
   'updateAvailable': { en: 'A new version of GAI OS is available. Restart now?', jp: 'GAI OSの新しいバージョンがあります。今すぐ再起動しますか？' },
   'updateRestart': { en: 'Restart', jp: '再起動' },
   'updateLater': { en: 'Later', jp: 'あとで' },
+  // Admin usability (R09)
+  'adminReviewsCountOf': { en: '{shown} of {total} review(s)', jp: '{total}件中{shown}件' },
+  'adminReviewsLoadMore': { en: 'Load more ({n} left)', jp: 'さらに読み込む（残り{n}件）' },
+  'reviewDrawingShow': { en: 'Show drawing', jp: '絵を表示' },
+  'reviewDrawingRetry': { en: 'Retry', jp: '再読み込み' },
+  'partRemoveSlot': { en: 'Remove slot', jp: 'スロットを削除' },
+  'partRemoveSlotConfirm': { en: 'Remove slot {n}?\n\nIts bars become unassigned. The other slots keep their bars, sizes and colours.', jp: 'スロット{n}を削除しますか？\n\nこのスロットのお店は未割り当てになります。ほかのスロットのお店・サイズ・色はそのままです。' },
+  'partResetSplit': { en: 'Reset split', jp: '分割をリセット' },
+  'partResetHint': { en: 'Deletes what is saved for this building and returns to the automatic split.', jp: 'この建物の保存内容を削除し、自動の分割に戻します。' },
+  'partResetConfirm': { en: 'Reset the split of {id}?\n\nIts saved slots, sizes, colours and label settings are deleted, and the building goes back to the automatic split (one slot per bar). This cannot be undone.', jp: '{id} の分割をリセットしますか？\n\n保存されているスロット・サイズ・色・ラベル設定を削除し、自動の分割（お店ごとに1スロット）に戻します。この操作は取り消せません。' },
+  'partResetFailed': { en: 'Could not reset the split. Nothing was changed.', jp: '分割をリセットできませんでした。変更はありません。' },
+  'inboxResultApplied': { en: 'Applied to "{name}":', jp: '「{name}」に反映しました：' },
+  'inboxNothingChanged': { en: 'Nothing was changed.', jp: '変更はありません。' },
+  'adminInactive': { en: 'Inactive', jp: '非公開' },
+  'adminOpenOnMap': { en: 'Open on map', jp: 'マップで開く' },
+  'adminOpenCard': { en: 'Open bar card', jp: 'お店のカードを開く' },
 }
 
 export function useI18n(lang) {

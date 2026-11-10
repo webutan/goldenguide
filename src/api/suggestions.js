@@ -50,3 +50,17 @@ export async function setSuggestionStatus(id, status) {
   })
   return expectOk(res, 'update suggestion')
 }
+
+/**
+ * Admin: apply a suggestion to its bar in one request. The server computes
+ * the change against the bar as it is now and updates the bar and the
+ * suggestion in one transaction.
+ * @returns {Promise<{ result: 'applied'|'no_changes'|'not_open', changes: Array<{field: string, from: any, to: any}>, suggestion: object }>}
+ */
+export async function applySuggestion(id) {
+  const res = await fetch(`${BASE}/api/suggestions/${id}/apply`, {
+    method: 'POST',
+    headers: adminHeaders(),
+  })
+  return expectOk(res, 'apply suggestion')
+}

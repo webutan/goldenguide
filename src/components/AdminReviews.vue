@@ -3,7 +3,9 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import WinTabs from './win2000/WinTabs.vue'
 import WinButton from './win2000/WinButton.vue'
+import AdminDrawing from './AdminDrawing.vue'
 import { fetchAdminReviews } from '../api/reviews.js'
+import { applyReviewUpdate, appendReviewPage } from '../utils/reviewLists.js'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
 
@@ -21,24 +23,55 @@ const statusTabs = computed(() => [
   { value: 'all', label: t('adminReviewsAll') },
 ])
 
+// The list is paged by cursor: `items` grows with "Load more", `nextCursor`
+// is null once the last page is in, `total` is every review the filter matches.
 const items = ref([])
+const nextCursor = ref(null)
+const total = ref(0)
 const loading = ref(false)
+const loadingMore = ref(false)
 const loadError = ref(false)
+const moreError = ref(false)
 const busyId = ref(null)
 let loadSeq = 0
 
+// First page (also Refresh, and a change of filter)
 async function load() {
   const seq = ++loadSeq
   loading.value = true
+  loadingMore.value = false
   loadError.value = false
+  moreError.value = false
   try {
-    const rows = await fetchAdminReviews(status.value)
-    if (seq === loadSeq) items.value = rows
+    const page = await fetchAdminReviews({ status: status.value })
+    if (seq !== loadSeq) return
+    items.value = page.items
+    nextCursor.value = page.nextCursor
+    total.value = page.total
   } catch (err) {
     console.error('fetchAdminReviews error:', err.message)
-    if (seq === loadSeq) { items.value = []; loadError.value = true }
+    if (seq === loadSeq) { items.value = []; nextCursor.value = null; total.value = 0; loadError.value = true }
   } finally {
     if (seq === loadSeq) loading.value = false
+  }
+}
+
+async function loadMore() {
+  if (!nextCursor.value || loading.value || loadingMore.value) return
+  const seq = loadSeq
+  loadingMore.value = true
+  moreError.value = false
+  try {
+    const page = await fetchAdminReviews({ status: status.value, cursor: nextCursor.value })
+    if (seq !== loadSeq) return
+    items.value = appendReviewPage(items.value, page.items)
+    nextCursor.value = page.nextCursor
+    total.value = page.total
+  } catch (err) {
+    console.error('fetchAdminReviews (more) error:', err.message)
+    if (seq === loadSeq) moreError.value = true
+  } finally {
+    if (seq === loadSeq) loadingMore.value = false
   }
 }
 
@@ -62,7 +95,13 @@ async function toggleHidden(review) {
   if (busyId.value != null) return
   busyId.value = review.id
   try {
-    if (await setHidden(review, !review.hidden)) await load()
+    // Updated in place (no reload: the pages already loaded stay put). A
+    // review that no longer matches the filter leaves the list.
+    const updated = await setHidden(review, !review.hidden)
+    if (!updated) return
+    const next = applyReviewUpdate(items.value, updated, status.value)
+    items.value = next.items
+    if (next.removed) total.value = Math.max(0, total.value - 1)
   } finally {
     busyId.value = null
   }
@@ -72,7 +111,9 @@ async function remove(review) {
   if (busyId.value != null) return
   busyId.value = review.id
   try {
-    if (await removeReview(review)) await load()
+    if (!await removeReview(review)) return
+    items.value = items.value.filter(r => r.id !== review.id)
+    total.value = Math.max(0, total.value - 1)
   } finally {
     busyId.value = null
   }
@@ -83,7 +124,11 @@ async function remove(review) {
   <div class="admin-reviews">
     <WinTabs v-model="status" :tabs="statusTabs">
       <div class="ar-toolbar">
-        <span class="ar-count">{{ loading ? t('adminReviewsLoading') : t('adminReviewsCount', { n: items.length }) }}</span>
+        <span class="ar-count" data-testid="ar-count">{{
+          loading ? t('adminReviewsLoading')
+          : items.length < total ? t('adminReviewsCountOf', { shown: items.length, total })
+          : t('adminReviewsCount', { n: items.length })
+        }}</span>
         <WinButton small :disabled="loading" @click="load">{{ t('adminReviewsRefresh') }}</WinButton>
       </div>
 
@@ -97,7 +142,7 @@ async function remove(review) {
             <span class="ar-date">{{ formatDate(review.created_at) }}</span>
           </div>
           <div class="ar-main">
-            <img v-if="review.drawing" :src="review.drawing" class="ar-thumb" :alt="t('reviewDrawing')" />
+            <AdminDrawing v-if="review.has_drawing" :review-id="review.id" :lang="lang" class="ar-thumb" />
             <div class="ar-content">
               <div class="ar-nick">{{ review.nickname }}</div>
               <p v-if="review.text && review.text.trim()" class="ar-text">{{ review.text }}</p>
@@ -112,6 +157,13 @@ async function remove(review) {
             <WinButton small :disabled="busyId != null" @click="remove(review)">{{ t('reviewDelete') }}</WinButton>
           </div>
         </div>
+      </div>
+
+      <div v-if="nextCursor && !loading" class="ar-more">
+        <div v-if="moreError" class="ar-more-error">{{ t('adminReviewsLoadFailed') }}</div>
+        <WinButton class="ar-more-btn" data-testid="ar-load-more" :disabled="loadingMore" @click="loadMore">{{
+          loadingMore ? t('adminReviewsLoading') : t('adminReviewsLoadMore', { n: Math.max(0, total - items.length) })
+        }}</WinButton>
       </div>
     </WinTabs>
   </div>
@@ -241,7 +293,21 @@ async function remove(review) {
 
 .ar-foot :deep(.win-btn) { min-width: 0; }
 
+.ar-more {
+  margin: 2px 0 6px;
+  text-align: center;
+}
+
+.ar-more-btn { width: 100%; }
+
+.ar-more-error {
+  color: var(--valhalla-pink);
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
 @media (max-width: 768px) {
   .ar-foot :deep(.win-btn) { min-height: 40px; min-width: 64px; }
+  .ar-more-btn { min-height: 40px; }
 }
 </style>

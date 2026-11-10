@@ -41,4 +41,17 @@ router.put('/:buildingId', admin, async (req, res) => {
   }
 })
 
+// DELETE /api/partitions/:buildingId — forget a building's stored split (admin).
+// The building then falls back to the automatic split (one slot per bar).
+// Idempotent: a building with nothing stored answers { ok: true, removed: false }.
+router.delete('/:buildingId', admin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM building_partitions WHERE building_id = $1', [req.params.buildingId])
+    res.json({ ok: true, removed: result.rowCount > 0 })
+  } catch (err) {
+    console.error('DELETE /api/partitions/:buildingId error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

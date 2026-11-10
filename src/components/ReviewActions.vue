@@ -29,11 +29,17 @@ async function run(action) {
 <template>
   <div v-if="!adminOnly || isAdmin" class="review-actions" @click.stop>
     <template v-if="isAdmin">
-      <button class="ra-link ra-admin" :disabled="busy" @click="run(() => setHidden(review, true))">{{ t('reviewHide') }}</button>
-      <button class="ra-link ra-admin ra-danger" :disabled="busy" @click="run(() => removeReview(review))">{{ t('reviewDelete') }}</button>
+      <!-- A hidden review (only ever listed for admins) offers Unhide instead -->
+      <button
+        class="ra-link ra-admin"
+        :data-action="review.hidden ? 'unhide' : 'hide'"
+        :disabled="busy"
+        @click="run(() => setHidden(review, !review.hidden))"
+      >{{ review.hidden ? t('reviewUnhide') : t('reviewHide') }}</button>
+      <button class="ra-link ra-admin ra-danger" data-action="delete" :disabled="busy" @click="run(() => removeReview(review))">{{ t('reviewDelete') }}</button>
     </template>
     <button
-      v-if="!adminOnly"
+      v-if="!adminOnly && !review.hidden"
       class="ra-link ra-report"
       :disabled="busy || reported"
       @click="run(() => reportReview(review))"
