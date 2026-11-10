@@ -23,7 +23,7 @@ import { useApi } from './composables/useApi.js'
 import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
-import { useDialog } from './composables/useDialog.js'
+import { useDialog, useDialogHost } from './composables/useDialog.js'
 import { usePwa } from './composables/usePwa.js'
 import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
@@ -43,7 +43,7 @@ const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vu
 const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
 const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
 
-const { bars, tags, loading, error, dataTime, reload, refreshQuietly } = useApi()
+const { bars, tags, loading, error, dataTime, stale: dataStale, listIsAdmin, reload, refreshQuietly } = useApi()
 const { visitedCount } = useVisited()
 const { isAdmin, toggleAdmin } = useAdmin()
 // The bar list differs by mode (admins also get inactive bars), so refetch on toggle
@@ -698,6 +698,39 @@ onUnmounted(() => {
   clearInterval(offlineRetryTimer)
   stopDataUpdates()
 })
+
+// ── A reload that failed (R08) ───────────────────────────────────────────────
+// Once the first load has succeeded the app never goes back to the error
+// screen: a failed reload (after an admin save or toggle, a placement) keeps
+// the last good data on screen. Say so once, keep trying in the background,
+// and take the notice down again when a reload gets through.
+const RELOAD_RETRY_MS = 30000
+let reloadRetryTimer = null
+let reloadNotice = null // { title, message } of the notice that was opened
+const dialogHost = useDialogHost()
+function isReloadNotice(d) {
+  return !!d && !!reloadNotice && d.kind === 'alert' && d.title === reloadNotice.title && d.message === reloadNotice.message
+}
+// 'admin': admin mode with the public list on screen (the inactive bars are
+// missing), which is worth saying even after the plain notice was shown.
+const staleKind = computed(() => !dataStale.value ? null : (isAdmin.value && !listIsAdmin.value) ? 'admin' : 'plain')
+watch(staleKind, (kind, was) => {
+  if (!kind) { clearInterval(reloadRetryTimer); reloadRetryTimer = null; return }
+  if (!reloadRetryTimer) {
+    reloadRetryTimer = setInterval(() => { if (navigator.onLine !== false) reload() }, RELOAD_RETRY_MS)
+  }
+  if (was && kind === 'plain') return // already told
+  reloadNotice = {
+    title: t('reloadFailedTitle'),
+    message: t(kind === 'admin' ? 'reloadFailedAdmin' : 'reloadFailed'),
+  }
+  dialog.alert(reloadNotice.message, { title: reloadNotice.title, icon: 'warning' })
+})
+// Fresh data is in: an unanswered notice no longer applies
+watch([dataStale, dialogHost.current], ([isStale, onScreen]) => {
+  if (!isStale && isReloadNotice(onScreen)) dialogHost.settle(onScreen.id, undefined)
+})
+onUnmounted(() => clearInterval(reloadRetryTimer))
 
 // "A new version of GAI OS is available": asked once per waiting version,
 // after the boot screen. "Later" keeps this version until the next start.
