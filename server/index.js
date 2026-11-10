@@ -23,8 +23,10 @@ import admin from './middleware/admin.js'
 import pool from './db.js'
 
 const app = express()
-// Trust the first proxy hop (nginx) so req.ip comes from X-Forwarded-For
-// and rate limits are per client instead of shared by everyone.
+// Trust one proxy hop (our nginx) so req.ip comes from X-Forwarded-For and
+// rate limits are per visitor. nginx.conf resolves the real client address
+// (also when a NAS proxy / cloudflared sits in front of it) and forwards
+// exactly that one address.
 app.set('trust proxy', 1)
 const httpServer = createServer(app)
 const PORT = process.env.PORT || 3001

@@ -12,7 +12,7 @@ Everything from the November 2026 code review is here as **42 self-contained tas
 1. Pick the next task from the **Waves** below (everything in a wave can run at the same time).
 2. Give the subagent this prompt (swap the task ID):
 
-   > Read `plans/AGENT_BRIEF.md`, then implement `plans/tasks/B02-open-now-midnight.md`. Work in an isolated worktree branched from `claude/gallant-euler-6k0p36`. Follow the brief's verification steps and finish with the summary format it describes. Do not work on anything outside this task.
+   > Read `plans/AGENT_BRIEF.md`, then implement `plans/tasks/B02-open-now-midnight.md`. Work in an isolated worktree branched from the integration branch (currently `claude/amazing-lamport-youilx`). Follow the brief's verification steps and finish with the summary format it describes. Do not work on anything outside this task.
 
 3. When it's done, merge its branch into the integration branch **one task at a time**, then tick it off in the tracker below.
 4. **Merge-hot files**: `src/App.vue`, `src/components/GoldenGaiMap.vue`, `src/composables/useI18n.js`, `server/index.js`, `server/migrate.js`. Most conflicts are trivial appends (translation keys, route mounts, new migrations). **Migration numbers can collide.** If two tasks both add `015-…`, renumber the later one when you merge it, before it is ever deployed.
@@ -133,7 +133,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [B01](tasks/B01-review-submit.md) | Drawing-only reviews fail silently | S | 1 h | 15 m | – |
 | ✅ | [B02](tasks/B02-open-now-midnight.md) | "Open Now" wrong after midnight | S | 1.5 h | 15 m | Q00 |
 | ✅ | [B03](tasks/B03-unify-filters.md) | One shared filter function (map/drawer/directory agree) | M | 3 h | 30 m | Q00 |
-| ☐ | [B04](tasks/B04-search.md) | Search: no 8-cap on highlights, kana/full-width matching | S–M | 2 h | 20 m | Q00 |
+| ✅ | [B04](tasks/B04-search.md) | Search: no 8-cap on highlights, kana/full-width matching | S–M | 2 h | 20 m | Q00 |
 | ✅ | [B05](tasks/B05-bios.md) | BIOS double-blink + fast boot for regulars | S | 1 h | 10 m | – |
 | ✅ | [B06](tasks/B06-safe-storage.md) | Safe localStorage helper | S | 1 h | 10 m | – |
 | ✅ | [B07](tasks/B07-jst-clock.md) | Taskbar clock in Tokyo time | S | 45 m | 5 m | – |

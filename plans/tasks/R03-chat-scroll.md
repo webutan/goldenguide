@@ -14,6 +14,8 @@ Also (found in B08, small UI bugs in the same area, fix here):
 - `BarTwitterPanel.vue` throws `Cannot read properties of undefined (reading 'length')` when the feed response has no `tweets` field. Guard `tweets == null`.
 - `ReviewDialog.vue`: the canvas black fill in `onMounted` never runs because the canvas only exists in the 'write' phase. Fill it when that phase starts.
 
+Also (found in review after Wave 2): `ReviewDialog.vue` has its own hand-built "Discard review?" confirmation, written before R05 existed. Replace it with `useDialog().confirm(...)` so there is one dialog implementation (keep the same strings; check the dialog shows above the review overlay on mobile).
+
 ## Steps
 1. Watch `messages.value.length` (or the last id) instead of deep.
 2. Auto-scroll only if the user was within ~40 px of the bottom. Otherwise show a Win95-style "▼ New messages" button at the bottom of the pane.
