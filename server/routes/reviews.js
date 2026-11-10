@@ -3,7 +3,7 @@ import pool from '../db.js'
 import admin from '../middleware/admin.js'
 import { reviewLimiter, publicWriteLimiter } from '../middleware/rateLimits.js'
 import { parsePositiveInt } from '../lib/validate.js'
-import { parseAdminReviewStatus, shouldAutoHide } from '../lib/reviewModeration.js'
+import { parseAdminReviewStatus, shouldAutoHide, reporterKey } from '../lib/reviewModeration.js'
 
 const router = Router()
 
@@ -117,14 +117,14 @@ router.post('/', reviewLimiter, async (req, res) => {
 })
 
 // POST /api/reviews/:id/report — flag a review (public, rate-limited).
-// One report per IP per review, stored in review_reports so it survives a
+// One report per visitor (keyed hash of the IP) per review, stored in review_reports so it survives a
 // restart. Always answers 200 { ok: true } for a well-formed id: a missing
 // review, a hidden one and a repeat report all look the same, so the endpoint
 // reveals nothing the public lists don't already show.
 router.post('/:id/report', publicWriteLimiter, async (req, res) => {
   const id = parsePositiveInt(req.params.id)
   if (id === null) return res.status(400).json({ error: 'Invalid review id' })
-  const ip = req.ip || 'unknown'
+  const reporter = reporterKey(req.ip)
 
   let client
   try {
@@ -137,8 +137,8 @@ router.post('/:id/report', publicWriteLimiter, async (req, res) => {
     )
     if (rows.length > 0) {
       const inserted = await client.query(
-        'INSERT INTO review_reports (review_id, ip) VALUES ($1, $2) ON CONFLICT (review_id, ip) DO NOTHING',
-        [id, ip]
+        'INSERT INTO review_reports (review_id, reporter) VALUES ($1, $2) ON CONFLICT (review_id, reporter) DO NOTHING',
+        [id, reporter]
       )
       if (inserted.rowCount > 0) {
         const count = await client.query(

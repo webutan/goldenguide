@@ -28,3 +28,10 @@ Also (found in S02):
 Also (found in B09, admin gaps): `removePartition` in AdminPanel can only remove the last slot, and there is no `DELETE /api/partitions/:buildingId`, so a building's split can only be reset in the database. Add both.
 
 Also (found in R01): `hasFloorFilter` and `barFloorMap` in `GoldenGaiMap.vue` are unused; the map tooltip's "cover" and the annotation toolbar strings ("Add label", "English text", "Size", "Rot") bypass `t()`; four ids in `src/data/buildings.json` have no matching `bldg-*` path in `map.svg`, so a bar placed there is unreachable (check production data for bars in those buildings).
+
+Also (found in S04, admin usability):
+- Admin mode hides the map Search and Explorer windows on desktop, so moderating from a bar's review panel means opening it before switching admin mode on. Keep search available in admin mode.
+- On mobile the Admin Console floats over the desktop icons and has no taskbar button to minimise it.
+- A hidden review disappears from the bar panel for admins too; Unhide only exists in the admin Reviews tab. Show hidden reviews greyed-out to admins in place.
+- The admin review list is capped at 100 rows without paging and ships full drawing data URLs.
+- Sticky notes overlap each other, the desktop icons and Gai-chan, and the lowest run under the taskbar.

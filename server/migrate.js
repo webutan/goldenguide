@@ -216,7 +216,8 @@ const MIGRATIONS = [
   },
   {
     // hidden: excluded from every public list. report_count: number of rows in
-    // review_reports (one per IP). auto_hide_exempt: set when an admin un-hides
+    // review_reports (one per visitor; `reporter` is a keyed hash of the IP,
+    // never the address itself). auto_hide_exempt: set when an admin un-hides
     // a review, so further reports are recorded but never auto-hide it again.
     name: '015-review-moderation',
     sql: `
@@ -226,9 +227,9 @@ const MIGRATIONS = [
       CREATE TABLE IF NOT EXISTS review_reports (
         id         SERIAL PRIMARY KEY,
         review_id  INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
-        ip         TEXT NOT NULL,
+        reporter   TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE (review_id, ip)
+        UNIQUE (review_id, reporter)
       );
     `,
   },

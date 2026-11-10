@@ -147,7 +147,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✅ | [S01](tasks/S01-deploy-env.md) | Docker env passthrough, trust proxy, DB error handler, health check | S | 1 h | 15 m | – |
 | ✅ | [S02](tasks/S02-rate-limits-feed.md) | Rate limits on public writes; feed abuse + refresh schedule | M | 3 h | 30 m | S01 |
 | ✅ | [S03](tasks/S03-upload-hardening.md) | Upload type checks, safe filenames, nosniff | S | 1.5 h | 15 m | – |
-| ☐ | [S04](tasks/S04-review-moderation.md) | Review moderation (delete/hide/report) | M | 3 h | 30 m | S02 |
+| ✅ | [S04](tasks/S04-review-moderation.md) | Review moderation (delete/hide/report) | M | 3 h | 30 m | S02 |
 | ✅ | [S05](tasks/S05-bars-route-correctness.md) | Bars route transactions/validation; chat prune | S | 1.5 h | 15 m | – |
 
 ### Phase 3: Performance & refactors (~18 agent-h)

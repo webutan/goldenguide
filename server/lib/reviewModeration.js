@@ -1,3 +1,4 @@
+import { createHmac } from 'crypto'
 // Pure review-moderation rules shared by the reviews route. No DB access here
 // so they can be unit-tested directly.
 
@@ -20,4 +21,12 @@ export function parseAdminReviewStatus(value) {
 export function shouldAutoHide({ reportCount, autoHideExempt }) {
   if (autoHideExempt) return false
   return Number.isInteger(reportCount) && reportCount >= REPORT_AUTO_HIDE_THRESHOLD
+}
+
+// Stable per-visitor key for "one report per visitor per review". A keyed hash
+// of the IP, so the reports table never holds visitor addresses. The key is
+// the admin password: changing it only means old reporters could report once
+// more, which is harmless.
+export function reporterKey(ip, secret = process.env.ADMIN_PASSWORD || 'golden-gai') {
+  return createHmac('sha256', String(secret)).update(String(ip || 'unknown')).digest('hex').slice(0, 32)
 }
