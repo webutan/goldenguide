@@ -2,6 +2,7 @@
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
 import { useChat } from '../composables/useChat.js'
 import { useI18n } from '../composables/useI18n.js'
+import { readString } from '../utils/storage.js'
 import WinButton from './win2000/WinButton.vue'
 
 const props = defineProps({
@@ -47,7 +48,7 @@ const myCheckinBar = computed(() => {
 
 // Check if nickname was auto-generated (Guest####) and show prompt
 onMounted(() => {
-  const saved = localStorage.getItem('golden-gai-chat-nickname')
+  const saved = readString('golden-gai-chat-nickname')
   if (!saved) {
     showNickPrompt.value = true
     nickInput.value = nickname.value

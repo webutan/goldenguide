@@ -27,6 +27,7 @@ import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { updateBar, fetchPartitions, savePartition } from './api/index.js'
+import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
 
 const { bars, tags, loading, error, reload } = useApi()
 const { visitedCount } = useVisited()
@@ -36,11 +37,10 @@ const { openBarIds } = useOpenNow(bars)
 
 const showBios = ref(true)
 // Returning visitors get a fast BIOS boot (same look, near-instant)
-let biosFastBoot = false
-try { biosFastBoot = !!localStorage.getItem('golden-gai-booted') } catch { /* storage blocked */ }
+const biosFastBoot = !!readString('golden-gai-booted')
 function handleBiosDone() {
   showBios.value = false
-  try { localStorage.setItem('golden-gai-booted', '1') } catch { /* storage blocked */ }
+  writeString('golden-gai-booted', '1')
 }
 const reviewPanelBar = ref(null)
 
@@ -55,13 +55,13 @@ const floorFilter = ref(null) // null = all floors, 1 = 1F, 2 = 2F, etc.
 const openNowFilter = ref(false)
 const DEV = import.meta.env.DEV
 
-const savedLang = DEV ? null : localStorage.getItem('golden-gai-lang')
+const savedLang = DEV ? null : readString('golden-gai-lang')
 const lang = ref(savedLang || null)
 
-const savedFirstTime = DEV ? null : localStorage.getItem('golden-gai-first-time') // 'yes' | 'no' | null
+const savedFirstTime = DEV ? null : readString('golden-gai-first-time') // 'yes' | 'no' | null
 const firstVisit = ref(savedFirstTime === null ? null : savedFirstTime === 'yes')
 
-const rulesAccepted = ref(!DEV && !!localStorage.getItem('golden-gai-rules-accepted'))
+const rulesAccepted = ref(!DEV && !!readString('golden-gai-rules-accepted'))
 const showContact = ref(false)
 
 // Tour mode state
@@ -92,17 +92,17 @@ const showRules = computed(() => firstVisit.value === true && !rulesAccepted.val
 
 function handleLangSelect(l) {
   lang.value = l
-  localStorage.setItem('golden-gai-lang', l)
+  writeString('golden-gai-lang', l)
 }
 
 function handleFirstTimeAnswer(isFirst) {
   firstVisit.value = isFirst
-  localStorage.setItem('golden-gai-first-time', isFirst ? 'yes' : 'no')
+  writeString('golden-gai-first-time', isFirst ? 'yes' : 'no')
 }
 
 function handleRulesAccepted() {
   rulesAccepted.value = true
-  localStorage.setItem('golden-gai-rules-accepted', '1')
+  writeString('golden-gai-rules-accepted', '1')
   activeView.value = 'map'
 }
 
@@ -121,7 +121,7 @@ const drawerBuildingBars = ref(null)
 const drawerBuildingId = ref(null)
 
 // Tag ordering (persisted)
-const tagOrder = ref(JSON.parse(localStorage.getItem('golden-gai-tag-order') || '[]'))
+const tagOrder = ref(readJSON('golden-gai-tag-order', [], isStringArray))
 
 const sortedTags = computed(() => {
   if (!tagOrder.value.length) return tags.value
@@ -138,11 +138,11 @@ const sortedTags = computed(() => {
 
 function handleReorderTags(newOrder) {
   tagOrder.value = newOrder
-  localStorage.setItem('golden-gai-tag-order', JSON.stringify(newOrder))
+  writeJSON('golden-gai-tag-order', newOrder)
 }
 
 // Building partitions (persisted to server; localStorage as initial cache)
-const partitions = ref(JSON.parse(localStorage.getItem('golden-gai-partitions') || '{}'))
+const partitions = ref(readJSON('golden-gai-partitions', {}, isPlainObject))
 const selectedBuilding = ref(null)
 
 async function loadPartitionsFromServer() {
@@ -150,7 +150,7 @@ async function loadPartitionsFromServer() {
     const serverPartitions = await fetchPartitions()
     // Merge: server wins over localStorage for any building that exists on server
     partitions.value = { ...partitions.value, ...serverPartitions }
-    localStorage.setItem('golden-gai-partitions', JSON.stringify(partitions.value))
+    writeJSON('golden-gai-partitions', partitions.value)
   } catch (err) {
     // Server unavailable — keep using localStorage cache
     console.warn('Could not load partitions from server, using local cache:', err.message)
@@ -161,7 +161,7 @@ async function handleUpdatePartitions({ buildingId, data }) {
   const updated = { ...partitions.value }
   updated[buildingId] = data
   partitions.value = updated
-  localStorage.setItem('golden-gai-partitions', JSON.stringify(updated))
+  writeJSON('golden-gai-partitions', updated)
   // Persist to server (non-blocking — don't await so UI stays snappy)
   savePartition(buildingId, data).catch(err => {
     console.error('Failed to save partition to server:', err)
@@ -204,7 +204,7 @@ watch(bars, (newBars) => {
 
   if (updated) {
     partitions.value = newPartitions
-    localStorage.setItem('golden-gai-partitions', JSON.stringify(newPartitions))
+    writeJSON('golden-gai-partitions', newPartitions)
   }
 }, { immediate: true })
 
@@ -270,10 +270,10 @@ const hoveredBarId = ref(null)
 const hoveredBuildingId = ref(null)
 
 // Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
-const labelMode = ref(localStorage.getItem('golden-gai-label-mode') || 'yoko')
+const labelMode = ref(readString('golden-gai-label-mode', 'yoko'))
 function setLabelMode(mode) {
   labelMode.value = mode
-  localStorage.setItem('golden-gai-label-mode', mode)
+  writeString('golden-gai-label-mode', mode)
 }
 
 const mobileMapFiltersOpen = ref(false)
