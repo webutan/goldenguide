@@ -33,3 +33,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Claude Code agent worktrees (temporary)
+.claude/worktrees/
