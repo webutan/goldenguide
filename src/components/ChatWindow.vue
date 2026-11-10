@@ -1,6 +1,6 @@
 <script setup>
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
-import { useChat } from '../composables/useChat.js'
+import { useChat, isNearBottom } from '../composables/useChat.js'
 import { useI18n } from '../composables/useI18n.js'
 import { readString } from '../utils/storage.js'
 import WinButton from './win2000/WinButton.vue'
@@ -82,20 +82,42 @@ function onKeydown(e) {
   }
 }
 
-// Auto-scroll to bottom on new messages
-watch(messages, async () => {
-  await nextTick()
-  if (messagesEl.value) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+// New messages: follow the conversation only if the reader is already at the
+// bottom. Someone reading history keeps their place and gets a button instead.
+const hasNewMessages = ref(false)
+
+function scrollToBottom() {
+  const el = messagesEl.value
+  if (el) el.scrollTop = el.scrollHeight
+  hasNewMessages.value = false
+}
+
+function onMessagesScroll() {
+  if (hasNewMessages.value && isNearBottom(messagesEl.value)) hasNewMessages.value = false
+}
+
+// Watch the newest message's id rather than deep-watching up to 500 objects.
+// (The id also changes when the list is capped and its length stays the same.)
+// Runs before the DOM update, so the position measured is the reader's own.
+watch(
+  () => {
+    const list = messages.value
+    return list.length ? list[list.length - 1].id : null
+  },
+  async () => {
+    const list = messages.value
+    const last = list[list.length - 1]
+    const follow = isNearBottom(messagesEl.value) || (last && isOwn(last))
+    await nextTick()
+    if (follow) scrollToBottom()
+    else if (last) hasNewMessages.value = true
   }
-}, { deep: true })
+)
 
 // Scroll on mount too
 onMounted(async () => {
   await nextTick()
-  if (messagesEl.value) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-  }
+  scrollToBottom()
 })
 
 // Hash-based nickname color (8 distinct hues)
@@ -173,7 +195,8 @@ function formatTime(ts) {
     </div>
 
     <!-- Messages area -->
-    <div ref="messagesEl" class="chat-messages">
+    <div class="chat-messages-wrap">
+    <div ref="messagesEl" class="chat-messages" @scroll.passive="onMessagesScroll">
       <div
         v-for="msg in messages"
         :key="msg.id"
@@ -192,6 +215,10 @@ function formatTime(ts) {
       <div v-if="messages.length === 0" class="chat-empty">
         {{ t('chatEmpty') }}
       </div>
+    </div>
+    <WinButton v-if="hasNewMessages" class="chat-new-btn" @click="scrollToBottom">
+      {{ t('chatNewMessages') }}
+    </WinButton>
     </div>
 
     <!-- Input area -->
@@ -291,6 +318,15 @@ function formatTime(ts) {
   font-size: 12px;
   position: relative;
   overflow: hidden;
+}
+
+/* In a desktop WinWindow the body is auto-height, so `height: 100%` above
+   resolved to "as tall as all the messages": the whole chat (header, input)
+   scrolled inside the window and the message pane never scrolled itself.
+   Give the window body a definite height so the pane is the scroller. */
+:global(.win-window-body-inner:has(> .chat-window)) {
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* Nickname prompt overlay */
@@ -429,6 +465,32 @@ function formatTime(ts) {
 }
 
 /* Messages area */
+.chat-messages-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* "New messages" jump button, floating over the bottom of the pane */
+.chat-new-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 5;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .chat-new-btn {
+    min-height: 40px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;

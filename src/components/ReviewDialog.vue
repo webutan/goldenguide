@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import WinButton from './win2000/WinButton.vue'
 import { useReviews } from '../composables/useReviews.js'
-import { useChat } from '../composables/useChat.js'
+import { useNickname } from '../composables/useChat.js'
+import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 
 const props = defineProps({
@@ -13,7 +14,9 @@ const emit = defineEmits(['done'])
 
 const { t } = useI18n(computed(() => props.lang))
 const { submitReview } = useReviews()
-const { nickname } = useChat()
+// Socket-free: reading the nickname must not open the chat connection
+const { nickname } = useNickname()
+const dialog = useDialog()
 
 const phase = ref('ask')   // 'ask' | 'write'
 const reviewText = ref('')
@@ -32,14 +35,22 @@ const charCount = computed(() => reviewText.value.length)
 const canSubmit = computed(() => reviewText.value.trim().length > 0 || canvasTouched.value)
 
 // Overlay click: ask before throwing away unsaved text or drawing
-const confirmingClose = ref(false)
+let confirmingClose = false
 const hasUnsavedWork = computed(() =>
   phase.value === 'write' && (reviewText.value.trim().length > 0 || canvasTouched.value)
 )
-function handleOverlayClick() {
-  if (submitting.value) return
-  if (hasUnsavedWork.value) confirmingClose.value = true
-  else emit('done')
+async function handleOverlayClick() {
+  if (submitting.value || confirmingClose) return
+  if (!hasUnsavedWork.value) { emit('done'); return }
+  confirmingClose = true
+  const discard = await dialog.confirm(t('reviewDiscardText'), {
+    title: t('reviewDiscardTitle'),
+    icon: 'warning',
+    okLabel: t('reviewDiscard'),
+    cancelLabel: t('reviewKeepEditing'),
+  })
+  confirmingClose = false
+  if (discard) emit('done')
 }
 
 const displayName = computed(() => {
@@ -53,13 +64,16 @@ function getCtx() {
   return ctx
 }
 
-onMounted(() => {
-  if (canvasRef.value) {
-    const ctx = getCtx()
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, 280, 140)
-  }
-})
+function fillCanvasBlack() {
+  const ctx = getCtx()
+  if (!ctx) return
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, 280, 140)
+}
+
+// The canvas only exists in the 'write' phase, so paint its black background
+// when it is mounted (not in onMounted, where it is still absent).
+watch(canvasRef, (el) => { if (el) fillCanvasBlack() }, { flush: 'post' })
 
 function getPos(e) {
   const canvas = canvasRef.value
@@ -101,10 +115,7 @@ function endDraw() {
 }
 
 function clearCanvas() {
-  const ctx = getCtx()
-  if (!ctx) return
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, 280, 140)
+  fillCanvasBlack()
   canvasTouched.value = false
 }
 
@@ -213,23 +224,6 @@ async function handleSubmit() {
         </div>
       </div>
 
-      <!-- Discard confirmation (overlay click with unsaved work) -->
-      <div v-if="confirmingClose" class="confirm-layer" @click.self="confirmingClose = false">
-        <div class="win-dialog confirm-dialog" role="alertdialog" aria-modal="true">
-          <div class="win-dialog-titlebar">
-            <span class="win-dialog-title">{{ t('reviewDiscardTitle') }}</span>
-            <button class="win-ctrl-btn" :title="t('close')" @click="confirmingClose = false"><span class="win-ctrl-icon">&#10005;</span></button>
-          </div>
-          <div class="win-dialog-body confirm-body">
-            <img src="/icons/msg_error-1.png" class="submit-error-icon" alt="" />
-            <span>{{ t('reviewDiscardText') }}</span>
-          </div>
-          <div class="confirm-actions">
-            <WinButton @click="emit('done')">{{ t('reviewDiscard') }}</WinButton>
-            <WinButton @click="confirmingClose = false">{{ t('reviewKeepEditing') }}</WinButton>
-          </div>
-        </div>
-      </div>
     </div>
   </Teleport>
 </template>
@@ -445,32 +439,5 @@ async function handleSubmit() {
   gap: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--win-border-dark);
-}
-
-.confirm-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 301;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.confirm-dialog {
-  width: 300px;
-}
-
-.confirm-body {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-}
-
-.confirm-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 10px 10px;
 }
 </style>

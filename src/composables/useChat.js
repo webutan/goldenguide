@@ -24,6 +24,36 @@ const nickname = ref(readString(NICKNAME_KEY) || generateGuestName())
 const checkinList = ref([])
 const myCheckinBarId = ref(null)
 
+function setNickname(nick) {
+  const clean = String(nick ?? '').trim().slice(0, 30) || generateGuestName()
+  nickname.value = clean
+  writeString(NICKNAME_KEY, clean)
+}
+
+/**
+ * The chat nickname without the chat: does not open a socket or load
+ * socket.io-client. Use this anywhere that only needs the name (reviews).
+ */
+export function useNickname() {
+  return { nickname, setNickname }
+}
+
+/**
+ * True when a scroll container is at (or within `threshold` px of) its bottom.
+ * A missing element counts as "at the bottom" so callers default to following.
+ */
+export function isNearBottom(el, threshold = 40) {
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold
+}
+
+// Registered once while a socket exists (not once per socket) and removed in
+// disconnectSocket, so reconnecting never stacks listeners.
+let unloadRegistered = false
+function handleBeforeUnload() {
+  socket?.emit('checkin:set', { barId: null, barName: null, nickname: nickname.value })
+}
+
 function ensureSocket() {
   if (socket || connecting) return
   const gen = generation
@@ -69,14 +99,19 @@ function openSocket(io) {
     checkinList.value = list
   })
 
-  window.addEventListener('beforeunload', () => {
-    socket?.emit('checkin:set', { barId: null, barName: null, nickname: nickname.value })
-  })
+  if (!unloadRegistered) {
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    unloadRegistered = true
+  }
 }
 
 function disconnectSocket() {
   generation++
   connecting = null
+  if (unloadRegistered) {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+    unloadRegistered = false
+  }
   if (socket) {
     socket.disconnect()
     socket = null
@@ -95,12 +130,6 @@ export function useChat() {
       refCount = 0
     }
   })
-
-  function setNickname(nick) {
-    const clean = nick.trim().slice(0, 30) || generateGuestName()
-    nickname.value = clean
-    writeString(NICKNAME_KEY, clean)
-  }
 
   function sendMessage(text) {
     const msg = text.trim().slice(0, 500)
