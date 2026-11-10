@@ -8,13 +8,13 @@ defineProps({
   showClose: { type: Boolean, default: true },
 })
 
-defineEmits(['minimize', 'maximize', 'close', 'mousedown'])
+defineEmits(['minimize', 'maximize', 'close', 'pointerdown'])
 </script>
 
 <template>
   <div
     :class="['win-titlebar', { active }]"
-    @mousedown="$emit('mousedown', $event)"
+    @pointerdown="$emit('pointerdown', $event)"
   >
     <span v-if="icon" class="win-titlebar-icon" v-html="icon"></span>
     <span class="win-titlebar-text">{{ title }}</span>
@@ -44,6 +44,9 @@ defineEmits(['minimize', 'maximize', 'close', 'mousedown'])
   font-size: 11px;
   font-weight: bold;
   user-select: none;
+  -webkit-user-select: none;
+  /* Dragged with pointer events: keep touch from scrolling/zooming the page instead */
+  touch-action: none;
   cursor: default;
   flex-shrink: 0;
 }

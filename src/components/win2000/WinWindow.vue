@@ -1,8 +1,8 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import WinTitleBar from './WinTitleBar.vue'
 import WinScrollContainer from './WinScrollContainer.vue'
-import { useDraggable } from '../../composables/useDraggable.js'
+import { useDraggable, clampWindowPosition } from '../../composables/useDraggable.js'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -22,9 +22,51 @@ const props = defineProps({
 
 const emit = defineEmits(['minimize', 'maximize', 'close', 'focus'])
 
-const { x, y, startDrag, setPosition } = useDraggable(props.initialX, props.initialY)
+const rootRef = ref(null)
+
+// Windows are positioned inside their offset parent (the desktop area, which
+// ends where the taskbar starts), in that element's own CSS pixels.
+function measure() {
+  const el = rootRef.value
+  const container = el?.offsetParent // null while minimised (display: none)
+  if (!el || !container) return null
+  const bar = el.querySelector('.win-titlebar')
+  const controls = el.querySelector('.win-titlebar-controls')
+  return {
+    width: el.offsetWidth,
+    titleBarHeight: bar ? bar.offsetTop + bar.offsetHeight : 0,
+    grabInsetRight: controls ? el.offsetWidth - controls.offsetLeft : 0,
+    containerWidth: container.clientWidth,
+    containerHeight: container.clientHeight,
+  }
+}
+
+function clamp(px, py) {
+  const m = measure()
+  return m ? clampWindowPosition({ x: px, y: py, ...m }) : { x: px, y: py }
+}
+
+// #app is rendered with CSS `zoom` on desktop: pointer coordinates are in
+// viewport px, window positions in zoomed px.
+function getScale() {
+  const el = rootRef.value
+  if (!el) return 1
+  if (typeof el.currentCSSZoom === 'number') return el.currentCSSZoom
+  return el.offsetWidth ? el.getBoundingClientRect().width / el.offsetWidth : 1
+}
+
+const { x, y, startDrag, setPosition, reclamp } = useDraggable(props.initialX, props.initialY, { clamp, getScale })
 
 defineExpose({ setPosition })
+
+// Pull the window back into view when the viewport shrinks, and when it is
+// shown again after the viewport changed while it was minimised.
+onMounted(() => {
+  window.addEventListener('resize', reclamp)
+  nextTick(reclamp)
+})
+onUnmounted(() => window.removeEventListener('resize', reclamp))
+watch(() => props.minimized, (min) => { if (!min) nextTick(reclamp) })
 
 const style = computed(() => ({
   left: `${x.value}px`,
@@ -35,17 +77,14 @@ const style = computed(() => ({
   display: props.minimized ? 'none' : 'flex',
 }))
 
-function onTitleMouseDown(e) {
-  emit('focus')
-  startDrag(e)
-}
 </script>
 
 <template>
   <div
+    ref="rootRef"
     class="win-window"
     :style="style"
-    @mousedown="emit('focus')"
+    @pointerdown="emit('focus')"
   >
     <WinTitleBar
       :title="title"
@@ -54,7 +93,7 @@ function onTitleMouseDown(e) {
       :show-minimize="showMinimize"
       :show-maximize="showMaximize"
       :show-close="showClose"
-      @mousedown="onTitleMouseDown"
+      @pointerdown="startDrag"
       @minimize="emit('minimize')"
       @maximize="emit('maximize')"
       @close="emit('close')"

@@ -6,6 +6,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import WinTitleBar from './WinTitleBar.vue'
 import WinButton from './WinButton.vue'
 import { useDialogHost } from '../../composables/useDialog.js'
+import { useDraggable } from '../../composables/useDraggable.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -26,8 +27,6 @@ const inputRef = ref(null)
 const buttonRefs = ref([])
 const focusedButton = ref(-1)
 const flashing = ref(false)
-const dragX = ref(0)
-const dragY = ref(0)
 
 const d = current
 const iconSrc = computed(() => (d.value ? ICONS[d.value.icon] || '' : ''))
@@ -122,8 +121,8 @@ watch(() => d.value?.id, async (id, oldId) => {
     returnFocusTo = document.activeElement
   }
   focusedButton.value = -1
-  dragX.value = 0
-  dragY.value = 0
+  stopDrag()
+  setPosition(0, 0)
   if (id) {
     await nextTick()
     focusInitial()
@@ -133,31 +132,22 @@ watch(() => d.value?.id, async (id, oldId) => {
   }
 }, { flush: 'post' })
 
-// --- Drag by title bar (desktop) ---
-let dragStart = null
-function startDrag(e) {
-  if (e.button !== 0 || e.target.closest('button')) return
-  dragStart = { mx: e.clientX, my: e.clientY, x: dragX.value, y: dragY.value }
-  window.addEventListener('mousemove', onDrag)
-  window.addEventListener('mouseup', endDrag)
-}
-function onDrag(e) {
-  if (!dragStart) return
-  const maxX = window.innerWidth / 2
-  const maxY = window.innerHeight / 2
-  dragX.value = Math.max(-maxX, Math.min(maxX, dragStart.x + e.clientX - dragStart.mx))
-  dragY.value = Math.max(-maxY + 20, Math.min(maxY - 20, dragStart.y + e.clientY - dragStart.my))
-}
-function endDrag() {
-  dragStart = null
-  window.removeEventListener('mousemove', onDrag)
-  window.removeEventListener('mouseup', endDrag)
-}
+// --- Drag by title bar (mouse, touch, pen) ---
+// The position is an offset from the centred spot; keep the title bar on screen.
+const { x: dragX, y: dragY, startDrag, stopDrag, setPosition } = useDraggable(0, 0, {
+  clamp(px, py) {
+    const maxX = window.innerWidth / 2
+    const maxY = window.innerHeight / 2
+    return {
+      x: Math.max(-maxX, Math.min(maxX, px)),
+      y: Math.max(-maxY + 20, Math.min(maxY - 20, py)),
+    }
+  },
+})
 
 onMounted(() => document.addEventListener('focusin', onDocumentFocusIn))
 onUnmounted(() => {
   document.removeEventListener('focusin', onDocumentFocusIn)
-  endDrag()
   if (flashTimer) clearInterval(flashTimer)
 })
 </script>
@@ -187,7 +177,7 @@ onUnmounted(() => {
           :active="!flashing"
           :show-minimize="false"
           :show-maximize="false"
-          @mousedown="startDrag"
+          @pointerdown="startDrag"
           @close="cancel"
         />
 
