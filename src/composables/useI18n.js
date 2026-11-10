@@ -10,6 +10,7 @@ const translations = {
   'priceRange': { en: 'Price Range', jp: '価格帯' },
   'cover': { en: 'Cover', jp: 'チャージ' },
   'drinks': { en: 'Drinks', jp: 'ドリンク' },
+  'priceUnconfirmed': { en: 'Price unconfirmed', jp: '料金未確認' },
   'tags': { en: 'Tags', jp: 'タグ' },
 
   // BarPopup

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
+import { barPasses, hasActiveFilters as hasAnyFilter, parsePrice } from '../utils/barFilters.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
@@ -17,6 +18,7 @@ const props = defineProps({
   drinkMin: { type: Number, default: null },
   drinkMax: { type: Number, default: null },
   floorFilter: { type: Number, default: null },
+  tagMode: { type: String, default: 'or' }, // 'or' | 'and'
   openNowFilter: { type: Boolean, default: false },
   openBarIds: { type: Set, default: () => new Set() },
   tags: { type: Array, default: () => [] },
@@ -48,31 +50,30 @@ function floorColor(floor) {
   return FLOOR_COLORS[floor] ?? '#934400'
 }
 
-const hasActiveFilters = computed(() =>
-  (props.activeTags && props.activeTags.length > 0) ||
-  props.chargeMin != null || props.chargeMax != null ||
-  props.drinkMin != null || props.drinkMax != null ||
-  props.floorFilter != null || props.openNowFilter ||
-  props.favoritesFilter || props.visitedFilter
-)
+const drawerFilters = computed(() => ({
+  tags: props.activeTags || [],
+  tagMode: props.tagMode,
+  chargeMin: props.chargeMin,
+  chargeMax: props.chargeMax,
+  drinkMin: props.drinkMin,
+  drinkMax: props.drinkMax,
+  floor: props.floorFilter,
+  openNow: props.openNowFilter,
+  favorites: props.favoritesFilter,
+  visited: props.visitedFilter,
+}))
 
-function barPassesFilters(bar) {
-  if (props.floorFilter != null && (bar.floor ?? 1) !== props.floorFilter) return false
-  if (props.activeTags && props.activeTags.length > 0) {
-    const tagIds = (bar.tags || []).map(t => typeof t === 'string' ? t : t.id)
-    if (!props.activeTags.some(at => tagIds.includes(at))) return false
-  }
-  const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
-  const drinkPrice = bar.drink_price != null && bar.drink_price !== '' ? Number(bar.drink_price) : null
-  if (props.chargeMin != null && charge != null && !isNaN(charge) && charge < props.chargeMin) return false
-  if (props.chargeMax != null && charge != null && !isNaN(charge) && charge > props.chargeMax) return false
-  if (props.drinkMin != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice < props.drinkMin) return false
-  if (props.drinkMax != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice > props.drinkMax) return false
-  if (props.openNowFilter && !props.openBarIds.has(String(bar.id))) return false
-  if (props.favoritesFilter && !isFavorited(bar.id)) return false
-  if (props.visitedFilter && !isVisited(bar.id)) return false
-  return true
-}
+const hasActiveFilters = computed(() => hasAnyFilter(drawerFilters.value))
+
+const barPassesFilters = (bar) =>
+  barPasses(bar, drawerFilters.value, { openBarIds: props.openBarIds, isFavorited, isVisited })
+
+// "?" marker: a price filter is active but this bar's price is unconfirmed
+// (unknown prices pass price filters).
+const chargeUnknown = (bar) =>
+  (props.chargeMin != null || props.chargeMax != null) && parsePrice(bar.charge) == null
+const drinkUnknown = (bar) =>
+  (props.drinkMin != null || props.drinkMax != null) && parsePrice(bar.drink_price) == null
 
 const visibleBars = computed(() => {
   if (!hasActiveFilters.value) return props.bars
@@ -270,7 +271,11 @@ function getOpenStatus(bar) {
             <div class="drawer-bar-info">
               <div v-if="bar.charge" class="info-row">
                 <span class="info-label">{{ t('cover') }}</span>
-                <span>&yen;{{ bar.charge }}</span>
+                <span>&yen;{{ bar.charge }}<span v-if="chargeUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
+              </div>
+              <div v-else-if="chargeUnknown(bar)" class="info-row">
+                <span class="info-label">{{ t('cover') }}</span>
+                <span class="price-unknown" :title="t('priceUnconfirmed')">&yen;?</span>
               </div>
               <div v-if="bar.male_charge" class="info-row">
                 <span class="info-label">{{ t('maleCharge') }}</span>
@@ -278,7 +283,11 @@ function getOpenStatus(bar) {
               </div>
               <div v-if="bar.drink_price" class="info-row">
                 <span class="info-label">{{ t('drinks') }}</span>
-                <span>&yen;{{ bar.drink_price }}~</span>
+                <span>&yen;{{ bar.drink_price }}~<span v-if="drinkUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')">?</span></span>
+              </div>
+              <div v-else-if="drinkUnknown(bar)" class="info-row">
+                <span class="info-label">{{ t('drinks') }}</span>
+                <span class="price-unknown" :title="t('priceUnconfirmed')">&yen;?</span>
               </div>
               <div v-if="bar.seats" class="info-row">
                 <span class="info-label">{{ t('seats') }}</span>
@@ -568,6 +577,12 @@ function getOpenStatus(bar) {
   color: var(--win-text-disabled);
   min-width: 70px;
   flex-shrink: 0;
+}
+
+.price-unknown {
+  color: var(--win-text-disabled);
+  margin-left: 2px;
+  cursor: help;
 }
 
 .info-sns-link {
