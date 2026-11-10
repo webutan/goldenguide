@@ -270,3 +270,17 @@ npm run build              # verify no compile errors
 3. `src/components/GoldenGaiMap.vue` — map with panzoom, labels, touch rotation
 4. `src/components/AdminPanel.vue` — admin building/label controls
 5. `UI_STYLE_GUIDE.md` — visual design system, CSS variables, animations
+
+---
+
+## 14. Testing
+
+Unit tests use Vitest and live in `tests/` (`*.test.js`).
+
+```bash
+npm test                   # run all tests once (vitest run)
+```
+
+- Config is `vitest.config.js`; it extends `vite.config.js`, so the Vue plugin is shared.
+- Default environment is `node`: prefer testing pure logic (composables, utils).
+- Tests are never imported by the app, so they don't end up in `dist/`.
