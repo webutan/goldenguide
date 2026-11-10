@@ -1485,6 +1485,16 @@ function setLabelOffset(axis, val) {
   white-space: nowrap;
 }
 
+/* Touch: 40px tall (the active tab stays 2px taller, as in WinTabs) */
+@media (max-width: 768px) {
+  .admin-main-tabs > :deep(.win-tabs-header > .win-tab) {
+    min-height: 40px;
+  }
+  .admin-main-tabs > :deep(.win-tabs-header > .win-tab.active) {
+    min-height: 42px;
+  }
+}
+
 /* Sub tabs */
 .sub-tabs {
   display: flex;

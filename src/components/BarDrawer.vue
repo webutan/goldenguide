@@ -805,9 +805,12 @@ function getOpenStatus(bar) {
 }
 
 @media (max-width: 768px) {
-  /* Beats WinButton's own .small sizing */
-  .drawer-bar-actions .share-btn.small {
+  /* Beats WinButton's own .small sizing. Every action button, not only the
+     share button: a wrapped row without it was 23px tall. */
+  .drawer-bar-actions .win-btn.small {
     min-height: 40px;
+  }
+  .drawer-bar-actions .share-btn.small {
     padding: 2px 10px;
   }
   .suggest-link {

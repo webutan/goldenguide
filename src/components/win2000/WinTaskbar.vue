@@ -84,7 +84,16 @@ function onClockPointerDown(e) {
   lastPointerType = e.pointerType
 }
 function onClockClick() {
-  if (lastPointerType !== 'mouse') clockPinned.value = !clockPinned.value
+  if (lastPointerType === 'mouse') return
+  // Phone width while offline: the icon sits above the clock and the two
+  // together are one tap target, which opens the offline balloon (it also
+  // carries the clock's text there).
+  if (props.offline && window.innerWidth <= 768) {
+    clockHover.value = false // set by the tap's focus; the balloon replaces the tip
+    toggleNetBalloon()
+  } else {
+    clockPinned.value = !clockPinned.value
+  }
 }
 function onDocPointerDown(e) {
   if (clockPinned.value && clockRef.value && !clockRef.value.contains(e.target)) {
@@ -288,6 +297,7 @@ onUnmounted(() => {
             {{ t('offlineTitle') }}
           </span>
           <span>{{ savedDataText }}</span>
+          <span class="tray-net-balloon-clock">{{ clockTip }}</span>
         </div>
       </Teleport>
     </div>
@@ -669,6 +679,11 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
+/* Phone width only: there the clock's own tip is not reachable while offline */
+.tray-net-balloon-clock {
+  display: none;
+}
+
 .tray-net-balloon-title img {
   width: 16px;
   height: 16px;
@@ -739,10 +754,11 @@ onUnmounted(() => {
     min-width: 44px;
   }
 
-  /* Tray: only the clock on mobile, tall enough to tap */
+  /* Tray: only the clock on mobile, a 42px square to tap (the padding is on
+     the clock so the whole tray is its target) */
   .taskbar-tray {
     height: 42px;
-    padding: 0 4px;
+    padding: 0;
   }
   .tray-admin,
   .tray-visited {
@@ -751,8 +767,12 @@ onUnmounted(() => {
   .tray-clock {
     align-self: stretch;
     align-items: center;
+    justify-content: center;
+    padding: 0 4px;
   }
-  /* No room beside the clock at phone width: the icon sits above it */
+  /* No room beside the clock at phone width: the icon sits above it. Each
+     half alone would be a ~20px target, so both open the offline balloon
+     (see onClockClick) and together they are one 42px target. */
   .taskbar-tray.is-offline {
     flex-direction: column;
     justify-content: center;
@@ -763,11 +783,14 @@ onUnmounted(() => {
     flex: 1;
   }
   .taskbar-tray.is-offline .tray-clock {
-    align-self: center;
+    align-self: stretch;
     padding-bottom: 3px;
   }
   .tray-net-balloon {
     font-size: 12px;
+  }
+  .tray-net-balloon-clock {
+    display: block;
   }
 }
 </style>
