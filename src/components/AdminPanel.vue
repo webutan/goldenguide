@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import WinTabs from './win2000/WinTabs.vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
@@ -7,6 +7,8 @@ import TagIcon from './TagIcon.vue'
 import AdminReviews from './AdminReviews.vue'
 import AdminInbox from './AdminInbox.vue'
 import { useSuggestionInbox } from '../composables/useSuggestEdit.js'
+const StickerSheet = defineAsyncComponent(() => import('./admin/StickerSheet.vue')) // G05, with the QR encoder
+const showStickers = ref(false)
 import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
@@ -731,9 +733,12 @@ function setLabelOffset(axis, val) {
     <template v-else>
       <div class="admin-db-row">
         <WinButton style="width:100%" @click="emit('open-db')">&#128196; Database</WinButton>
+        <WinButton style="width:100%" :pressed="showStickers" data-action="stickers" @click="showStickers = !showStickers">&#128424; {{ t('adminStickers') }}</WinButton>
       </div>
 
-      <WinTabs v-model="mainTab" :tabs="mainTabOptions" class="admin-main-tabs">
+      <!-- Door stickers (G05): takes the place of the tabs while open -->
+      <StickerSheet v-if="showStickers" :bars="bars" :lang="lang" @close="showStickers = false" />
+      <WinTabs v-show="!showStickers" v-model="mainTab" :tabs="mainTabOptions" class="admin-main-tabs">
 
         <!-- Placement tab -->
         <template v-if="mainTab === 'placement'">

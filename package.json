@@ -17,6 +17,7 @@
     "open-location-code": "^1.0.3",
     "panzoom": "^9.4.3",
     "pg": "^8.18.0",
+    "qrcode": "^1.5.4",
     "socket.io-client": "^4.8.3",
     "three": "^0.170.0",
     "vue": "^3.5.13"

@@ -1,0 +1,82 @@
+/* Print stylesheet for the door stickers (G05). Loaded with the admin sticker
+   tab. While a print job is mounted, <html> carries .sticker-printing and the
+   only thing on paper is the sheet: the whole app is hidden.
+
+   The page size (@page) is set by StickerSheet.vue for the job at hand:
+   A4 portrait, or 90 x 55 mm for a single card. */
+
+.sticker-print-root {
+  display: none;
+}
+
+@media print {
+  html.sticker-printing,
+  html.sticker-printing body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  html.sticker-printing body > *:not(.sticker-print-root) {
+    display: none !important;
+  }
+
+  html.sticker-printing .sticker-print-root {
+    display: block;
+  }
+}
+
+/* A4 portrait, 2 x 4 cards of 90 x 55 mm.
+   Across: 10 + 90 + 10 + 90 + 10 = 210 mm. Down: 26 + 4 x 55 + 3 x 8 + 26 = 296 mm,
+   one millimetre short of the sheet so rounding never spills onto a blank page. */
+.sticker-page {
+  box-sizing: border-box;
+  width: 210mm;
+  height: 296mm;
+  padding: 26mm 10mm 0;
+  display: grid;
+  grid-template-columns: 90mm 90mm;
+  grid-auto-rows: 55mm;
+  column-gap: 10mm;
+  row-gap: 8mm;
+  align-content: start;
+  overflow: hidden;
+  background: #fff;
+  break-after: page;
+  break-inside: avoid;
+}
+
+.sticker-page:last-child {
+  break-after: auto;
+}
+
+.sticker-cell {
+  position: relative;
+  width: 90mm;
+  height: 55mm;
+}
+
+/* Crop marks: hairlines outside each corner, 1 mm clear of the cut */
+.sticker-crop {
+  position: absolute;
+  left: -5mm;
+  top: -4mm;
+  width: 100mm;
+  height: 63mm;
+  overflow: visible;
+  pointer-events: none;
+  stroke: #000;
+  stroke-width: 0.15;
+}
+
+/* Single card: the page is the card */
+.sticker-print-root.layout-card .sticker-page {
+  width: 90mm;
+  height: 54.8mm;
+  padding: 0;
+  display: block;
+}
+
+.sticker-print-root.layout-card .sticker-crop {
+  display: none;
+}

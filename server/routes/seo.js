@@ -4,6 +4,9 @@
 //                            description, Open Graph / Twitter tags, canonical,
 //                            hreflang and JSON-LD in <head>. Crawlers and link
 //                            preview bots do not run JS; people get the normal app.
+//                            `?ref=sticker` (a door sticker's QR code, G05) is
+//                            counted per bar per day and changes nothing else:
+//                            the canonical and og:url never carry it.
 //   /, /map, /directory      the same shell with the site's default tags, made
 //                            absolute (og:image and og:url must be absolute URLs)
 //   /sitemap.xml, /robots.txt
@@ -19,6 +22,7 @@ import pool from '../db.js'
 import { isAdminRequest } from '../middleware/admin.js'
 import { seoLimiter } from '../middleware/rateLimits.js'
 import { UPLOADS_DIR, isInsideUploads } from './photos.js'
+import { countedRef, recordRefHit } from '../lib/refHits.js'
 import {
   renderPage, resolveOrigin, seoLang, photoPath, buildSitemapXml, buildRobotsTxt, createTemplateCache,
 } from '../lib/seo.js'
@@ -112,6 +116,13 @@ router.get(/^\/bar\/.*$/, seoLimiter, async (req, res) => {
     const bar = rows[0]
     if (!bar || (!bar.is_active && !isAdminRequest(req))) {
       return await sendPage(req, res, 404, { kind: 'notFound' })
+    }
+    // Arrivals from a door sticker. Not awaited and never allowed to fail the
+    // page. When the API is down nginx serves the static shell and the visit
+    // simply is not counted.
+    const ref = bar.is_active ? countedRef(req) : null
+    if (ref) {
+      recordRefHit(pool, ref, bar.id).catch((err) => console.warn(`[seo] could not count ref=${ref}: ${err.message}`))
     }
     await sendPage(req, res, 200, {
       kind: 'bar',
