@@ -78,7 +78,7 @@ function handleOpenBarFromTour(barId) {
   // Switch to directory and show bar popup
   activeView.value = 'directory'
   popupBuildingBars.value = [bar]
-  popupBuildingId.value = bar.building_id || 'Directory'
+  popupBuildingId.value = bar.building_id || t('directory')
 }
 
 // Which bubble Gai-chan should show: null | 'lang' | 'first-time'
@@ -237,14 +237,29 @@ function handleSearchMatches(matches) {
 
 // Register windows
 onMounted(() => {
-  wm.register('search', t('search'), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
-  wm.register('explorer', 'Explorer', '&#128193;')
+  wm.register('search', t(WINDOW_TITLE_KEYS.search), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
+  wm.register('explorer', t(WINDOW_TITLE_KEYS.explorer), '&#128193;')
   loadPartitionsFromServer()
 })
 
-// Keep search window title in sync with language
+// i18n keys for window titles registered with wm.register
+const WINDOW_TITLE_KEYS = {
+  search: 'search',
+  explorer: 'explorer',
+  admin: 'adminConsole',
+  database: 'database',
+  feed: 'iconFeed',
+  chatroom: 'iconChatroom',
+  about: 'iconAbout',
+  reviews: 'iconReviews',
+}
+
+// Keep registered window titles in sync with language
 watch(effectiveLang, () => {
-  if (searchWin.value) searchWin.value.title = t('search')
+  for (const [id, key] of Object.entries(WINDOW_TITLE_KEYS)) {
+    const win = wm.getWindow(id)
+    if (win) win.title = t(key)
+  }
 })
 
 const searchWin = computed(() => wm.getWindow('search'))
@@ -322,7 +337,7 @@ const tagMap = computed(() => {
 async function handleToggleAdmin() {
   await toggleAdmin()
   if (isAdmin.value) {
-    wm.register('admin', 'Admin Console', '&#128295;')
+    wm.register('admin', t(WINDOW_TITLE_KEYS.admin), '&#128295;')
     wm.minimize('explorer')
   } else {
     wm.unregister('admin')
@@ -334,7 +349,7 @@ async function handleToggleAdmin() {
 
 function handleOpenDb() {
   if (!dbWin.value) {
-    wm.register('database', 'Database', '&#128196;')
+    wm.register('database', t(WINDOW_TITLE_KEYS.database), '&#128196;')
   }
   wm.restore('database')
   wm.focus('database')
@@ -354,7 +369,6 @@ function handleOpenApp(app) {
     showContact.value = true
   } else {
     // Placeholder windows for feed, chatroom, about, reviews
-    const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About', reviews: 'Reviews' }
     const icons = {
       feed: '<img src="/icons/twitterblue.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
       chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
@@ -362,7 +376,7 @@ function handleOpenApp(app) {
       reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
     }
     if (!wm.getWindow(app)) {
-      wm.register(app, titles[app] || app, icons[app] || '')
+      wm.register(app, WINDOW_TITLE_KEYS[app] ? t(WINDOW_TITLE_KEYS[app]) : app, icons[app] || '')
     }
     wm.restore(app)
     wm.focus(app)
@@ -392,7 +406,7 @@ function closeDrawer() {
 function handleSelectBarFromDirectory(bar) {
   // Show single bar in popup (wrap in array)
   popupBuildingBars.value = [bar]
-  popupBuildingId.value = bar.building_id || 'Directory'
+  popupBuildingId.value = bar.building_id || t('directory')
 }
 
 function closePopup() {
@@ -425,7 +439,7 @@ async function handleSearchSelect({ bar, buildingId }) {
   } else {
     // Bar has no building — just open popup with the single bar
     popupBuildingBars.value = [bar]
-    popupBuildingId.value = bar.street || 'Unplaced'
+    popupBuildingId.value = bar.street || t('unplaced')
   }
 }
 
@@ -452,8 +466,8 @@ async function handleUnplaceBar(bar) {
 <template>
   <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" :fast="biosFastBoot" @done="handleBiosDone" />
 
-  <div v-if="loading" class="loading-screen">Loading...</div>
-  <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
+  <div v-if="loading" class="loading-screen">{{ t('loading') }}</div>
+  <div v-else-if="error" class="loading-screen">{{ t('errorPrefix') }} {{ error }}</div>
 
   <template v-else>
     <!-- Gai-chan character helper — only while questions are still pending -->
@@ -582,7 +596,7 @@ async function handleUnplaceBar(bar) {
               class="mobile-map-clear-btn"
               @click="clearMapFilters"
             >
-              &#10005; Clear
+              &#10005; {{ t('clear') }}
             </button>
           </div>
           <div v-if="mobileMapFiltersOpen" class="mobile-map-filter-panel">
@@ -607,7 +621,7 @@ async function handleUnplaceBar(bar) {
         <!-- Search window (desktop only) -->
         <WinWindow
           v-if="searchWin && !isAdmin && !isMobile"
-          :title="t('search')"
+          :title="searchWin.title"
           icon="&#128269;"
           :width="200"
           :initial-x="8"
@@ -632,7 +646,7 @@ async function handleUnplaceBar(bar) {
           ref="explorerWinRef"
           v-if="explorerWin && !isAdmin && !isMobile"
           :class="{ 'tour-highlight': tourHighlight === 'map-filter' }"
-          title="Explorer"
+          :title="explorerWin.title"
           icon="&#128193;"
           :width="200"
           :initial-x="explorerInitialX"
@@ -647,11 +661,11 @@ async function handleUnplaceBar(bar) {
           <div class="explorer-quick-filters">
             <button :class="['quickbar-btn', { active: favoritesFilter }]" @click="favoritesFilter = !favoritesFilter">
               <img src="/icons/heart.ico" class="quickbar-icon" aria-hidden="true" />
-              Favorites
+              {{ t('favorites') }}
             </button>
             <button :class="['quickbar-btn', { active: visitedFilter }]" @click="visitedFilter = !visitedFilter">
               <img src="/icons/desktop/trust0.png" class="quickbar-icon" aria-hidden="true" />
-              Visited
+              {{ t('visited') }}
             </button>
           </div>
           <TagFilter
@@ -725,7 +739,7 @@ async function handleUnplaceBar(bar) {
       <!-- Admin window (visible in both views) -->
       <WinWindow
         v-if="adminWin && isAdmin"
-        title="Admin Console"
+        :title="adminWin.title"
         icon="&#128295;"
         :width="280"
         :height="550"
@@ -756,7 +770,7 @@ async function handleUnplaceBar(bar) {
       <!-- Database spreadsheet window -->
       <WinWindow
         v-if="dbWin && isAdmin"
-        title="Database"
+        :title="dbWin.title"
         icon="&#128196;"
         :width="dbWinWidth"
         :height="dbWinHeight"

@@ -13,12 +13,12 @@ const { t } = useI18n(computed(() => props.lang))
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('timeJustNow')
+  if (mins < 60) return t('timeMinutesAgo', { n: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t('timeHoursAgo', { n: hrs })
   const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return t('timeDaysAgo', { n: days })
 }
 
 function barName(review) {
@@ -36,7 +36,7 @@ function barName(review) {
       </div>
       <div class="review-item-nick">{{ review.nickname }}</div>
       <p v-if="review.text && review.text.trim()" class="review-item-text">{{ review.text }}</p>
-      <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" alt="drawing" />
+      <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" :alt="t('reviewDrawing')" />
     </div>
   </div>
 </template>

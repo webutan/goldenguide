@@ -31,6 +31,17 @@ const COLORS = ['#ffffff', '#ffe566', '#93c5fd']
 const charCount = computed(() => reviewText.value.length)
 const canSubmit = computed(() => reviewText.value.trim().length > 0 || canvasTouched.value)
 
+// Overlay click: ask before throwing away unsaved text or drawing
+const confirmingClose = ref(false)
+const hasUnsavedWork = computed(() =>
+  phase.value === 'write' && (reviewText.value.trim().length > 0 || canvasTouched.value)
+)
+function handleOverlayClick() {
+  if (submitting.value) return
+  if (hasUnsavedWork.value) confirmingClose.value = true
+  else emit('done')
+}
+
 const displayName = computed(() => {
   if (!props.bar) return ''
   return props.lang === 'jp' ? (props.bar.name_jp || props.bar.name_en) : (props.bar.name_en || props.bar.name_jp)
@@ -124,7 +135,7 @@ async function handleSubmit() {
 
 <template>
   <Teleport to="body">
-    <div class="review-overlay" @click.self="emit('done')">
+    <div class="review-overlay" @click.self="handleOverlayClick">
       <!-- Phase 1: Ask -->
       <div v-if="phase === 'ask'" class="win-dialog">
         <div class="win-dialog-titlebar">
@@ -157,7 +168,7 @@ async function handleSubmit() {
 
           <div class="canvas-section">
             <div class="canvas-toolbar">
-              <span class="canvas-label">Draw? (optional)</span>
+              <span class="canvas-label">{{ t('reviewDrawOptional') }}</span>
               <div class="color-swatches">
                 <button
                   v-for="c in COLORS"
@@ -170,8 +181,8 @@ async function handleSubmit() {
               <button
                 :class="['tool-btn', { active: selectedTool === 'eraser' }]"
                 @click="selectedTool = 'eraser'"
-              >Eraser</button>
-              <button class="tool-btn" @click="clearCanvas">Clear</button>
+              >{{ t('reviewEraser') }}</button>
+              <button class="tool-btn" @click="clearCanvas">{{ t('clear') }}</button>
             </div>
             <canvas
               ref="canvasRef"
@@ -197,7 +208,25 @@ async function handleSubmit() {
             <WinButton :disabled="!canSubmit || submitting" @click="handleSubmit">
               {{ submitting ? '...' : t('submitReview') }}
             </WinButton>
-            <WinButton @click="emit('done')">Skip</WinButton>
+            <WinButton @click="emit('done')">{{ t('reviewSkip') }}</WinButton>
+          </div>
+        </div>
+      </div>
+
+      <!-- Discard confirmation (overlay click with unsaved work) -->
+      <div v-if="confirmingClose" class="confirm-layer" @click.self="confirmingClose = false">
+        <div class="win-dialog confirm-dialog" role="alertdialog" aria-modal="true">
+          <div class="win-dialog-titlebar">
+            <span class="win-dialog-title">{{ t('reviewDiscardTitle') }}</span>
+            <button class="win-ctrl-btn" :title="t('close')" @click="confirmingClose = false"><span class="win-ctrl-icon">&#10005;</span></button>
+          </div>
+          <div class="win-dialog-body confirm-body">
+            <img src="/icons/msg_error-1.png" class="submit-error-icon" alt="" />
+            <span>{{ t('reviewDiscardText') }}</span>
+          </div>
+          <div class="confirm-actions">
+            <WinButton @click="emit('done')">{{ t('reviewDiscard') }}</WinButton>
+            <WinButton @click="confirmingClose = false">{{ t('reviewKeepEditing') }}</WinButton>
           </div>
         </div>
       </div>
@@ -416,5 +445,32 @@ async function handleSubmit() {
   gap: 6px;
   padding-top: 8px;
   border-top: 1px solid var(--win-border-dark);
+}
+
+.confirm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 301;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-dialog {
+  width: 300px;
+}
+
+.confirm-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px 10px;
 }
 </style>

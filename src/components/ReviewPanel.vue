@@ -23,27 +23,27 @@ watch(() => props.bar.id, id => loadBarReviews(id))
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('timeJustNow')
+  if (mins < 60) return t('timeMinutesAgo', { n: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t('timeHoursAgo', { n: hrs })
   const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return t('timeDaysAgo', { n: days })
 }
 </script>
 
 <template>
   <div class="review-panel">
     <div class="rp-header">
-      <img src="/icons/winrep-1.png" class="rp-icon" alt="Reviews" />
+      <img src="/icons/winrep-1.png" class="rp-icon" :alt="t('reviews')" />
       <span class="rp-name">{{ displayName }}</span>
       <span class="rp-subtitle">{{ t('reviews') }}</span>
       <button class="rp-close" @click="emit('close')">✕</button>
     </div>
 
     <!-- Mobile: fixed close button at bottom-right above taskbar -->
-    <button class="rp-mobile-close" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="rp-mobile-close" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <div class="rp-body">
@@ -54,7 +54,7 @@ function timeAgo(dateStr) {
           <span class="rp-time">{{ timeAgo(review.created_at) }}</span>
         </div>
         <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
-        <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" alt="drawing" />
+        <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" :alt="t('reviewDrawing')" />
       </div>
     </div>
   </div>

@@ -3,13 +3,16 @@ import { computed } from 'vue'
 
 const props = defineProps({
   review: { type: Object, required: true },
+  lang: { type: String, default: 'en' },
 })
 
 const COLORS = ['#ffe566', '#f9a8d4', '#86efac', '#93c5fd', '#fca5a5']
 
 const bgColor = computed(() => COLORS[props.review.id % COLORS.length])
 const rotation = computed(() => (-3 + (props.review.id % 7) - 3))
-const barName = computed(() => props.review.name_en || props.review.name_jp || '')
+const barName = computed(() => (props.lang === 'jp'
+  ? (props.review.name_jp || props.review.name_en)
+  : (props.review.name_en || props.review.name_jp)) || '')
 
 // Deterministic position based on review id — two-zone layout to avoid center sign
 const isLeftZone = computed(() => props.review.id % 2 === 0)

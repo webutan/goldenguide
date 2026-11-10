@@ -95,7 +95,7 @@ const filteredBars = computed(() => {
 const barsByStreet = computed(() => {
   const groups = {}
   for (const bar of filteredBars.value) {
-    const street = bar.street || 'Unknown'
+    const street = bar.street || t('unknownStreet')
     if (!groups[street]) groups[street] = []
     groups[street].push(bar)
   }
@@ -180,7 +180,7 @@ function floorLabel(floor) {
           class="quickbar-btn mobile-clear-btn"
           @click="clearFilters"
         >
-          &#10005; Clear
+          &#10005; {{ t('clear') }}
         </button>
       </div>
 
@@ -204,7 +204,7 @@ function floorLabel(floor) {
       </div>
 
       <div class="dir-status">
-        <span>{{ filteredBars.length }} / {{ (bars || []).length }} bar(s)</span>
+        <span>{{ t('directoryCount', { shown: filteredBars.length, total: (bars || []).length }) }}</span>
       </div>
 
       <div class="dir-content">

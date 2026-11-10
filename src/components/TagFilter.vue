@@ -119,7 +119,7 @@ function clearAll() {
     <div class="tree-root">
       <img src="/icons/desktop/directory_explorer.png" class="tree-icon" alt="" />
       <span class="tree-label">{{ t('filters') }}</span>
-      <button v-if="hasAnyFilter" class="clear-all-btn" @click="clearAll">&#10005; Clear</button>
+      <button v-if="hasAnyFilter" class="clear-all-btn" @click="clearAll">&#10005; {{ t('clear') }}</button>
     </div>
 
     <!-- Status filter branch (Open Now) -->
@@ -289,12 +289,12 @@ function clearAll() {
           <button
             :class="['tag-mode-btn', { active: tagMode === 'or' }]"
             @click.stop="emit('update:tagMode', 'or')"
-            title="Match any selected tag"
-          >Or</button><button
+            :title="t('tagModeOrTitle')"
+          >{{ t('tagModeOr') }}</button><button
             :class="['tag-mode-btn', { active: tagMode === 'and' }]"
             @click.stop="emit('update:tagMode', 'and')"
-            title="Match all selected tags"
-          >And</button>
+            :title="t('tagModeAndTitle')"
+          >{{ t('tagModeAnd') }}</button>
         </span>
       </div>
       <div v-if="tagsExpanded" class="tree-children">

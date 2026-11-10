@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
 import { useVisited } from '../composables/useVisited.js'
+import { useI18n } from '../composables/useI18n.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
 import {
@@ -42,6 +43,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'hoverBuilding', 'deselect'])
+
+const { t } = useI18n(computed(() => props.lang))
 
 const containerRef = ref(null)
 const svgRef = ref(null)
@@ -912,7 +915,7 @@ function panToUserLocation() {
 
 function startGeoTracking() {
   if (!navigator.geolocation) {
-    geoError.value = 'Geolocation not supported by your browser'
+    geoError.value = t('geoUnsupported')
     return
   }
   geoWatching.value = true
@@ -1560,14 +1563,14 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
     </div>
 
     <div v-if="!isMobile" class="map-controls" style="right: 8px">
-      <WinButton class="zoom-btn" title="Zoom in" @click="zoomIn">+</WinButton>
-      <WinButton class="zoom-btn" title="Zoom out" @click="zoomOut">&minus;</WinButton>
-      <WinButton class="zoom-btn" title="Fit to view" @click="resetZoom">&#x27F3;</WinButton>
+      <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
+      <WinButton class="zoom-btn" :title="t('zoomOut')" @click="zoomOut">&minus;</WinButton>
+      <WinButton class="zoom-btn" :title="t('fitToView')" @click="resetZoom">&#x27F3;</WinButton>
       <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
       <WinButton
         class="zoom-btn"
         :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError, 'tour-highlight': tourHighlight === 'map-location' }"
-        :title="geoError ? geoError : (geoWatching ? `Stop location tracking (${gpsTransform?.calibrationCount} bars calibrated)` : (gpsTransform ? `Show my location (${gpsTransform.calibrationCount} bars calibrated)` : 'Show my location (need 3+ bars with plus codes or lat/lng set on the map)') )"
+        :title="geoError ? geoError : (geoWatching ? `${t('stopLocation')} (${t('locationCalibrated', { n: gpsTransform?.calibrationCount })})` : (gpsTransform ? `${t('showLocation')} (${t('locationCalibrated', { n: gpsTransform.calibrationCount })})` : `${t('showLocation')} (${t('locationNeedsCalibration')})`) )"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
     </div>
@@ -1577,12 +1580,12 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       <WinButton
         class="zoom-btn zoom-btn--location-mobile"
         :class="{ 'tour-highlight': tourHighlight === 'map-location', 'geo-btn-active': geoWatching, 'geo-btn-error': geoError }"
-        :title="geoError ? geoError : (geoWatching ? 'Stop location tracking' : 'Show my location')"
+        :title="geoError ? geoError : (geoWatching ? t('stopLocation') : t('showLocation'))"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
       <WinButton
         class="zoom-btn zoom-btn--location-mobile"
-        title="Reset rotation and zoom"
+        :title="t('resetView')"
         @click="resetView"
       >&#x27F3;</WinButton>
     </div>

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { fetchBarFeed } from '../api/index.js'
+import { useI18n } from '../composables/useI18n.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -8,6 +9,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
+
+const { t } = useI18n(computed(() => props.lang))
 
 function parseTwitterHandle(url) {
   if (!url) return null
@@ -68,20 +71,20 @@ watch(handle, (h) => { if (h) loadFeed(h) })
 <template>
   <div v-if="handle" class="bar-twitter-panel">
     <div class="btp-header">
-      <img src="/icons/twitterwhite.ico" class="btp-icon" alt="Twitter/X" />
+      <img src="/icons/twitterwhite.ico" class="btp-icon" :alt="t('twitterX')" />
       <span class="btp-name">{{ barName }}</span>
       <span class="btp-handle">@{{ handle }}</span>
       <button class="btp-close" @click="emit('close')">✕</button>
     </div>
 
     <!-- Mobile: fixed close button at bottom-right above taskbar -->
-    <button class="btp-mobile-close" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="btp-mobile-close" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <div class="btp-body">
       <!-- Loading -->
-      <div v-if="loading" class="btp-status">Loading...</div>
+      <div v-if="loading" class="btp-status">{{ t('loading') }}</div>
 
       <!-- Error banner -->
       <div v-if="error" class="btp-error">{{ error }}</div>
@@ -93,12 +96,12 @@ watch(handle, (h) => { if (h) loadFeed(h) })
           target="_blank"
           rel="noopener noreferrer"
           class="btp-link"
-        >View @{{ handle }} on X/Twitter ↗</a>
+        >{{ t('viewOnX', { handle }) }}</a>
       </div>
 
       <!-- No tweets found -->
       <div v-else-if="tweets !== null && tweets.length === 0 && !loading" class="btp-status">
-        No recent tweets.
+        {{ t('noRecentTweets') }}
       </div>
 
       <!-- Tweet cards -->

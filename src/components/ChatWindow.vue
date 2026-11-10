@@ -137,10 +137,10 @@ function formatTime(ts) {
       <div class="chat-nick-box">
         <div class="chat-nick-title">
           <img src="/icons/desktop/network_internet_pcs.png" class="chat-nick-icon" alt="" />
-          Enter Your Screen Name
+          {{ t('chatSignInTitle') }}
         </div>
         <div class="chat-nick-body">
-          <label class="chat-nick-label">Screen Name:</label>
+          <label class="chat-nick-label">{{ t('chatScreenName') }}</label>
           <input
             v-model="nickInput"
             class="chat-nick-input"
@@ -150,7 +150,7 @@ function formatTime(ts) {
           />
         </div>
         <div class="chat-nick-footer">
-          <WinButton @click="submitNick">Sign In</WinButton>
+          <WinButton @click="submitNick">{{ t('chatSignIn') }}</WinButton>
         </div>
       </div>
     </div>
@@ -158,7 +158,7 @@ function formatTime(ts) {
     <!-- AIM header strip -->
     <div class="chat-aim-header">
       <img src="/icons/desktop/network_internet_pcs.png" class="chat-aim-logo" alt="" />
-      <span class="chat-aim-title">Golden Gai Chat</span>
+      <span class="chat-aim-title">{{ t('chatTitle') }}</span>
     </div>
 
     <!-- Who's Here section -->
@@ -189,7 +189,7 @@ function formatTime(ts) {
         </div>
       </div>
       <div v-if="messages.length === 0" class="chat-empty">
-        No messages yet. Say hi!
+        {{ t('chatEmpty') }}
       </div>
     </div>
 
@@ -199,11 +199,11 @@ function formatTime(ts) {
         <input
           v-model="inputText"
           class="chat-input"
-          placeholder="Type a message..."
+          :placeholder="t('chatPlaceholder')"
           maxlength="500"
           @keydown="onKeydown"
         />
-        <WinButton class="chat-send-btn" @click="sendChat">Send</WinButton>
+        <WinButton class="chat-send-btn" @click="sendChat">{{ t('chatSend') }}</WinButton>
       </div>
     </div>
 
@@ -216,7 +216,7 @@ function formatTime(ts) {
       <input
         v-model="checkinSearch"
         class="checkin-search"
-        placeholder="Search bars..."
+        :placeholder="t('searchBars')"
         autofocus
       />
       <div class="checkin-bar-list">
@@ -235,7 +235,7 @@ function formatTime(ts) {
     <div class="chat-status-strip">
       <!-- Nickname display/edit -->
       <template v-if="!nickEditing">
-        <span class="chat-status-nick" @click="startEditNick" title="Click to change screen name">
+        <span class="chat-status-nick" @click="startEditNick" :title="t('chatChangeName')">
           <img src="/icons/desktop/network_internet_pcs.png" class="chat-status-icon" alt="" />
           {{ nickname }}
         </span>
@@ -248,7 +248,7 @@ function formatTime(ts) {
           @keydown.enter="submitNick"
           @keydown.escape="nickEditing = false"
         />
-        <WinButton class="chat-nick-ok-btn" @click="submitNick">OK</WinButton>
+        <WinButton class="chat-nick-ok-btn" @click="submitNick">{{ t('ok') }}</WinButton>
       </template>
 
       <span class="chat-status-spacer"></span>
@@ -258,7 +258,7 @@ function formatTime(ts) {
         v-if="myCheckinBarId"
         class="chat-checkin-btn chat-checkin-btn--active"
         @click="checkOut()"
-        :title="'Checked in: ' + (myCheckinBar ? getBarName(myCheckinBar) : '')"
+        :title="t('checkedInAt', { bar: myCheckinBar ? getBarName(myCheckinBar) : '' })"
       >
         🍺 {{ myCheckinBar ? getBarName(myCheckinBar) : t('checkedIn') }}
       </button>
@@ -272,7 +272,7 @@ function formatTime(ts) {
 
       <!-- Online count + connection indicator -->
       <span class="chat-status-users">
-        {{ userCount }} online
+        {{ t('onlineCount', { n: userCount }) }}
       </span>
       <span :class="['chat-status-dot', connected ? 'chat-status-dot-on' : 'chat-status-dot-off']"></span>
     </div>
