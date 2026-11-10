@@ -16,3 +16,13 @@
 - [ ] Rotate 45° on mobile emulation, then search a bar: the map centres on the right building
 - [ ] "Locate me" (mock geolocation in Playwright) centres correctly when rotated
 - [ ] Taps on partitions still resolve to the correct slot when rotated
+
+## Also (found in B09): N-way split geometry — verify first, then fix
+B09's agent reported that `partitionRects` divides a padded span of 4 × max(width, height) centred on the building by weight, not the building's own extent. Its click test on a 3-slot building (equal weights, independent mode) hit the middle bar on all 32 sample points: the outer two slots were invisible and unclickable. Only 1, 2 and 4 slots (whole, halves, 2×2 grid) lay out fully. The per-slot "Size" slider is over-sensitive for the same reason.
+
+1. Reproduce with a click grid over a building holding 3 and 5 bars (mock `/api/bars` or use your own DB copy).
+2. Split the building's own extent so every slot is visible and clickable for any count, in both split directions, and keep `findClickedPartition` consistent with what is drawn.
+3. Existing saved partitions were tuned by eye against the old geometry: list which stored buildings change appearance, and keep 2-slot and 4-slot layouts pixel-identical where weights are equal.
+4. Then remove the workaround in `src/utils/partitions.js`: delete `FULLY_VISIBLE_SLOT_COUNTS` and the "join the last slot" branch so an unassigned bar always gets its own synthetic slot, and update `tests/partitions.test.js`.
+
+Also (found in B09, admin gaps): `removePartition` in AdminPanel can only remove the last slot, and there is no `DELETE /api/partitions/:buildingId`, so a building's split can only be reset in the database. Add both.
