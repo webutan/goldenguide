@@ -1,0 +1,2 @@
+# Tasks append translation keys at the same spot; keep both sides instead of conflicting.
+src/composables/useI18n.js merge=union

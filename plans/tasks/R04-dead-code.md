@@ -35,3 +35,5 @@ Also (found in S04, admin usability):
 - A hidden review disappears from the bar panel for admins too; Unhide only exists in the admin Reviews tab. Show hidden reviews greyed-out to admins in place.
 - The admin review list is capped at 100 rows without paging and ships full drawing data URLs.
 - Sticky notes overlap each other, the desktop icons and Gai-chan, and the lowest run under the taskbar.
+
+Also (found in B10): the 4-slot grid ignores weights; the badge glyph is a fixed size and overflows thin slots; the Start menu stays open after choosing Admin Mode; `centerOnPoint`, `fitToContainer`, `zoomIn`, `zoomOut` still use viewport-px math that ignores the 1.25 CSS zoom (left alone so the default view stayed identical).
