@@ -26,7 +26,13 @@ import {
 const TEMPLATE_URL = process.env.SPA_TEMPLATE_URL || 'http://web/index.html'
 const TEMPLATE_TIMEOUT_MS = 3000
 
+// Short on purpose: the shell names the current build's hashed assets, so a
+// stale copy after a web deploy would point at files that no longer exist.
+// The fetch is a tiny request to the neighbouring container.
+const TEMPLATE_TTL_MS = 15 * 1000
+
 const templates = createTemplateCache({
+  ttlMs: TEMPLATE_TTL_MS,
   async load() {
     const res = await fetch(TEMPLATE_URL, { signal: AbortSignal.timeout(TEMPLATE_TIMEOUT_MS), redirect: 'error' })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
