@@ -2,6 +2,7 @@
 import { yen } from '../utils/barFilters.js'
 import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
+import { useSuggestEdit } from '../composables/useSuggestEdit.js'
 import { useI18n } from '../composables/useI18n.js'
 import { canNativeShare } from '../composables/useUrlState.js'
 import WinButton from './win2000/WinButton.vue'
@@ -22,6 +23,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'change-bar', 'share-bar'])
+const { openSuggestEdit } = useSuggestEdit()
 
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
@@ -278,6 +280,9 @@ function openGoogleMaps() {
                   <img src="/icons/tags/url1.ico" class="share-btn-icon" alt="" />{{ t(nativeShare ? 'shareBar' : 'copyLink') }}
                 </WinButton>
                 <WinButton @click="emit('close')">{{ t('close') }}</WinButton>
+              </div>
+              <div class="suggest-row">
+                <button class="suggest-link" @click="openSuggestEdit(bar)">&#9998; {{ t('suggestEdit') }}</button>
               </div>
             </template>
             </div></WinScrollContainer>
@@ -628,6 +633,32 @@ function openGoogleMaps() {
   opacity: 0;
 }
 
+/* "Suggest edit": Win95 hyperlink-style text button under the actions */
+.suggest-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.suggest-link {
+  font-family: var(--win-font);
+  font-size: 11px;
+  line-height: 1;
+  background: none;
+  border: none;
+  padding: 3px 0;
+  color: var(--win-title-text-inactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.suggest-link:hover { color: var(--valhalla-orange); }
+
+.suggest-link:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: 1px;
+}
+
 /* Share / copy-link button */
 .share-btn {
   display: inline-flex;
@@ -646,6 +677,11 @@ function openGoogleMaps() {
 @media (max-width: 768px) {
   .share-btn {
     min-height: 40px;
+  }
+  .suggest-link {
+    min-height: 40px;
+    padding: 0 4px;
+    font-size: 12px;
   }
 }
 </style>

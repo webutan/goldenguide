@@ -10,6 +10,7 @@ import MapSearch from './components/MapSearch.vue'
 import WinWindow from './components/win2000/WinWindow.vue'
 import WinTaskbar from './components/win2000/WinTaskbar.vue'
 import WinDialog from './components/win2000/WinDialog.vue'
+import SuggestEditHost from './components/SuggestEditHost.vue'
 import DesktopView from './components/DesktopView.vue'
 import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
@@ -671,6 +672,8 @@ async function handleUnplaceBar(bar) {
 <template>
   <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" :fast="biosFastBoot" @done="handleBiosDone" />
   <WinDialog :lang="effectiveLang" />
+  <!-- "Suggest an edit" dialog + thank-you balloon (opened via useSuggestEdit) -->
+  <SuggestEditHost :lang="effectiveLang" />
 
   <div v-if="loading" class="loading-screen">{{ t('loading') }}</div>
   <div v-else-if="error" class="loading-screen">{{ t('errorPrefix') }} {{ error }}</div>

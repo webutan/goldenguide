@@ -4,6 +4,7 @@ import { createKeyedLimiter, ipKey } from '../lib/rateLimitCore.js'
 // ── Every limit lives here ──────────────────────────────────────────────────
 const SECOND = 1000
 const MINUTE = 60 * SECOND
+const HOUR = 60 * MINUTE
 
 // Wrong admin passwords per IP (correct ones are never counted).
 export const ADMIN_AUTH_WINDOW_MS = 15 * MINUTE
@@ -12,6 +13,10 @@ export const ADMIN_AUTH_MAX_FAILURES = 20
 // POST /api/reviews per IP.
 export const REVIEW_WINDOW_MS = 10 * MINUTE
 export const REVIEW_MAX = 5
+
+// POST /api/suggestions ("Suggest an edit") per IP.
+export const SUGGESTION_WINDOW_MS = 1 * HOUR
+export const SUGGESTION_MAX = 5
 
 // Generic public write endpoints (suggestions, guestbook, ...) per IP.
 export const PUBLIC_WRITE_WINDOW_MS = 10 * MINUTE
@@ -58,6 +63,7 @@ export function createIpLimiter({ windowMs, max }) {
 }
 
 export const reviewLimiter = createIpLimiter({ windowMs: REVIEW_WINDOW_MS, max: REVIEW_MAX })
+export const suggestionLimiter = createIpLimiter({ windowMs: SUGGESTION_WINDOW_MS, max: SUGGESTION_MAX })
 export const publicWriteLimiter = createIpLimiter({ windowMs: PUBLIC_WRITE_WINDOW_MS, max: PUBLIC_WRITE_MAX })
 export const feedLimiter = createIpLimiter({ windowMs: FEED_WINDOW_MS, max: FEED_MAX })
 export const seoLimiter = createIpLimiter({ windowMs: SEO_WINDOW_MS, max: SEO_MAX })

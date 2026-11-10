@@ -17,6 +17,7 @@ import annotationsRouter from './routes/annotations.js'
 import feedRouter from './routes/feed.js'
 import reviewsRouter from './routes/reviews.js'
 import partitionsRouter from './routes/partitions.js'
+import suggestionsRouter from './routes/suggestions.js'
 import seoRouter from './routes/seo.js'
 import { registerChatNamespace } from './routes/chat.js'
 import admin from './middleware/admin.js'
@@ -75,6 +76,7 @@ app.use('/api/annotations', annotationsRouter)
 app.use('/api/feed', feedLimiter, feedRouter)
 app.use('/api/reviews', reviewsRouter)
 app.use('/api/partitions', partitionsRouter)
+app.use('/api/suggestions', suggestionsRouter)
 app.use('/api', photosRouter)
 
 // Link previews / SEO: /bar/<slug>, /, /map, /directory, /sitemap.xml, /robots.txt
