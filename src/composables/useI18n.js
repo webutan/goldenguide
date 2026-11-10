@@ -72,6 +72,7 @@ const translations = {
   'noReviews': { en: 'No reviews yet. Be the first!', jp: 'まだレビューがありません。最初のレビューを書きましょう！' },
   'submitReview': { en: 'Submit', jp: '投稿する' },
   'reviewPlaceholder': { en: 'Write your review... (max 500 chars)', jp: 'レビューを書いてください... (最大500文字)' },
+  'reviewError': { en: 'Your review could not be posted. Please try again.', jp: 'レビューを投稿できませんでした。もう一度お試しください。' },
   'iconReviews': { en: 'Reviews', jp: 'レビュー' },
 
   // Check-in

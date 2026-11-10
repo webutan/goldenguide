@@ -18,6 +18,7 @@ const { nickname } = useChat()
 const phase = ref('ask')   // 'ask' | 'write'
 const reviewText = ref('')
 const submitting = ref(false)
+const submitError = ref(false)
 const canvasRef = ref(null)
 const canvasTouched = ref(false)
 const selectedColor = ref('#ffffff')
@@ -99,6 +100,7 @@ function clearCanvas() {
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
+  submitError.value = false
   try {
     let drawingData = null
     if (canvasTouched.value && canvasRef.value) {
@@ -107,14 +109,15 @@ async function handleSubmit() {
     await submitReview({
       barId: props.bar.id,
       nickname: nickname.value,
-      text: reviewText.value.trim() || ' ',
+      text: reviewText.value.trim(),
       drawing: drawingData,
     })
-  } catch (err) {
-    console.error('Review submit error:', err)
-  } finally {
     submitting.value = false
     emit('done')
+  } catch (err) {
+    console.error('Review submit error:', err)
+    submitError.value = true
+    submitting.value = false
   }
 }
 </script>
@@ -183,6 +186,11 @@ async function handleSubmit() {
               @touchmove="moveDraw"
               @touchend="endDraw"
             />
+          </div>
+
+          <div v-if="submitError" class="submit-error" role="alert">
+            <img src="/icons/msg_error-1.png" class="submit-error-icon" alt="" />
+            <span>{{ t('reviewError') }}</span>
           </div>
 
           <div class="write-actions">
@@ -384,6 +392,22 @@ async function handleSubmit() {
     inset -1px -1px 0 var(--win-border-light);
   touch-action: none;
   cursor: crosshair;
+}
+
+.submit-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--win-text);
+}
+
+.submit-error-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .write-actions {

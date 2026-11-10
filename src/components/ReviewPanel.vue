@@ -53,7 +53,7 @@ function timeAgo(dateStr) {
           <span class="rp-nickname">{{ review.nickname }}</span>
           <span class="rp-time">{{ timeAgo(review.created_at) }}</span>
         </div>
-        <p class="rp-text">{{ review.text }}</p>
+        <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
         <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" alt="drawing" />
       </div>
     </div>

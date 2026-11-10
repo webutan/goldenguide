@@ -43,12 +43,21 @@ router.get('/bar/:barId', async (req, res) => {
 
 // POST /api/reviews — create a review
 router.post('/', async (req, res) => {
-  const { barId, nickname, text, drawing } = req.body
-  if (!barId || typeof barId !== 'number') return res.status(400).json({ error: 'barId required' })
+  const { barId, nickname, text, drawing } = req.body || {}
+  if (!Number.isInteger(barId) || barId <= 0) return res.status(400).json({ error: 'barId must be a positive integer' })
   if (!nickname || typeof nickname !== 'string' || !nickname.trim()) return res.status(400).json({ error: 'nickname required' })
-  if (!text || typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'text required' })
-  if (text.length > 500) return res.status(400).json({ error: 'text too long' })
-  if (drawing && typeof drawing === 'string' && drawing.length > 150000) return res.status(400).json({ error: 'drawing too large' })
+  if (text != null && typeof text !== 'string') return res.status(400).json({ error: 'text must be a string' })
+  const cleanText = (text || '').trim()
+  if (cleanText.length > 500) return res.status(400).json({ error: 'text too long' })
+
+  const hasDrawing = drawing != null && drawing !== ''
+  if (hasDrawing) {
+    if (typeof drawing !== 'string' || !drawing.startsWith('data:image/png;base64,')) {
+      return res.status(400).json({ error: 'drawing must be a PNG data URL' })
+    }
+    if (drawing.length > 150000) return res.status(400).json({ error: 'drawing too large' })
+  }
+  if (!cleanText && !hasDrawing) return res.status(400).json({ error: 'text or drawing required' })
 
   try {
     // Verify bar exists
@@ -58,7 +67,7 @@ router.post('/', async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO reviews (bar_id, nickname, text, drawing) VALUES ($1, $2, $3, $4)
        RETURNING id, bar_id, nickname, text, drawing, created_at`,
-      [barId, nickname.trim().slice(0, 30), text.trim(), drawing || null]
+      [barId, nickname.trim().slice(0, 30), cleanText, hasDrawing ? drawing : null]
     )
     res.json(rows[0])
   } catch (err) {

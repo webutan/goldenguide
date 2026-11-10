@@ -37,7 +37,7 @@ const io = new SocketIOServer(httpServer, {
 })
 
 app.use(cors({ origin: allowedOrigin }))
-app.use(express.json())
+app.use(express.json({ limit: '200kb' }))
 
 const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })
 
