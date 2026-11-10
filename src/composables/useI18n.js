@@ -167,6 +167,33 @@ const translations = {
   'partStaleRemove': { en: 'Remove', jp: '削除' },
   'rateLimited': { en: 'Slow down! Try again in a few minutes.', jp: 'ちょっと待って！数分してからもう一度お試しください。' },
   'adminLockedOut': { en: 'Too many failed attempts. Try again in 15 minutes.', jp: '失敗回数が多すぎます。15分後にもう一度お試しください。' },
+
+  // Review moderation
+  'reviewReport': { en: '⚑ Report', jp: '⚑ 通報' },
+  'reviewReported': { en: '⚑ Reported', jp: '⚑ 通報済み' },
+  'reviewReportTitle': { en: 'Report review', jp: 'レビューを通報' },
+  'reviewReportConfirm': { en: 'Report this review as inappropriate?', jp: 'このレビューを不適切な内容として通報しますか？' },
+  'reviewReportThanks': { en: 'Thanks, reported. We will take a look.', jp: 'ご報告ありがとうございます。内容を確認します。' },
+  'reviewReportFailed': { en: 'Could not send the report. Please try again later.', jp: '通報を送信できませんでした。しばらくしてからもう一度お試しください。' },
+  'reviewHide': { en: 'Hide', jp: '非表示' },
+  'reviewUnhide': { en: 'Unhide', jp: '再表示' },
+  'reviewDelete': { en: '✕ Delete', jp: '✕ 削除' },
+  'reviewDeleteTitle': { en: 'Delete review', jp: 'レビューを削除' },
+  'reviewDeleteConfirm': { en: 'Delete the review by "{name}"? This cannot be undone.', jp: '「{name}」さんのレビューを削除しますか？この操作は元に戻せません。' },
+  'reviewAdminFailed': { en: 'That did not work. Check that you are still in admin mode and try again.', jp: '操作に失敗しました。管理者モードになっているか確認して、もう一度お試しください。' },
+  'adminTabReviews': { en: 'Reviews', jp: 'レビュー' },
+  'adminReviewsReported': { en: 'Reported', jp: '通報あり' },
+  'adminReviewsHidden': { en: 'Hidden', jp: '非表示' },
+  'adminReviewsAll': { en: 'All', jp: 'すべて' },
+  'adminReviewsLoading': { en: 'Loading...', jp: '読み込み中...' },
+  'adminReviewsCount': { en: '{n} review(s)', jp: '{n}件' },
+  'adminReviewsRefresh': { en: 'Refresh', jp: '更新' },
+  'adminReviewsEmpty': { en: 'Nothing to moderate here.', jp: '対象のレビューはありません。' },
+  'adminReviewsLoadFailed': { en: 'Could not load reviews.', jp: 'レビューを読み込めませんでした。' },
+  'adminReviewsReports': { en: '⚑ {n} report(s)', jp: '⚑ 通報{n}件' },
+  'adminReviewsHiddenBadge': { en: 'Hidden', jp: '非表示中' },
+  'adminReviewsApproved': { en: 'Approved', jp: '確認済み' },
+  'adminReviewsApprovedHint': { en: 'Un-hidden by an admin: reports no longer hide it automatically.', jp: '管理者が再表示したレビューです。通報されても自動では非表示になりません。' },
 }
 
 export function useI18n(lang) {

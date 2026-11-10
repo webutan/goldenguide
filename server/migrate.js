@@ -214,6 +214,24 @@ const MIGRATIONS = [
       ALTER TABLE annotations ADD COLUMN IF NOT EXISTS image_height REAL NOT NULL DEFAULT 200;
     `,
   },
+  {
+    // hidden: excluded from every public list. report_count: number of rows in
+    // review_reports (one per IP). auto_hide_exempt: set when an admin un-hides
+    // a review, so further reports are recorded but never auto-hide it again.
+    name: '015-review-moderation',
+    sql: `
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS report_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS auto_hide_exempt BOOLEAN NOT NULL DEFAULT false;
+      CREATE TABLE IF NOT EXISTS review_reports (
+        id         SERIAL PRIMARY KEY,
+        review_id  INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+        ip         TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (review_id, ip)
+      );
+    `,
+  },
 ]
 
 export async function runMigrations() {
