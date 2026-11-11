@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import pool from '../db.js'
 import admin from '../middleware/admin.js'
+import { validatePartitionBody } from '../lib/validate.js'
 
 const router = Router()
 
@@ -25,6 +26,8 @@ router.put('/:buildingId', admin, async (req, res) => {
   try {
     const { buildingId } = req.params
     const data = req.body
+    const invalid = validatePartitionBody(data)
+    if (invalid) return res.status(400).json({ error: invalid })
     await pool.query(
       `INSERT INTO building_partitions (building_id, data)
        VALUES ($1, $2)
@@ -34,6 +37,19 @@ router.put('/:buildingId', admin, async (req, res) => {
     res.json({ ok: true })
   } catch (err) {
     console.error('PUT /api/partitions/:buildingId error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/partitions/:buildingId — forget a building's stored split (admin).
+// The building then falls back to the automatic split (one slot per bar).
+// Idempotent: a building with nothing stored answers { ok: true, removed: false }.
+router.delete('/:buildingId', admin, async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM building_partitions WHERE building_id = $1', [req.params.buildingId])
+    res.json({ ok: true, removed: result.rowCount > 0 })
+  } catch (err) {
+    console.error('DELETE /api/partitions/:buildingId error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

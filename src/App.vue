@@ -1,43 +1,80 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineAsyncComponent } from 'vue'
+import WinLoading from './components/win2000/WinLoading.vue'
 import GoldenGaiMap from './components/GoldenGaiMap.vue'
 import BarDirectory from './components/BarDirectory.vue'
 import TagFilter from './components/TagFilter.vue'
 import BarPopup from './components/BarPopup.vue'
 import BarDrawer from './components/BarDrawer.vue'
 import MapSearch from './components/MapSearch.vue'
-import AdminPanel from './components/AdminPanel.vue'
 import WinWindow from './components/win2000/WinWindow.vue'
 import WinTaskbar from './components/win2000/WinTaskbar.vue'
+import WinDialog from './components/win2000/WinDialog.vue'
+import SuggestEditHost from './components/SuggestEditHost.vue'
 import DesktopView from './components/DesktopView.vue'
 import GaiChan from './components/GaiChan.vue'
 import GaiChanDialogue from './components/GaiChanDialogue.vue'
-import ContactWindow from './components/ContactWindow.vue'
-import FeedWindow from './components/FeedWindow.vue'
-import ChatWindow from './components/ChatWindow.vue'
-import BarTwitterPanel from './components/BarTwitterPanel.vue'
-import DatabaseTable from './components/DatabaseTable.vue'
 import BiosScreen from './components/BiosScreen.vue'
 import ReviewPanel from './components/ReviewPanel.vue'
-import ReviewsWindow from './components/ReviewsWindow.vue'
+import InstallWizard from './components/InstallWizard.vue'
 import { useI18n } from './composables/useI18n.js'
 import { useVisited } from './composables/useVisited.js'
 import { useApi } from './composables/useApi.js'
 import { useAdmin } from './composables/useAdmin.js'
 import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
-import { updateBar, fetchPartitions, savePartition } from './api/index.js'
+import { useDialog, useDialogHost } from './composables/useDialog.js'
+import { usePwa } from './composables/usePwa.js'
+import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
+import { updateBar, fetchPartitions, savePartition, deletePartition } from './api/index.js'
+import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
+import { withDefaultPartitions, reconcilePartitions } from './utils/partitions.js'
+import { recordVisit, shouldOfferInstall, isVisitState } from './utils/installOffer.js'
 
-const { bars, tags, loading, error, reload } = useApi()
+// Heavy, rarely-opened windows are split into their own chunks (R06).
+function lazyWindow(loader) {
+  return defineAsyncComponent({ loader, loadingComponent: WinLoading, delay: 150 })
+}
+const AdminPanel = lazyWindow(() => import('./components/AdminPanel.vue'))
+const ContactWindow = lazyWindow(() => import('./components/ContactWindow.vue'))
+const FeedWindow = lazyWindow(() => import('./components/FeedWindow.vue'))
+const ChatWindow = lazyWindow(() => import('./components/ChatWindow.vue'))
+const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vue'))
+const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
+const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
+
+const { bars, tags, loading, error, dataTime, stale: dataStale, listIsAdmin, reload, refreshQuietly } = useApi()
 const { visitedCount } = useVisited()
 const { isAdmin, toggleAdmin } = useAdmin()
+// The bar list differs by mode (admins also get inactive bars), so refetch on toggle
+watch(isAdmin, () => reload())
 const wm = useWindowManager()
 const { openBarIds } = useOpenNow(bars)
 
+// The URL the page was opened with. Anything but the desktop is a deep link:
+// it fast-boots and skips the first-visit questions for this visit only,
+// without saving any answer, so a later visit to "/" still gets onboarding.
+const bootRoute = parseUrl(window.location.pathname, window.location.search)
+const isDeepLink = bootRoute.view !== 'desktop'
+
 const showBios = ref(true)
+// Returning visitors get a fast BIOS boot (same look, near-instant)
+const biosFastBoot = isDeepLink || !!readString('golden-gai-booted')
+function handleBiosDone() {
+  showBios.value = false
+  if (!isDeepLink) writeString('golden-gai-booted', '1')
+}
 const reviewPanelBar = ref(null)
 
 const activeView = ref('desktop') // 'desktop' | 'directory' | 'map'
+// The map is mounted on the first visit to the map view and then only hidden,
+// so its zoom and position survive a trip to the Desktop or the Directory.
+const mapMounted = ref(false)
+watch(activeView, (view, prev) => {
+  if (view === 'map') mapMounted.value = true
+  // The drawer goes away with the view and cannot report the pointer leaving a card
+  if (prev === 'map') hoveredBarId.value = null
+}, { flush: 'sync' })
 const activeTags = ref([])
 const tagMode = ref('or') // 'or' | 'and'
 const chargeMin = ref(null)
@@ -48,14 +85,50 @@ const floorFilter = ref(null) // null = all floors, 1 = 1F, 2 = 2F, etc.
 const openNowFilter = ref(false)
 const DEV = import.meta.env.DEV
 
-const savedLang = DEV ? null : localStorage.getItem('golden-gai-lang')
-const lang = ref(savedLang || null)
+// `npm run dev` ignores the saved answers so onboarding always runs on "/".
+// Deep links behave the same in dev and in a build, except that in dev the
+// "read the rules" balloon shows on every deep link (nothing saved is read).
+const savedLang = DEV ? null : readString('golden-gai-lang')
+// ?lang wins for this visit and is not saved; then the saved choice. A deep
+// link never asks, so it falls back to the browser language.
+const urlLang = ref(bootRoute.lang)
+const lang = ref(
+  bootRoute.lang || savedLang
+  || (isDeepLink ? resolveLang({ browserLang: navigator.language }) : null)
+)
 
-const savedFirstTime = DEV ? null : localStorage.getItem('golden-gai-first-time') // 'yes' | 'no' | null
-const firstVisit = ref(savedFirstTime === null ? null : savedFirstTime === 'yes')
+const savedFirstTime = DEV ? null : readString('golden-gai-first-time') // 'yes' | 'no' | null
+// A deep link answers "not my first time" in memory only
+const firstVisit = ref(savedFirstTime === null ? (isDeepLink ? false : null) : savedFirstTime === 'yes')
 
-const rulesAccepted = ref(!DEV && !!localStorage.getItem('golden-gai-rules-accepted'))
+const rulesAccepted = ref(!DEV && !!readString('golden-gai-rules-accepted'))
 const showContact = ref(false)
+
+// Deep-linked visitors who never went through onboarding get a small balloon
+// offering the rules instead of the question flow.
+const showRulesHint = ref(
+  isDeepLink && savedFirstTime === null && !rulesAccepted.value
+  && !(!DEV && readString('golden-gai-rules-hint-dismissed'))
+)
+// Bumped to remount the dialogue panel so the walkthrough starts from step one
+const rulesWalkKey = ref(0)
+// Where to return to once the rules started from the balloon are accepted
+let routeAfterRules = null
+
+function dismissRulesHint() {
+  showRulesHint.value = false
+  writeString('golden-gai-rules-hint-dismissed', '1')
+}
+
+function startRulesFromHint() {
+  showRulesHint.value = false
+  routeAfterRules = activeView.value === 'desktop' ? null : readRoute()
+  closePopup()
+  activeView.value = 'desktop'
+  rulesAccepted.value = false
+  handleFirstTimeAnswer(true)
+  rulesWalkKey.value++
+}
 
 // Tour mode state
 const tourMode = ref(false)
@@ -70,8 +143,9 @@ function handleOpenBarFromTour(barId) {
   if (!bar) return
   // Switch to directory and show bar popup
   activeView.value = 'directory'
+  popupBarId.value = bar.id
   popupBuildingBars.value = [bar]
-  popupBuildingId.value = bar.building_id || 'Directory'
+  popupBuildingId.value = bar.building_id || t('directory')
 }
 
 // Which bubble Gai-chan should show: null | 'lang' | 'first-time'
@@ -85,18 +159,26 @@ const showRules = computed(() => firstVisit.value === true && !rulesAccepted.val
 
 function handleLangSelect(l) {
   lang.value = l
-  localStorage.setItem('golden-gai-lang', l)
+  writeString('golden-gai-lang', l)
+  // An explicit choice replaces whatever ?lang said
+  urlLang.value = null
 }
 
 function handleFirstTimeAnswer(isFirst) {
   firstVisit.value = isFirst
-  localStorage.setItem('golden-gai-first-time', isFirst ? 'yes' : 'no')
+  writeString('golden-gai-first-time', isFirst ? 'yes' : 'no')
 }
 
 function handleRulesAccepted() {
   rulesAccepted.value = true
-  localStorage.setItem('golden-gai-rules-accepted', '1')
+  writeString('golden-gai-rules-accepted', '1')
   activeView.value = 'map'
+  // Started from the deep-link balloon: go back to the bar they were sent
+  if (routeAfterRules) {
+    const route = routeAfterRules
+    routeAfterRules = null
+    applyRoute({ ...route, lang: urlLang.value }, null)
+  }
 }
 
 const effectiveLang = computed(() => lang.value || 'en')
@@ -107,14 +189,22 @@ const placingBar = ref(null)
 // Building popup state (directory / search single-bar view)
 const popupBuildingBars = ref(null)
 const popupBuildingId = ref(null)
+const popupBarId = ref(null)   // which of popupBuildingBars the card shows
 const twitterBar = ref(null)   // bar whose Twitter feed is currently shown
+
+// The bar whose card is open: what /bar/<slug> and the page title follow
+const openBar = computed(() => {
+  const list = popupBuildingBars.value
+  if (!list || !list.length) return null
+  return list.find(b => b.id === popupBarId.value) || list[0]
+})
 
 // Drawer state (map building click)
 const drawerBuildingBars = ref(null)
 const drawerBuildingId = ref(null)
 
 // Tag ordering (persisted)
-const tagOrder = ref(JSON.parse(localStorage.getItem('golden-gai-tag-order') || '[]'))
+const tagOrder = ref(readJSON('golden-gai-tag-order', [], isStringArray))
 
 const sortedTags = computed(() => {
   if (!tagOrder.value.length) return tags.value
@@ -131,75 +221,65 @@ const sortedTags = computed(() => {
 
 function handleReorderTags(newOrder) {
   tagOrder.value = newOrder
-  localStorage.setItem('golden-gai-tag-order', JSON.stringify(newOrder))
+  writeJSON('golden-gai-tag-order', newOrder)
 }
 
-// Building partitions (persisted to server; localStorage as initial cache)
-const partitions = ref(JSON.parse(localStorage.getItem('golden-gai-partitions') || '{}'))
+// Building partitions. The server is the source of truth: a successful fetch
+// replaces both the in-memory copy and the localStorage cache wholesale, so
+// buildings removed on the server disappear here too. The cache is only what
+// is shown until the fetch settles, and what stays if it fails (offline).
+const storedPartitions = ref(readJSON('golden-gai-partitions', {}, isPlainObject))
 const selectedBuilding = ref(null)
 
 async function loadPartitionsFromServer() {
   try {
     const serverPartitions = await fetchPartitions()
-    // Merge: server wins over localStorage for any building that exists on server
-    partitions.value = { ...partitions.value, ...serverPartitions }
-    localStorage.setItem('golden-gai-partitions', JSON.stringify(partitions.value))
+    if (!isPlainObject(serverPartitions)) throw new Error('Unexpected partitions response')
+    storedPartitions.value = serverPartitions
+    writeJSON('golden-gai-partitions', serverPartitions)
   } catch (err) {
     // Server unavailable — keep using localStorage cache
     console.warn('Could not load partitions from server, using local cache:', err.message)
   }
 }
 
+// What the admin panel edits: stored partitions plus in-memory defaults (one
+// slot per bar) for multi-bar buildings with no stored entry. Defaults are
+// never saved unless an admin edits that building.
+const editablePartitions = computed(() => withDefaultPartitions(storedPartitions.value, bars.value))
+
+// What the map draws: unassigned bars get a synthetic extra slot, references
+// to deleted/moved bars are dropped. `issues` feeds the admin panel.
+const reconciledPartitions = computed(() => reconcilePartitions(editablePartitions.value, bars.value))
+const partitions = computed(() => reconciledPartitions.value.partitions)
+const partitionIssues = computed(() => reconciledPartitions.value.issues)
+
 async function handleUpdatePartitions({ buildingId, data }) {
-  const updated = { ...partitions.value }
-  updated[buildingId] = data
-  partitions.value = updated
-  localStorage.setItem('golden-gai-partitions', JSON.stringify(updated))
-  // Persist to server (non-blocking — don't await so UI stays snappy)
-  savePartition(buildingId, data).catch(err => {
+  storedPartitions.value = { ...storedPartitions.value, [buildingId]: data }
+  // Persist to server (non-blocking — don't await so UI stays snappy).
+  // The cache mirrors the server, so it is only updated once the save lands.
+  savePartition(buildingId, data).then(() => {
+    writeJSON('golden-gai-partitions', storedPartitions.value)
+  }).catch(err => {
     console.error('Failed to save partition to server:', err)
   })
 }
 
-// Auto-create partitions for buildings with multiple bars.
-// One slot per bar, sorted ascending by floor then name.
-watch(bars, (newBars) => {
-  if (!newBars || newBars.length === 0) return
-  const groups = {}
-  for (const bar of newBars) {
-    if (!bar.building_id) continue
-    if (!groups[bar.building_id]) groups[bar.building_id] = []
-    groups[bar.building_id].push(bar)
+// "Reset split": the building's stored entry is deleted on the server, then
+// dropped here, so the building falls back to the automatic split
+// (withDefaultPartitions). Nothing changes locally unless the server did.
+async function handleResetPartitions(buildingId) {
+  try {
+    await deletePartition(buildingId)
+  } catch (err) {
+    console.error('Failed to reset partition on server:', err)
+    dialog.alert(t('partResetFailed'), { title: t('partResetSplit'), icon: 'error' })
+    return
   }
-  let updated = false
-  const newPartitions = { ...partitions.value }
-
-  for (const [buildingId, barsInBldg] of Object.entries(groups)) {
-    if (barsInBldg.length <= 1) continue
-    if (newPartitions[buildingId] !== undefined) continue
-    const sorted = [...barsInBldg].sort((a, b) => {
-      const fa = a.floor ?? 1
-      const fb = b.floor ?? 1
-      if (fa !== fb) return fa - fb
-      const na = (a.name_en || a.name_jp || '').toLowerCase()
-      const nb = (b.name_en || b.name_jp || '').toLowerCase()
-      return na < nb ? -1 : na > nb ? 1 : 0
-    })
-    newPartitions[buildingId] = {
-      partitions: sorted.map(bar => ({
-        barId: bar.id,
-        weight: 1,
-      })),
-      splitDirection: 'auto',
-    }
-    updated = true
-  }
-
-  if (updated) {
-    partitions.value = newPartitions
-    localStorage.setItem('golden-gai-partitions', JSON.stringify(newPartitions))
-  }
-}, { immediate: true })
+  const { [buildingId]: _removed, ...rest } = storedPartitions.value
+  storedPartitions.value = rest
+  writeJSON('golden-gai-partitions', rest)
+}
 
 function handleSelectBuildingForEdit(buildingId) {
   selectedBuilding.value = buildingId
@@ -230,14 +310,29 @@ function handleSearchMatches(matches) {
 
 // Register windows
 onMounted(() => {
-  wm.register('search', t('search'), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
-  wm.register('explorer', 'Explorer', '&#128193;')
+  wm.register('search', t(WINDOW_TITLE_KEYS.search), '<img src="/icons/desktop/magnifying_glass.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">')
+  wm.register('explorer', t(WINDOW_TITLE_KEYS.explorer), '&#128193;')
   loadPartitionsFromServer()
 })
 
-// Keep search window title in sync with language
+// i18n keys for window titles registered with wm.register
+const WINDOW_TITLE_KEYS = {
+  search: 'search',
+  explorer: 'explorer',
+  admin: 'adminConsole',
+  database: 'database',
+  feed: 'iconFeed',
+  chatroom: 'iconChatroom',
+  about: 'iconAbout',
+  reviews: 'iconReviews',
+}
+
+// Keep registered window titles in sync with language
 watch(effectiveLang, () => {
-  if (searchWin.value) searchWin.value.title = t('search')
+  for (const [id, key] of Object.entries(WINDOW_TITLE_KEYS)) {
+    const win = wm.getWindow(id)
+    if (win) win.title = t(key)
+  }
 })
 
 const searchWin = computed(() => wm.getWindow('search'))
@@ -258,16 +353,10 @@ const drawerMode = ref('all')
 // Fav/visited filter state (used by Explorer + map + BarDrawer)
 const favoritesFilter = ref(false)
 const visitedFilter = ref(false)
-// Hover sync between drawer cards ↔ map partitions
+// Hover sync between drawer cards ↔ map partitions. (The building hovered on
+// the map lives in useMapHover, read by the drawer directly, so that moving
+// over the map does not re-render this component.)
 const hoveredBarId = ref(null)
-const hoveredBuildingId = ref(null)
-
-// Bar label display mode: 'yoko' (横書き, horizontal, default) | 'tate' (縦書き, vertical columns)
-const labelMode = ref(localStorage.getItem('golden-gai-label-mode') || 'yoko')
-function setLabelMode(mode) {
-  labelMode.value = mode
-  localStorage.setItem('golden-gai-label-mode', mode)
-}
 
 const mobileMapFiltersOpen = ref(false)
 const hasActiveMapFilters = computed(() =>
@@ -298,7 +387,9 @@ watch(explorerWinRef, (el) => {
   if (!el) return
   nextTick(() => {
     const h = el.$el?.offsetHeight ?? 0
-    const desktopH = window.innerHeight - 32
+    // Height of the area the window lives in, in its own px. (#app is zoomed
+    // on desktop, so window.innerHeight is not in the same units.)
+    const desktopH = el.$el?.offsetParent?.clientHeight ?? window.innerHeight - 32
     const y = Math.max(8, Math.floor((desktopH - h) / 2))
     el.setPosition(8, y)
   })
@@ -315,19 +406,50 @@ const tagMap = computed(() => {
 async function handleToggleAdmin() {
   await toggleAdmin()
   if (isAdmin.value) {
-    wm.register('admin', 'Admin Console', '&#128295;')
+    wm.register('admin', t(WINDOW_TITLE_KEYS.admin), '&#128295;')
+    // Search stays (R09). The Explorer window is hidden in admin mode: it sits
+    // where the Admin Console opens, and its filters would hide bars from the
+    // map an admin is placing bars on.
     wm.minimize('explorer')
   } else {
     wm.unregister('admin')
     wm.unregister('database')
     wm.restore('explorer')
     placingBar.value = null
+    // A card of an inactive bar is for admins only
+    if (openBar.value && !openBar.value.is_active) closePopup()
   }
 }
 
+// ── Inactive bars for admins (R09) ───────────────────────────────────────────
+// Opens a bar's card: on the map when the bar is placed, else over the
+// current view. Used by the Admin Console's bar list.
+function openBarCard(bar) {
+  if (!bar) return
+  reviewPanelBar.value = null
+  if (bar.building_id) {
+    handleSearchSelect({ bar, buildingId: bar.building_id })
+  } else {
+    twitterBar.value = null
+    handleSelectBarFromDirectory(bar)
+  }
+}
+
+// The page was opened on /bar/<slug> and the slug was not in the public list
+// (see applyRoute). If it is an inactive bar, it resolves once an admin logs
+// in: the bar list is then fetched again with the admin header.
+let pendingDeepLinkSlug = null
+watch(bars, () => {
+  if (!pendingDeepLinkSlug || !isAdmin.value) return
+  const bar = bars.value.find(b => b.slug === pendingDeepLinkSlug)
+  if (!bar) return
+  pendingDeepLinkSlug = null
+  openBarCard(bar)
+})
+
 function handleOpenDb() {
   if (!dbWin.value) {
-    wm.register('database', 'Database', '&#128196;')
+    wm.register('database', t(WINDOW_TITLE_KEYS.database), '&#128196;')
   }
   wm.restore('database')
   wm.focus('database')
@@ -347,7 +469,6 @@ function handleOpenApp(app) {
     showContact.value = true
   } else {
     // Placeholder windows for feed, chatroom, about, reviews
-    const titles = { feed: 'Feed', chatroom: 'Chatroom', about: 'About', reviews: 'Reviews' }
     const icons = {
       feed: '<img src="/icons/twitterblue.ico" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
       chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
@@ -355,7 +476,7 @@ function handleOpenApp(app) {
       reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
     }
     if (!wm.getWindow(app)) {
-      wm.register(app, titles[app] || app, icons[app] || '')
+      wm.register(app, WINDOW_TITLE_KEYS[app] ? t(WINDOW_TITLE_KEYS[app]) : app, icons[app] || '')
     }
     wm.restore(app)
     wm.focus(app)
@@ -384,13 +505,15 @@ function closeDrawer() {
 
 function handleSelectBarFromDirectory(bar) {
   // Show single bar in popup (wrap in array)
+  popupBarId.value = bar.id
   popupBuildingBars.value = [bar]
-  popupBuildingId.value = bar.building_id || 'Directory'
+  popupBuildingId.value = bar.building_id || t('directory')
 }
 
 function closePopup() {
   popupBuildingBars.value = null
   popupBuildingId.value = null
+  popupBarId.value = null
   twitterBar.value = null
   reviewPanelBar.value = null
 }
@@ -399,28 +522,315 @@ function openTwitterPanel(bar) {
   twitterBar.value = bar
 }
 
-async function handleSearchSelect({ bar, buildingId }) {
+// Opens a bar's card. The card and the view are set in the same tick (one
+// history entry, and the card is up before the map has finished mounting);
+// the pan follows once the map can measure itself.
+function handleSearchSelect({ bar, buildingId }) {
+  popupBarId.value = bar ? bar.id : null
   if (buildingId) {
     // Bar is placed in a building — pan to it and show all building's bars
-    if (activeView.value !== 'map') {
-      activeView.value = 'map'
-      await nextTick()
-      await new Promise(r => setTimeout(r, 200))
-    }
-    if (mapRef.value) {
-      mapRef.value.panToBuilding(buildingId)
-    }
+    activeView.value = 'map'
     const barsInBuilding = bars.value.filter(b => b.building_id === buildingId)
     if (barsInBuilding.length > 0) {
       popupBuildingBars.value = barsInBuilding
       popupBuildingId.value = buildingId
     }
+    panToBuildingWhenReady(buildingId)
   } else {
     // Bar has no building — just open popup with the single bar
     popupBuildingBars.value = [bar]
-    popupBuildingId.value = bar.street || 'Unplaced'
+    popupBuildingId.value = bar.street || t('unplaced')
   }
 }
+
+let panRequest = 0
+async function panToBuildingWhenReady(buildingId) {
+  const request = ++panRequest
+  // Mounts the map if this is the first visit to the map view
+  await nextTick()
+  // false if the user left the map view before the map was ready
+  if (mapRef.value && await mapRef.value.whenReady() && request === panRequest) {
+    mapRef.value.panToBuilding(buildingId)
+  }
+}
+
+// ── URL <-> state (see useUrlState.js for the scheme and the history rules) ──
+function readRoute() {
+  return {
+    view: activeView.value,
+    slug: openBar.value ? openBar.value.slug : null,
+    lang: urlLang.value,
+    filters: {
+      tags: activeTags.value,
+      mode: tagMode.value,
+      open: openNowFilter.value,
+      floor: floorFilter.value,
+      chargeMin: chargeMin.value,
+      chargeMax: chargeMax.value,
+      drinkMin: drinkMin.value,
+      drinkMax: drinkMax.value,
+    },
+  }
+}
+
+// The page the API serves with a 404 for an unknown bar carries this marker
+// (server/lib/seo.js). A <meta>, not an inline script, so it works under a CSP.
+const serverSaidNotFound =
+  document.querySelector('meta[name="golden-gai-status"]')?.getAttribute('content') === 'not-found'
+let firstRoute = true
+
+function showBarNotFound() {
+  useDialog().alert(t('barNotFound'), { title: t('barNotFoundTitle'), icon: 'error' })
+}
+
+// Puts a parsed URL into the app. An unknown slug, or one of a bar that is
+// not in the public list (inactive), is simply the map: the address bar is
+// then rewritten to /map by useUrlState. When the page was opened on such a
+// link, a "not found" dialog says so.
+function applyRoute(route, historyState) {
+  const opening = firstRoute
+  firstRoute = false
+  if (route.lang) {
+    lang.value = route.lang
+    urlLang.value = route.lang
+  } else {
+    urlLang.value = null
+  }
+
+  const bar = route.slug ? bars.value.find(b => b.slug === route.slug) : null
+  // A card opened from the Directory stays over the Directory on Back/Forward;
+  // a bar that is not on the map has nowhere else to open.
+  const overDirectory = !!bar && (!bar.building_id || historyState?.view === 'directory')
+
+  if (route.view === 'map' && !overDirectory) {
+    const f = route.filters
+    const known = new Set(tags.value.map(tag => tag.id))
+    activeTags.value = f.tags.filter(id => known.has(id))
+    tagMode.value = f.mode
+    openNowFilter.value = f.open
+    floorFilter.value = f.floor
+    chargeMin.value = f.chargeMin
+    chargeMax.value = f.chargeMax
+    drinkMin.value = f.drinkMin
+    drinkMax.value = f.drinkMax
+  }
+
+  // Only the link the page was opened with can resolve after an admin login
+  pendingDeepLinkSlug = opening && route.slug && !bar ? route.slug : null
+
+  if (!bar) {
+    closePopup()
+    activeView.value = route.view
+    if (opening && (route.slug || serverSaidNotFound)) showBarNotFound()
+  } else if (overDirectory) {
+    twitterBar.value = null
+    reviewPanelBar.value = null
+    activeView.value = 'directory'
+    handleSelectBarFromDirectory(bar)
+  } else {
+    reviewPanelBar.value = null
+    handleSearchSelect({ bar, buildingId: bar.building_id })
+  }
+}
+
+const urlState = useUrlState({
+  read: readRoute,
+  apply: applyRoute,
+  historyState: () => ({ view: activeView.value }),
+})
+
+// Parse the URL only once the bars are there to resolve a slug against
+watch([loading, error], ([isLoading, err]) => {
+  if (!isLoading && !err) urlState.start()
+}, { immediate: true })
+
+// Moving between the tabs of an open card rewrites the entry instead of adding one
+function handlePopupBarChange(bar) {
+  popupBarId.value = bar.id
+  urlState.replaceNext()
+}
+
+watch([openBar, effectiveLang, activeView, loading], ([bar, l, view, isLoading]) => {
+  // Until the bars are in, the URL has not been applied: keep the title the
+  // server sent for this address rather than flashing the desktop's.
+  if (isLoading) return
+  const name = bar && (l === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp))
+  document.title = pageTitle({ view, barName: name, lang: l })
+}, { immediate: true })
+
+// <html lang> follows the language chosen in the app
+watch(effectiveLang, (l) => { document.documentElement.lang = htmlLang(l) }, { immediate: true })
+
+// ── Share ─────────────────────────────────────────────────────────────────────
+const dialog = useDialog()
+const shareBalloon = ref(null) // { text, x, y, below } | null
+let shareBalloonTimer = null
+let shareBalloonWatch = null
+
+function hideShareBalloon() {
+  clearTimeout(shareBalloonTimer)
+  clearInterval(shareBalloonWatch)
+  shareBalloon.value = null
+}
+
+function showShareBalloon(anchorEl, text) {
+  const rect = anchorEl?.getBoundingClientRect?.()
+  const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+  const below = !rect || rect.top < 48
+  shareBalloon.value = {
+    text,
+    x: Math.round(Math.min(Math.max(cx, 70), window.innerWidth - 70)),
+    y: Math.round(rect ? (below ? rect.bottom + 8 : rect.top - 8) : window.innerHeight / 2),
+    below,
+  }
+  clearTimeout(shareBalloonTimer)
+  clearInterval(shareBalloonWatch)
+  shareBalloonTimer = setTimeout(hideShareBalloon, 2000)
+  // The balloon points at a button on a bar card: when the card goes away
+  // (closed, filtered out, another view) the balloon goes with it.
+  if (anchorEl) {
+    shareBalloonWatch = setInterval(() => {
+      if (!anchorEl.isConnected || anchorEl.getClientRects().length === 0) hideShareBalloon()
+    }, 100)
+  }
+}
+onUnmounted(hideShareBalloon)
+
+async function handleShareBar({ bar, anchor }) {
+  if (!bar || !bar.slug) return
+  const url = barShareUrl(window.location.origin, bar.slug, effectiveLang.value)
+  const name = effectiveLang.value === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp)
+  if (canNativeShare()) {
+    try {
+      await navigator.share({ title: barTitle(name), url })
+      return
+    } catch (err) {
+      if (err && err.name === 'AbortError') return // sheet closed by the user
+      // Share sheet refused (e.g. not allowed here): copy instead
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    showShareBalloon(anchor, t('linkCopied'))
+  } catch {
+    // No clipboard access (insecure context, denied permission): hand the URL over to copy by hand
+    await dialog.prompt(t('shareCopyByHand'), { title: t('shareLinkTitle'), default: url, icon: 'info' })
+  }
+}
+
+// ── Offline mode / installable app (G03) ─────────────────────────────────────
+const pwa = usePwa()
+const offline = pwa.offline
+
+// Back online: fetch fresh data. While the API cannot be reached although the
+// device says it is connected (weak signal), try again every so often; the
+// service worker reports when a request got through.
+const OFFLINE_RETRY_MS = 30000
+let offlineRetryTimer = null
+function refreshData() {
+  refreshQuietly()
+  loadPartitionsFromServer()
+}
+watch(offline, (isOffline) => {
+  clearInterval(offlineRetryTimer)
+  if (isOffline) {
+    offlineRetryTimer = setInterval(() => { if (navigator.onLine !== false) refreshData() }, OFFLINE_RETRY_MS)
+  } else {
+    refreshData()
+  }
+})
+// The worker answered from its saved copy and has since stored a newer one
+const stopDataUpdates = pwa.onDataUpdated((path) => {
+  if (path === '/api/partitions') loadPartitionsFromServer()
+  else if (path === '/api/bars' || path === '/api/tags') refreshQuietly()
+})
+onUnmounted(() => {
+  clearInterval(offlineRetryTimer)
+  stopDataUpdates()
+})
+
+// ── A reload that failed (R08) ───────────────────────────────────────────────
+// Once the first load has succeeded the app never goes back to the error
+// screen: a failed reload (after an admin save or toggle, a placement) keeps
+// the last good data on screen. Say so once, keep trying in the background,
+// and take the notice down again when a reload gets through.
+const RELOAD_RETRY_MS = 30000
+let reloadRetryTimer = null
+let reloadNotice = null // { title, message } of the notice that was opened
+const dialogHost = useDialogHost()
+function isReloadNotice(d) {
+  return !!d && !!reloadNotice && d.kind === 'alert' && d.title === reloadNotice.title && d.message === reloadNotice.message
+}
+// 'admin': admin mode with the public list on screen (the inactive bars are
+// missing), which is worth saying even after the plain notice was shown.
+const staleKind = computed(() => !dataStale.value ? null : (isAdmin.value && !listIsAdmin.value) ? 'admin' : 'plain')
+watch(staleKind, (kind, was) => {
+  if (!kind) { clearInterval(reloadRetryTimer); reloadRetryTimer = null; return }
+  if (!reloadRetryTimer) {
+    reloadRetryTimer = setInterval(() => { if (navigator.onLine !== false) reload() }, RELOAD_RETRY_MS)
+  }
+  if (was && kind === 'plain') return // already told
+  reloadNotice = {
+    title: t('reloadFailedTitle'),
+    message: t(kind === 'admin' ? 'reloadFailedAdmin' : 'reloadFailed'),
+  }
+  dialog.alert(reloadNotice.message, { title: reloadNotice.title, icon: 'warning' })
+})
+// Fresh data is in: an unanswered notice no longer applies
+watch([dataStale, dialogHost.current], ([isStale, onScreen]) => {
+  if (!isStale && isReloadNotice(onScreen)) dialogHost.settle(onScreen.id, undefined)
+})
+onUnmounted(() => clearInterval(reloadRetryTimer))
+
+// "A new version of GAI OS is available": asked once per waiting version,
+// after the boot screen. "Later" keeps this version until the next start.
+watch([pwa.updateReady, showBios], async ([ready, booting]) => {
+  if (!ready || booting) return
+  pwa.updateReady.value = false
+  const restart = await dialog.confirm(t('updateAvailable'), {
+    title: t('updateTitle'),
+    icon: 'question',
+    okLabel: t('updateRestart'),
+    cancelLabel: t('updateLater'),
+  })
+  if (restart) pwa.restartIntoUpdate()
+})
+
+// Setup wizard: from the Start menu any time, and offered once by itself from
+// the second visit on (see utils/installOffer.js for when it stays quiet).
+const showInstallWizard = ref(false)
+const visits = recordVisit(readJSON('golden-gai-visits', null, isVisitState), Date.now())
+writeJSON('golden-gai-visits', visits)
+const installOffered = ref(!!readString('golden-gai-install-offered'))
+
+function openInstallWizard() {
+  showInstallWizard.value = true
+  // Seen once, by either route: do not bring it up again uninvited
+  installOffered.value = true
+  writeString('golden-gai-install-offered', '1')
+}
+
+const INSTALL_OFFER_DELAY_MS = 2500
+const wantInstallOffer = computed(() => shouldOfferInstall({
+  visits: visits.count,
+  offered: installOffered.value,
+  installMode: pwa.installMode.value,
+  onboarding: showBios.value || loading.value || !!error.value
+    || lang.value === null || firstVisit.value === null
+    || showRules.value || tourMode.value || showRulesHint.value,
+  deepLink: isDeepLink,
+  admin: isAdmin.value,
+  busy: !!popupBuildingBars.value || !!reviewPanelBar.value || showContact.value,
+}))
+let installOfferTimer = null
+watch(wantInstallOffer, (want) => {
+  clearTimeout(installOfferTimer)
+  if (!want) return
+  installOfferTimer = setTimeout(() => {
+    if (wantInstallOffer.value) openInstallWizard()
+  }, INSTALL_OFFER_DELAY_MS)
+}, { immediate: true })
+onUnmounted(() => clearTimeout(installOfferTimer))
 
 async function handlePlaceBar({ bar, buildingId }) {
   try {
@@ -443,10 +853,15 @@ async function handleUnplaceBar(bar) {
 </script>
 
 <template>
-  <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" @done="showBios = false" />
+  <BiosScreen v-if="showBios" :api-loading="loading" :api-error="error" :fast="biosFastBoot" @done="handleBiosDone" />
+  <WinDialog :lang="effectiveLang" />
+  <!-- "Suggest an edit" dialog + thank-you balloon (opened via useSuggestEdit) -->
+  <SuggestEditHost :lang="effectiveLang" />
+  <!-- "Install GAI OS" setup wizard -->
+  <InstallWizard v-if="showInstallWizard" :lang="effectiveLang" @close="showInstallWizard = false" />
 
-  <div v-if="loading" class="loading-screen">Loading...</div>
-  <div v-else-if="error" class="loading-screen">Error: {{ error }}</div>
+  <div v-if="loading" class="loading-screen">{{ t('loading') }}</div>
+  <div v-else-if="error" class="loading-screen">{{ t('errorPrefix') }} {{ error }}</div>
 
   <template v-else>
     <!-- Gai-chan character helper — only while questions are still pending -->
@@ -464,6 +879,7 @@ async function handleUnplaceBar(bar) {
          - firstVisit === false: start tucked (skip rules), ready for interactive help
          - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
+      :key="rulesWalkKey"
       v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && wm.getWindow('chatroom'))"
       :lang="effectiveLang"
       :rules-accepted="rulesAccepted || firstVisit === false"
@@ -505,9 +921,11 @@ async function handleUnplaceBar(bar) {
       </div>
 
       <!-- Map view -->
-      <template v-if="activeView === 'map'">
-        <GoldenGaiMap
+      <GoldenGaiMap
+          v-if="mapMounted"
+          v-show="activeView === 'map'"
           ref="mapRef"
+          :active="activeView === 'map'"
           :bars="bars"
           :tag-map="tagMap"
           :active-tags="activeTags"
@@ -528,15 +946,14 @@ async function handleUnplaceBar(bar) {
           :search-highlighted="searchHighlightedBuildings"
           :search-highlighted-bars="searchHighlightedBars"
           :tour-highlight="tourHighlight"
-          :label-mode="labelMode"
           :tag-mode="tagMode"
           @select-building="handleSelectBuilding"
           @deselect="closeDrawer"
           @place-bar="handlePlaceBar"
           @select-building-for-edit="handleSelectBuildingForEdit"
-          @hover-building="hoveredBuildingId = $event"
         />
 
+      <template v-if="activeView === 'map'">
         <!-- Mobile controls: search + filter bar -->
         <div v-if="isMobile && !isAdmin" class="mobile-map-controls">
           <div class="mobile-search-bar">
@@ -575,7 +992,7 @@ async function handleUnplaceBar(bar) {
               class="mobile-map-clear-btn"
               @click="clearMapFilters"
             >
-              &#10005; Clear
+              &#10005; {{ t('clear') }}
             </button>
           </div>
           <div v-if="mobileMapFiltersOpen" class="mobile-map-filter-panel">
@@ -597,10 +1014,13 @@ async function handleUnplaceBar(bar) {
           </div>
         </div>
 
-        <!-- Search window (desktop only) -->
+        <!-- Search window (desktop only). Also there in admin mode (R09), so a
+             bar's card and reviews can be reached without leaving it. While a
+             bar is being placed, picking a result only moves the map to that
+             bar's building: no card opens over the map being clicked on. -->
         <WinWindow
-          v-if="searchWin && !isAdmin && !isMobile"
-          :title="t('search')"
+          v-if="searchWin && !isMobile"
+          :title="searchWin.title"
           icon="&#128269;"
           :width="200"
           :initial-x="8"
@@ -615,7 +1035,7 @@ async function handleUnplaceBar(bar) {
           <MapSearch
             :bars="bars"
             :lang="effectiveLang"
-            @select-bar="handleSearchSelect"
+            @select-bar="isAdmin && placingBar ? ($event.buildingId && panToBuildingWhenReady($event.buildingId)) : handleSearchSelect($event)"
             @search-matches="handleSearchMatches"
           />
         </WinWindow>
@@ -625,7 +1045,7 @@ async function handleUnplaceBar(bar) {
           ref="explorerWinRef"
           v-if="explorerWin && !isAdmin && !isMobile"
           :class="{ 'tour-highlight': tourHighlight === 'map-filter' }"
-          title="Explorer"
+          :title="explorerWin.title"
           icon="&#128193;"
           :width="200"
           :initial-x="explorerInitialX"
@@ -640,11 +1060,11 @@ async function handleUnplaceBar(bar) {
           <div class="explorer-quick-filters">
             <button :class="['quickbar-btn', { active: favoritesFilter }]" @click="favoritesFilter = !favoritesFilter">
               <img src="/icons/heart.ico" class="quickbar-icon" aria-hidden="true" />
-              Favorites
+              {{ t('favorites') }}
             </button>
             <button :class="['quickbar-btn', { active: visitedFilter }]" @click="visitedFilter = !visitedFilter">
               <img src="/icons/desktop/trust0.png" class="quickbar-icon" aria-hidden="true" />
-              Visited
+              {{ t('visited') }}
             </button>
           </div>
           <TagFilter
@@ -674,6 +1094,7 @@ async function handleUnplaceBar(bar) {
           :drink-min="drinkMin"
           :drink-max="drinkMax"
           :floor-filter="floorFilter"
+          :tag-mode="tagMode"
           :open-now-filter="openNowFilter"
           :open-bar-ids="openBarIds"
           :tags="sortedTags"
@@ -681,11 +1102,12 @@ async function handleUnplaceBar(bar) {
           :favorites-filter="favoritesFilter"
           :visited-filter="visitedFilter"
           :all-bars="bars"
-          :hover-building-id="hoveredBuildingId"
+          follow-map-hover
           @close="closeDrawer"
           @back-to-all="drawerMode = 'all'; drawerBuildingBars = null; drawerBuildingId = null"
           @select-bar="openTwitterPanel"
           @show-reviews="reviewPanelBar = $event"
+          @share-bar="handleShareBar"
           @hover-bar="hoveredBarId = $event"
           @unhover-bar="hoveredBarId = null"
         />
@@ -701,6 +1123,7 @@ async function handleUnplaceBar(bar) {
           :drink-min="drinkMin"
           :drink-max="drinkMax"
           :floor-filter="floorFilter"
+          :tag-mode="tagMode"
           :open-now-filter="openNowFilter"
           :open-bar-ids="openBarIds"
           :tags="sortedTags"
@@ -710,19 +1133,21 @@ async function handleUnplaceBar(bar) {
           @close="closeDrawer"
           @select-bar="openTwitterPanel"
           @show-reviews="reviewPanelBar = $event"
+          @share-bar="handleShareBar"
           @hover-bar="hoveredBarId = $event"
           @unhover-bar="hoveredBarId = null"
         />
       </template>
 
-      <!-- Admin window (visible in both views) -->
+      <!-- Admin window (visible in both views). On desktop it opens beside
+           the Search window (8..208px) instead of on top of it. -->
       <WinWindow
         v-if="adminWin && isAdmin"
-        title="Admin Console"
+        :title="adminWin.title"
         icon="&#128295;"
         :width="280"
         :height="550"
-        :initial-x="8"
+        :initial-x="isMobile ? 8 : 216"
         :initial-y="8"
         :active="wm.isActive('admin')"
         :minimized="adminWin.minimized"
@@ -735,13 +1160,17 @@ async function handleUnplaceBar(bar) {
           :bars="bars"
           :tags="sortedTags"
           :placing-bar="placingBar"
-          :partitions="partitions"
+          :partitions="editablePartitions"
+          :partition-issues="partitionIssues"
+          :lang="effectiveLang"
           :selected-building="selectedBuilding"
           @select-for-placement="placingBar = $event"
           @unplace-bar="handleUnplaceBar"
           @reload="reload"
           @reorder-tags="handleReorderTags"
           @update-partitions="handleUpdatePartitions"
+          @reset-partitions="handleResetPartitions"
+          @open-bar="openBarCard"
           @open-db="handleOpenDb"
         />
       </WinWindow>
@@ -749,7 +1178,7 @@ async function handleUnplaceBar(bar) {
       <!-- Database spreadsheet window -->
       <WinWindow
         v-if="dbWin && isAdmin"
-        title="Database"
+        :title="dbWin.title"
         icon="&#128196;"
         :width="dbWinWidth"
         :height="dbWinHeight"
@@ -894,9 +1323,12 @@ async function handleUnplaceBar(bar) {
         :open-bar-ids="openBarIds"
         :twitter-open="!!twitterBar"
         :auto-twitter="!isMobile"
+        :selected-bar-id="popupBarId"
         @close="closePopup"
         @select-bar="openTwitterPanel"
         @show-reviews="reviewPanelBar = $event"
+        @change-bar="handlePopupBarChange"
+        @share-bar="handleShareBar"
       />
 
       <!-- Twitter panel — desktop: right sidebar; mobile: full-screen -->
@@ -917,6 +1349,32 @@ async function handleUnplaceBar(bar) {
 
     </div>
 
+    <!-- "Link copied!" tooltip, pointing at the share button that was pressed.
+         On <body> like the bar card, so viewport coordinates apply as they are
+         (#app is zoomed on desktop). -->
+    <Teleport to="body">
+      <div
+        v-if="shareBalloon"
+        :class="['share-balloon', { 'share-balloon--below': shareBalloon.below }]"
+        :style="{ left: shareBalloon.x + 'px', top: shareBalloon.y + 'px' }"
+        role="status"
+      >{{ shareBalloon.text }}</div>
+    </Teleport>
+
+    <!-- Deep-link visitors: offer the rules instead of the question flow -->
+    <div v-if="showRulesHint && !showBios" class="rules-hint">
+      <button class="rules-hint-main" @click="startRulesFromHint">
+        <img src="/gaichan/gaichanicon.png" class="rules-hint-face" alt="" />
+        <span class="rules-hint-text">
+          <span class="rules-hint-q">{{ t('rulesHintQuestion') }}</span>
+          <span class="rules-hint-link">{{ t('rulesHintAction') }} &#9654;</span>
+        </span>
+      </button>
+      <button class="rules-hint-close" :title="t('close')" :aria-label="t('close')" @click="dismissRulesHint">
+        <span class="rules-hint-close-box">&#10005;</span>
+      </button>
+    </div>
+
     <!-- CRT monitor overlay -->
     <div class="crt-overlay"></div>
 
@@ -928,6 +1386,9 @@ async function handleUnplaceBar(bar) {
       :active-view="activeView"
       :lang="effectiveLang"
       :tour-highlight="tourHighlight"
+      :offline="offline"
+      :data-time="dataTime"
+      @install="openInstallWizard"
       @toggle-admin="handleToggleAdmin"
       @switch-view="handleSwitchView"
       @update:lang="handleLangSelect"
@@ -1107,6 +1568,143 @@ async function handleUnplaceBar(bar) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   max-height: 50dvh;
   overflow-y: auto;
+}
+
+/* "Link copied!" — Win95 tooltip with a tail */
+.share-balloon {
+  position: fixed;
+  z-index: 3000;
+  transform: translate(-50%, -100%);
+  padding: 3px 8px;
+  background: #ffffe1;
+  color: #000;
+  border: 1px solid #000;
+  font-family: var(--win-font);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.share-balloon--below {
+  transform: translate(-50%, 0);
+}
+
+.share-balloon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 7px;
+  height: 7px;
+  margin-left: -4px;
+  background: #ffffe1;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  transform: rotate(45deg);
+}
+
+.share-balloon--below::after {
+  bottom: auto;
+  top: -5px;
+  border: none;
+  border-left: 1px solid #000;
+  border-top: 1px solid #000;
+}
+
+/* Deep-link "read the rules" balloon: a small Gai-chan message window */
+.rules-hint {
+  position: fixed;
+  left: 8px;
+  bottom: calc(var(--taskbar-height, 32px) + 8px);
+  z-index: 260;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100vw - 16px);
+  background: var(--win-bg);
+  padding: 3px;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest),
+    4px 4px 10px rgba(0, 0, 0, 0.6);
+  font-family: var(--win-font);
+}
+
+.rules-hint-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 4px 8px 4px 6px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  color: var(--win-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rules-hint-main:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+}
+
+.rules-hint-face {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.rules-hint-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.rules-hint-link {
+  color: var(--valhalla-orange);
+  text-decoration: underline;
+}
+
+.rules-hint-close {
+  flex-shrink: 0;
+  width: 40px;
+  min-height: 44px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.rules-hint-close-box {
+  width: 16px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--win-bg);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  font-size: 8px;
+  font-weight: bold;
+  line-height: 1;
+  color: var(--win-text);
+}
+
+.rules-hint-close:active .rules-hint-close-box {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
 }
 
 /* Mobile full-screen feed panel */

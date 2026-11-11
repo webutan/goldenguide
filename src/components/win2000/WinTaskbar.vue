@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useWindowManager } from '../../composables/useWindowManager.js'
 import { useI18n } from '../../composables/useI18n.js'
+import { useSuggestEdit } from '../../composables/useSuggestEdit.js'
 
 const props = defineProps({
   visitedCount: { type: Number, default: 0 },
@@ -10,15 +11,31 @@ const props = defineProps({
   activeView: { type: String, default: 'desktop' },
   lang: { type: String, default: 'en' },
   tourHighlight: { type: String, default: null },
+  // No connection: show the tray icon and the "saved data" balloon
+  offline: { type: Boolean, default: false },
+  // When the data on screen left the server (Date), for the balloon
+  dataTime: { type: Date, default: null },
 })
 
 const { t } = useI18n(computed(() => props.lang))
 
-const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang'])
+const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang', 'install'])
 
-const { windows, toggle, isActive } = useWindowManager()
+const { windows, toggle, isActive, minimize, restore } = useWindowManager()
+
+// The Admin Console's button at phone width: one tap hides the window, the
+// next brings it back. (`toggle` would first only focus it whenever another
+// registered window, shown or not, was focused last.)
+const adminWin = computed(() => windows.value.find(w => w.id === 'admin') || null)
+function toggleAdminWindow() {
+  if (!adminWin.value) return
+  if (adminWin.value.minimized) restore('admin')
+  else minimize('admin')
+  closeStart()
+}
 
 const startOpen = ref(false)
+const { openMissingBar } = useSuggestEdit()
 
 function toggleStart() {
   startOpen.value = !startOpen.value
@@ -33,17 +50,128 @@ function switchView(view) {
   closeStart()
 }
 
-const time = ref('')
-function updateTime() {
-  const now = new Date()
-  time.value = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+// Clock: always Tokyo time (matches "Open Now"); local time in the tooltip.
+const TOKYO_TZ = 'Asia/Tokyo'
+const hhmm = (date, timeZone) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date)
+
+const now = ref(new Date())
+const tokyoTime = computed(() => hhmm(now.value, TOKYO_TZ))
+const localTime = computed(() => hhmm(now.value))
+// Same UTC offset as JST (+9) means the visitor's clock already reads Tokyo time
+const isLocalJst = computed(() => now.value.getTimezoneOffset() === -540)
+const localWeekday = computed(() =>
+  now.value.toLocaleDateString(props.lang === 'jp' ? 'ja-JP' : 'en-US', { weekday: 'short' })
+)
+const clockTip = computed(() => {
+  const tokyo = `${t('clockTokyo')} ${tokyoTime.value}`
+  if (isLocalJst.value) return tokyo
+  return `${tokyo} · ${t('clockYourTime')} ${localTime.value} (${localWeekday.value})`
+})
+
+// Tooltip: hover with a mouse, tap to toggle on touch
+const clockRef = ref(null)
+const clockHover = ref(false)
+const clockPinned = ref(false)
+const showClockTip = computed(() => clockHover.value || clockPinned.value)
+const clockTipStyle = ref({})
+function placeClockTip() {
+  const rect = clockRef.value?.getBoundingClientRect()
+  if (!rect) return
+  clockTipStyle.value = {
+    right: `${Math.max(4, window.innerWidth - rect.right - 4)}px`,
+    bottom: `${window.innerHeight - rect.top + 6}px`,
+  }
 }
-updateTime()
-setInterval(updateTime, 30000)
+watch(showClockTip, (shown) => { if (shown) placeClockTip() })
+let lastPointerType = 'mouse'
+function onClockPointerEnter(e) {
+  if (e.pointerType === 'mouse') clockHover.value = true
+}
+function onClockPointerLeave() {
+  clockHover.value = false
+}
+function onClockPointerDown(e) {
+  lastPointerType = e.pointerType
+}
+function onClockClick() {
+  if (lastPointerType === 'mouse') return
+  // Phone width while offline: the icon sits above the clock and the two
+  // together are one tap target, which opens the offline balloon (it also
+  // carries the clock's text there).
+  if (props.offline && window.innerWidth <= 768) {
+    clockHover.value = false // set by the tap's focus; the balloon replaces the tip
+    toggleNetBalloon()
+  } else {
+    clockPinned.value = !clockPinned.value
+  }
+}
+function onDocPointerDown(e) {
+  if (clockPinned.value && clockRef.value && !clockRef.value.contains(e.target)) {
+    clockPinned.value = false
+  }
+}
+
+// Offline tray icon + balloon. The balloon opens by itself when the
+// connection drops, closes after a while, and toggles on a click or tap.
+const OFFLINE_BALLOON_MS = 8000
+const netRef = ref(null)
+const netBalloon = ref(false)
+const netBalloonStyle = ref({})
+let netBalloonTimer = null
+
+const savedDataText = computed(() => {
+  const at = props.dataTime
+  if (!at) return t('offlineNoData')
+  const sameDay = at.toDateString() === now.value.toDateString()
+  const time = new Intl.DateTimeFormat(props.lang === 'jp' ? 'ja-JP' : 'en-GB', sameDay
+    ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
+    : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
+  return t('offlineSavedData', { time })
+})
+
+function placeNetBalloon() {
+  const rect = netRef.value?.getBoundingClientRect()
+  if (!rect) return
+  netBalloonStyle.value = {
+    right: `${Math.max(4, window.innerWidth - rect.right - 4)}px`,
+    bottom: `${window.innerHeight - rect.top + 6}px`,
+  }
+}
+function showNetBalloon(autoHide) {
+  netBalloon.value = true
+  nextTick(placeNetBalloon)
+  clearTimeout(netBalloonTimer)
+  if (autoHide) netBalloonTimer = setTimeout(() => { netBalloon.value = false }, OFFLINE_BALLOON_MS)
+}
+function hideNetBalloon() {
+  clearTimeout(netBalloonTimer)
+  netBalloon.value = false
+}
+function toggleNetBalloon() {
+  if (netBalloon.value) hideNetBalloon()
+  else showNetBalloon(false)
+}
+watch(() => props.offline, (isOffline) => {
+  if (isOffline) showNetBalloon(true)
+  else hideNetBalloon()
+}, { immediate: true })
+
+let clockTimer = null
+onMounted(() => {
+  now.value = new Date()
+  clockTimer = setInterval(() => { now.value = new Date() }, 15000)
+  document.addEventListener('pointerdown', onDocPointerDown)
+})
+onUnmounted(() => {
+  clearInterval(clockTimer)
+  clearTimeout(netBalloonTimer)
+  document.removeEventListener('pointerdown', onDocPointerDown)
+})
 </script>
 
 <template>
-  <div class="win-taskbar" @click.self="closeStart">
+  <div :class="['win-taskbar', { 'has-admin-btn': !!adminWin }]" @click.self="closeStart">
     <!-- Start button -->
     <button
       :class="['taskbar-start', { pressed: startOpen }]"
@@ -56,6 +184,14 @@ setInterval(updateTime, 30000)
     <div v-if="startOpen" class="start-menu" @click="closeStart">
       <div class="start-menu-sidebar">{{ t('goldenGai') }}</div>
       <div class="start-menu-items">
+        <div class="start-menu-item" role="button" @click="openMissingBar()">
+          <span class="start-menu-glyph">&#9998;</span>
+          <span>{{ t('suggestMissingMenu') }}</span>
+        </div>
+        <div class="start-menu-item" role="button" @click="emit('install')">
+          <img src="/icons/gaios.ico" class="start-menu-icon" alt="" />
+          <span>{{ t('installMenu') }}</span>
+        </div>
         <div class="start-menu-item" @click="emit('toggleAdmin')">
           <span>{{ isAdmin ? '&#9745;' : '&#9744;' }}</span>
           <span>{{ t('adminMode') }}</span>
@@ -109,6 +245,21 @@ setInterval(updateTime, 30000)
       </button>
     </div>
 
+    <!-- Phone width only (R09): the window buttons above are hidden there, but
+         the Admin Console is a floating window that covers the desktop and
+         the map, so it gets an icon button to minimise and restore it. -->
+    <button
+      v-if="adminWin"
+      type="button"
+      :class="['taskbar-admin-btn', { active: !adminWin.minimized }]"
+      :title="adminWin.title"
+      :aria-label="adminWin.title"
+      :aria-pressed="!adminWin.minimized"
+      @click="toggleAdminWindow"
+    >
+      <span class="taskbar-admin-icon" v-html="adminWin.icon"></span>
+    </button>
+
     <!-- Language toggle (anchored right) -->
     <button
       :class="['taskbar-lang-btn', { active: lang === 'en' }]"
@@ -127,12 +278,54 @@ setInterval(updateTime, 30000)
     </button>
 
     <!-- System tray -->
-    <div class="taskbar-tray">
+    <div :class="['taskbar-tray', { 'is-offline': offline }]">
+      <button
+        v-if="offline"
+        ref="netRef"
+        type="button"
+        class="tray-net"
+        :title="t('offlineTitle')"
+        :aria-label="`${t('offlineTitle')} ${savedDataText}`"
+        @click="toggleNetBalloon"
+      >
+        <span class="tray-net-icon">
+          <img src="/icons/desktop/network_internet_pcs.png" alt="" />
+          <span class="tray-net-x" aria-hidden="true">&#10005;</span>
+        </span>
+      </button>
       <span v-if="isAdmin" class="tray-admin">ADM</span>
-      <span class="tray-visited" :title="`${visitedCount} of ${totalBars} bars visited`">
+      <span class="tray-visited" :title="t('visitedTooltip', { visited: visitedCount, total: totalBars })">
         {{ visitedCount }}/{{ totalBars }}
       </span>
-      <span class="tray-clock">{{ time }}</span>
+      <span
+        ref="clockRef"
+        class="tray-clock"
+        role="button"
+        tabindex="0"
+        :aria-label="clockTip"
+        @pointerenter="onClockPointerEnter"
+        @pointerleave="onClockPointerLeave"
+        @pointerdown="onClockPointerDown"
+        @click="onClockClick"
+        @focus="clockHover = true"
+        @blur="clockHover = false"
+      >
+        {{ tokyoTime }}<span v-if="!isLocalJst" class="tray-clock-tz">JST</span>
+      </span>
+      <!-- Teleported so it sits above Gai-chan (z 1050+) instead of inside the taskbar's stacking context -->
+      <Teleport to="body">
+        <div v-if="showClockTip" class="tray-clock-tip" role="tooltip" :style="clockTipStyle">{{ clockTip }}</div>
+        <!-- Offline balloon: on <body> for the same reason, and so the viewport
+             coordinates of the tray icon apply (#app is zoomed on desktop) -->
+        <div v-if="offline && netBalloon" class="tray-net-balloon" role="status" :style="netBalloonStyle" @click="hideNetBalloon">
+          <span class="tray-net-balloon-title">
+            <img src="/icons/msg_warning-1.png" alt="" />
+            {{ t('offlineTitle') }}
+          </span>
+          <span>{{ savedDataText }}</span>
+          <span class="tray-net-balloon-clock">{{ clockTip }}</span>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>
@@ -242,6 +435,21 @@ setInterval(updateTime, 30000)
   color: var(--win-text);
 }
 
+.start-menu-glyph {
+  width: 1em;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.start-menu-icon {
+  width: 16px;
+  height: 16px;
+  margin: 0 -2px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  object-fit: contain;
+}
+
 .start-menu-item:hover {
   background: var(--win-highlight);
   color: var(--win-highlight-text);
@@ -292,6 +500,30 @@ setInterval(updateTime, 30000)
   image-rendering: pixelated;
   display: block;
   object-fit: contain;
+}
+
+/* Admin Console button for phone width (the media query below shows it);
+   on desktop the window has its ordinary button in .taskbar-windows */
+.taskbar-admin-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  background: var(--win-bg);
+  border: none;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark);
+  cursor: pointer;
+  color: var(--win-text);
+}
+
+.taskbar-admin-btn.active {
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+  background: var(--win-bg-dark);
 }
 
 .taskbar-windows {
@@ -408,7 +640,104 @@ setInterval(updateTime, 30000)
 }
 
 .tray-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
   color: var(--win-text-disabled);
+  cursor: default;
+  outline: none;
+}
+
+.tray-clock-tz {
+  font-size: 8px;
+}
+
+/* Win95 info tip: pale yellow, 1px black border, no shadow */
+.tray-clock-tip {
+  position: fixed;
+  z-index: 1300;
+  padding: 2px 4px;
+  background: #ffffe1;
+  border: 1px solid #000000;
+  color: #000000;
+  font-family: var(--win-font);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Offline: the network icon with a red cross over it */
+.tray-net {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.tray-net-icon {
+  position: relative;
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.tray-net-icon img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.tray-net-x {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  color: #ff2020;
+  font-family: var(--win-font);
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000;
+}
+
+/* Tray balloon: same pale yellow as the info tip */
+.tray-net-balloon {
+  position: fixed;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 8px;
+  background: #ffffe1;
+  border: 1px solid #000000;
+  color: #000000;
+  font-family: var(--win-font);
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: default;
+}
+
+.tray-net-balloon-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: bold;
+}
+
+/* Phone width only: there the clock's own tip is not reachable while offline */
+.tray-net-balloon-clock {
+  display: none;
+}
+
+.tray-net-balloon-title img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
 }
 
 /* Tour highlight pulse */
@@ -446,6 +775,15 @@ setInterval(updateTime, 30000)
     display: none;
   }
 
+  /* Start menu rows tall enough to tap */
+  .start-menu {
+    width: 230px;
+  }
+  .start-menu-item {
+    min-height: 40px;
+    padding: 4px 12px;
+  }
+
   /* Hide start button text */
   .start-text {
     display: none;
@@ -460,14 +798,70 @@ setInterval(updateTime, 30000)
     display: none;
   }
 
+  /* ...except the Admin Console's: a 42px icon button. The bar is full at
+     390px, so while it is there (admin mode only) the gaps and the padding
+     of the start and view buttons shrink to make room; every button stays
+     at least 40px wide. */
+  .taskbar-admin-btn {
+    display: flex;
+    height: 42px;
+    width: 42px;
+  }
+  .taskbar-admin-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .win-taskbar.has-admin-btn {
+    gap: 2px;
+  }
+  .win-taskbar.has-admin-btn .taskbar-start,
+  .win-taskbar.has-admin-btn .taskbar-view-btn {
+    padding: 4px 8px;
+  }
+
   /* Lang buttons */
   .taskbar-lang-btn {
     padding: 4px 8px;
     min-width: 44px;
   }
 
+  /* Tray: only the clock on mobile, a 42px square to tap (the padding is on
+     the clock so the whole tray is its target) */
   .taskbar-tray {
+    height: 42px;
+    padding: 0;
+  }
+  .tray-admin,
+  .tray-visited {
     display: none;
+  }
+  .tray-clock {
+    align-self: stretch;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+  /* No room beside the clock at phone width: the icon sits above it. Each
+     half alone would be a ~20px target, so both open the offline balloon
+     (see onClockClick) and together they are one 42px target. */
+  .taskbar-tray.is-offline {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+  }
+  .taskbar-tray.is-offline .tray-net {
+    align-self: stretch;
+    flex: 1;
+  }
+  .taskbar-tray.is-offline .tray-clock {
+    align-self: stretch;
+    padding-bottom: 3px;
+  }
+  .tray-net-balloon {
+    font-size: 12px;
+  }
+  .tray-net-balloon-clock {
+    display: block;
   }
 }
 </style>

@@ -1,4 +1,5 @@
 import pool from './db.js'
+import { backupOnStart, backupMode } from './lib/backup.js'
 
 const MIGRATIONS = [
   {
@@ -214,6 +215,63 @@ const MIGRATIONS = [
       ALTER TABLE annotations ADD COLUMN IF NOT EXISTS image_height REAL NOT NULL DEFAULT 200;
     `,
   },
+  {
+    // hidden: excluded from every public list. report_count: number of rows in
+    // review_reports (one per visitor; `reporter` is a keyed hash of the IP,
+    // never the address itself). auto_hide_exempt: set when an admin un-hides
+    // a review, so further reports are recorded but never auto-hide it again.
+    name: '015-review-moderation',
+    sql: `
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS report_count INT NOT NULL DEFAULT 0;
+      ALTER TABLE reviews ADD COLUMN IF NOT EXISTS auto_hide_exempt BOOLEAN NOT NULL DEFAULT false;
+      CREATE TABLE IF NOT EXISTS review_reports (
+        id         SERIAL PRIMARY KEY,
+        review_id  INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+        reporter   TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (review_id, reporter)
+      );
+    `,
+  },
+  {
+    // "Suggest an edit": corrections sent by visitors, reviewed in the admin
+    // Inbox. bar_id is NULL for kind 'new_bar'. `payload` holds only what the
+    // visitor wants changed (validated per kind, see lib/suggestions.js).
+    // `contact` is optional and admin-only. `ip_hash` is a keyed hash of the
+    // sender's IP (lib/ipHash.js), never the address itself.
+    name: '016-suggestions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS bar_suggestions (
+        id         SERIAL PRIMARY KEY,
+        bar_id     INTEGER REFERENCES bars(id) ON DELETE CASCADE,
+        kind       TEXT NOT NULL CHECK (kind IN ('hours','price','closed','moved','info','new_bar')),
+        payload    JSONB NOT NULL DEFAULT '{}'::jsonb,
+        note       TEXT,
+        contact    TEXT,
+        status     TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','applied','dismissed')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        ip_hash    TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_bar_suggestions_status ON bar_suggestions (status, created_at DESC);
+    `,
+  },
+  {
+    // Arrivals carrying a whitelisted ?ref= (door stickers, G05), counted per
+    // bar per Tokyo day by the SEO route. Aggregates only: no IP, no user agent.
+    // (Numbered 017: 016 is taken by a migration written at the same time.
+    // Migrations are tracked by name, so the order of landing does not matter.)
+    name: '017-ref-hits',
+    sql: `
+      CREATE TABLE IF NOT EXISTS ref_hits (
+        ref    TEXT NOT NULL,
+        bar_id INT NOT NULL REFERENCES bars(id) ON DELETE CASCADE,
+        day    DATE NOT NULL,
+        hits   INT NOT NULL DEFAULT 0,
+        PRIMARY KEY (ref, bar_id, day)
+      );
+    `,
+  },
 ]
 
 export async function runMigrations() {
@@ -229,9 +287,24 @@ export async function runMigrations() {
 
     const { rows } = await client.query('SELECT name FROM _migrations')
     const applied = new Set(rows.map(r => r.name))
+    const pending = MIGRATIONS.filter(m => !applied.has(m.name))
 
-    for (const migration of MIGRATIONS) {
-      if (applied.has(migration.name)) continue
+    // Back the database up before touching it (see lib/backup.js). With
+    // BACKUP_ON_START=required a failed backup stops here, so the schema is
+    // never migrated without a copy to go back to.
+    try {
+      await backupOnStart({ hasData: applied.size > 0, pending: pending.map(m => m.name) })
+    } catch (err) {
+      if (backupMode() === 'required' && pending.length > 0) {
+        throw new Error(
+          `Backup failed (${err.message}) and ${pending.length} migration(s) are pending. ` +
+          'Nothing was changed. Fix the backup (disk space, the backups folder) or set BACKUP_ON_START=auto to update without one.'
+        )
+      }
+      console.warn(`[backup] FAILED, continuing without one: ${err.message}`)
+    }
+
+    for (const migration of pending) {
 
       console.log(`Applying migration: ${migration.name}`)
       await client.query('BEGIN')

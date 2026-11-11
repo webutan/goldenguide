@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      # Some tests import server modules, which need the API's own dependencies
+      - run: npm ci
+        working-directory: server
+      - run: npm test
+      - run: npm run build
+      - name: Syntax-check the API
+        run: |
+          for f in $(git ls-files 'server/*.js' 'server/**/*.js'); do node --check "$f"; done

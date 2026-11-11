@@ -60,10 +60,11 @@ function handleDesktopClick() {
         v-for="review in stickyNotes"
         :key="review.id"
         :review="review"
+        :lang="lang"
       />
     </template>
 
-    <img src="/signs/sign.png" class="desktop-sign-banner" alt="Golden Gai" @click="handleDesktopClick" />
+    <img src="/signs/sign.webp" class="desktop-sign-banner" :alt="t('goldenGai')" @click="handleDesktopClick" />
     <div class="desktop-icons">
       <div
         v-for="icon in icons"
@@ -85,7 +86,7 @@ function handleDesktopClick() {
 .desktop-view {
   position: absolute;
   inset: 0;
-  background: url('/static-off.png') center / cover no-repeat;
+  background: url('/static-off.webp') center / cover no-repeat;
   overflow: hidden;
 }
 

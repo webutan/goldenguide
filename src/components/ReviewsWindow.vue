@@ -1,24 +1,29 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
+import ReviewActions from './ReviewActions.vue'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
 })
 
-const { weeklyReviews } = useReviews()
+const { weeklyReviews, loadWeeklyReviews } = useReviews()
+// Reviews are not saved for offline use: say so, and load them once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline) loadWeeklyReviews() })
 const { t } = useI18n(computed(() => props.lang))
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('timeJustNow')
+  if (mins < 60) return t('timeMinutesAgo', { n: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t('timeHoursAgo', { n: hrs })
   const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return t('timeDaysAgo', { n: days })
 }
 
 function barName(review) {
@@ -28,15 +33,16 @@ function barName(review) {
 
 <template>
   <div class="reviews-window">
-    <div v-if="weeklyReviews.length === 0" class="reviews-empty">{{ t('noReviews') }}</div>
+    <div v-if="weeklyReviews.length === 0" class="reviews-empty">{{ offline ? t('offlineReviews') : t('noReviews') }}</div>
     <div v-for="review in weeklyReviews" :key="review.id" class="review-item">
       <div class="review-item-header">
         <span class="review-bar-name">{{ barName(review) }}</span>
         <span class="review-item-time">{{ timeAgo(review.created_at) }}</span>
       </div>
       <div class="review-item-nick">{{ review.nickname }}</div>
-      <p class="review-item-text">{{ review.text }}</p>
-      <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" alt="drawing" />
+      <p v-if="review.text && review.text.trim()" class="review-item-text">{{ review.text }}</p>
+      <img v-if="review.drawing" :src="review.drawing" class="review-item-drawing" :alt="t('reviewDrawing')" />
+      <ReviewActions :review="review" :lang="lang" />
     </div>
   </div>
 </template>

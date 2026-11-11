@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { fetchBarFeed } from '../api/index.js'
+import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   bar: { type: Object, default: null },
@@ -9,14 +12,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
-}
+const { t } = useI18n(computed(() => props.lang))
 
 const handle = computed(() => parseTwitterHandle(props.bar?.sns))
 
@@ -27,9 +23,9 @@ const barName = computed(() => {
     : (props.bar.name_en || props.bar.name_jp)
 })
 
-const tweets = ref(null)   // null = no API key, array = tweets
+const tweets = ref(null)   // null = no API key / no tweets field, array = tweets
 const loading = ref(false)
-const error = ref(null)
+const error = ref(false) // the request failed, or the server reported an upstream error
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -48,14 +44,15 @@ function formatDate(dateStr) {
 async function loadFeed(h) {
   if (!h) return
   loading.value = true
-  error.value = null
+  error.value = false
   tweets.value = null
   try {
     const data = await fetchBarFeed(h)
-    tweets.value = data.tweets
-    if (data.error) error.value = data.error
-  } catch (err) {
-    error.value = err.message
+    // The response may have no `tweets` field at all (e.g. error-only payloads)
+    tweets.value = Array.isArray(data?.tweets) ? data.tweets : null
+    if (data?.error) error.value = true
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
@@ -63,46 +60,50 @@ async function loadFeed(h) {
 
 onMounted(() => { if (handle.value) loadFeed(handle.value) })
 watch(handle, (h) => { if (h) loadFeed(h) })
+
+// Not saved for offline use: say so, and load it once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline && error.value && handle.value) loadFeed(handle.value) })
 </script>
 
 <template>
   <div v-if="handle" class="bar-twitter-panel">
     <div class="btp-header">
-      <img src="/icons/twitterwhite.ico" class="btp-icon" alt="Twitter/X" />
+      <img src="/icons/twitterwhite.ico" class="btp-icon" :alt="t('twitterX')" />
       <span class="btp-name">{{ barName }}</span>
       <span class="btp-handle">@{{ handle }}</span>
       <button class="btp-close" @click="emit('close')">✕</button>
     </div>
 
     <!-- Mobile: fixed close button at bottom-right above taskbar -->
-    <button class="btp-mobile-close" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="btp-mobile-close" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <div class="btp-body">
       <!-- Loading -->
-      <div v-if="loading" class="btp-status">Loading...</div>
+      <div v-if="loading" class="btp-status">{{ t('loading') }}</div>
 
       <!-- Error banner -->
-      <div v-if="error" class="btp-error">{{ error }}</div>
+      <div v-if="error" class="btp-error">{{ offline ? t('offlineFeed') : t('feedLoadFailed') }}</div>
 
       <!-- No API key — show link fallback -->
-      <div v-else-if="tweets === null && !loading" class="btp-no-api">
+      <div v-else-if="tweets == null && !loading" class="btp-no-api">
         <a
           :href="`https://x.com/${handle}`"
           target="_blank"
           rel="noopener noreferrer"
           class="btp-link"
-        >View @{{ handle }} on X/Twitter ↗</a>
+        >{{ t('viewOnX', { handle }) }}</a>
       </div>
 
       <!-- No tweets found -->
-      <div v-else-if="tweets !== null && tweets.length === 0 && !loading" class="btp-status">
-        No recent tweets.
+      <div v-else-if="tweets != null && tweets.length === 0 && !loading" class="btp-status">
+        {{ t('noRecentTweets') }}
       </div>
 
       <!-- Tweet cards -->
-      <div v-else-if="tweets !== null" class="btp-tweets">
+      <div v-else-if="tweets != null" class="btp-tweets">
         <a
           v-for="tweet in tweets"
           :key="tweet.id"

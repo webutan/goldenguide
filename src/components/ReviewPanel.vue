@@ -2,6 +2,10 @@
 import { computed, onMounted, watch } from 'vue'
 import { useReviews } from '../composables/useReviews.js'
 import { useI18n } from '../composables/useI18n.js'
+import ReviewActions from './ReviewActions.vue'
+import AdminDrawing from './AdminDrawing.vue'
+import { isAdmin } from '../composables/useAdmin.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -9,8 +13,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-const { reviews, loadBarReviews } = useReviews()
+// `barReviews`: the public list; in admin mode the bar's hidden reviews are
+// merged in (from the admin endpoint) so they can be un-hidden in place.
+const { barReviews: reviews, loadBarReviews } = useReviews()
 const { t } = useI18n(computed(() => props.lang))
+// Entering or leaving admin mode changes what the panel may show
+watch(isAdmin, () => loadBarReviews(props.bar.id))
 
 const displayName = computed(() => {
   if (!props.bar) return ''
@@ -20,41 +28,56 @@ const displayName = computed(() => {
 onMounted(() => loadBarReviews(props.bar.id))
 watch(() => props.bar.id, id => loadBarReviews(id))
 
+// Reviews are not saved for offline use: say so, and load them once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline) loadBarReviews(props.bar.id) })
+
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('timeJustNow')
+  if (mins < 60) return t('timeMinutesAgo', { n: mins })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
+  if (hrs < 24) return t('timeHoursAgo', { n: hrs })
   const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return t('timeDaysAgo', { n: days })
 }
 </script>
 
 <template>
   <div class="review-panel">
     <div class="rp-header">
-      <img src="/icons/winrep-1.png" class="rp-icon" alt="Reviews" />
+      <img src="/icons/winrep-1.png" class="rp-icon" :alt="t('reviews')" />
       <span class="rp-name">{{ displayName }}</span>
       <span class="rp-subtitle">{{ t('reviews') }}</span>
       <button class="rp-close" @click="emit('close')">✕</button>
     </div>
 
     <!-- Mobile: fixed close button at bottom-right above taskbar -->
-    <button class="rp-mobile-close" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="rp-mobile-close" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <div class="rp-body">
-      <div v-if="reviews.length === 0" class="rp-empty">{{ t('noReviews') }}</div>
-      <div v-for="review in reviews" :key="review.id" class="rp-card">
+      <div v-if="reviews.length === 0" class="rp-empty">{{ offline ? t('offlineReviews') : t('noReviews') }}</div>
+      <div
+        v-for="review in reviews"
+        :key="review.id"
+        :class="['rp-card', { 'rp-card-hidden': review.hidden }]"
+        :data-hidden="review.hidden ? 'true' : null"
+      >
         <div class="rp-card-header">
           <span class="rp-nickname">{{ review.nickname }}</span>
+          <span v-if="review.hidden" class="rp-hidden-badge">{{ t('adminReviewsHiddenBadge') }}</span>
           <span class="rp-time">{{ timeAgo(review.created_at) }}</span>
         </div>
-        <p class="rp-text">{{ review.text }}</p>
-        <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" alt="drawing" />
+        <div class="rp-card-content">
+          <p v-if="review.text && review.text.trim()" class="rp-text">{{ review.text }}</p>
+          <img v-if="review.drawing" :src="review.drawing" class="rp-drawing" :alt="t('reviewDrawing')" />
+          <!-- Hidden reviews come from the admin list, which leaves the drawing to be fetched -->
+          <AdminDrawing v-else-if="review.has_drawing" :review-id="review.id" :lang="lang" class="rp-drawing rp-drawing-lazy" />
+        </div>
+        <ReviewActions :review="review" :lang="lang" />
       </div>
     </div>
   </div>
@@ -170,7 +193,31 @@ function timeAgo(dateStr) {
 .rp-card-header {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
   margin-bottom: 4px;
+}
+
+/* Admin mode: a hidden review stays in place, greyed out, with its badge */
+.rp-card-hidden .rp-card-content,
+.rp-card-hidden .rp-nickname {
+  opacity: 0.5;
+}
+
+.rp-hidden-badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  margin-right: auto;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+/* Placeholder until a hidden review's drawing has been fetched */
+button.rp-drawing-lazy {
+  min-height: 48px;
 }
 
 .rp-nickname {
@@ -250,5 +297,8 @@ function timeAgo(dateStr) {
   .rp-close { display: none; }
 
   .rp-mobile-close { display: flex; }
+
+  /* Let the last card (and its Report link) scroll clear of the fixed close button */
+  .rp-body { padding-bottom: 64px; }
 }
 </style>

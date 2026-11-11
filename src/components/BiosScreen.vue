@@ -4,16 +4,17 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 const props = defineProps({
   apiLoading: { type: Boolean, default: true },
   apiError: { type: String, default: null },
+  // Returning visitor: run the same sequence near-instantly
+  fast: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['done'])
 
+// Only what's on screen the moment the desktop appears: the logo and the
+// desktop wallpaper. Gai-chan's walkthrough art loads when it starts.
 const ASSETS_TO_PRELOAD = [
   '/gaichan/gaichanicon.png',
-  '/gaichan/gaichanidle.png',
-  '/gaichan/gaichanwindow.png',
-  '/static-off.png',
-  '/wallpaper.jpg',
+  '/static-off.webp',
 ]
 
 const BOOT_LINES = [
@@ -45,6 +46,34 @@ const promptBlink = ref(true)
 const assetsLoaded = ref(false)
 const typingDone = ref(false)
 
+// Fast boot: returning visitors (set by parent) or users who prefer reduced motion.
+// Same lines, same look, just near-instant.
+const prefersReducedMotion = typeof window !== 'undefined'
+  && typeof window.matchMedia === 'function'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+const fastBoot = props.fast || prefersReducedMotion
+const FAST_LINE_DELAY = 5 // blank lines get 0
+const POLL_MS = fastBoot ? 10 : 50
+const PROMPT_DISMISS_MS = fastBoot ? 400 : 2000
+const CHAT_CONNECT_MS = fastBoot ? FAST_LINE_DELAY : 300
+
+// Every timer goes through these helpers so onUnmounted can clear them all.
+const timeouts = new Set()
+const intervals = new Set()
+let unmounted = false
+
+function later(fn, ms) {
+  const id = setTimeout(() => { timeouts.delete(id); fn() }, ms)
+  timeouts.add(id)
+  return id
+}
+
+function every(fn, ms) {
+  const id = setInterval(fn, ms)
+  intervals.add(id)
+  return id
+}
+
 // Keyed on actual API load — set by watcher below instead of setTimeout timers
 const loadKeyDone = { barlist: false, mapdata: false, tags: false, chat: false }
 
@@ -54,12 +83,12 @@ watch(() => props.apiLoading, (loading) => {
     loadKeyDone.mapdata = true
     loadKeyDone.tags = true
     // Chat is a Socket.IO connection that establishes shortly after the HTTP API responds
-    setTimeout(() => { loadKeyDone.chat = true }, 300)
+    later(() => { loadKeyDone.chat = true }, CHAT_CONNECT_MS)
   }
 }, { immediate: true })
 
 let dismissed = false
-let blinkInterval = null
+let promptShown = false
 
 function dismiss() {
   if (dismissed) return
@@ -83,10 +112,12 @@ function preloadAssets() {
 
 async function runBootSequence() {
   for (const line of BOOT_LINES) {
-    await sleep(line.delay)
+    await sleep(fastBoot ? (line.text ? Math.min(line.delay, FAST_LINE_DELAY) : 0) : line.delay)
+    if (unmounted) return
 
     if (line.loadKey) {
       await waitFor(() => loadKeyDone[line.loadKey])
+      if (unmounted) return
       const failed = !!props.apiError && line.loadKey !== 'chat'
       displayedLines.value = [...displayedLines.value, {
         text: line.text.replace('[LOADING]', failed ? '[FAILED]' : '[OK]'),
@@ -98,26 +129,31 @@ async function runBootSequence() {
   }
 
   typingDone.value = true
-  maybeShowPrompt()
 }
 
+// Shown exactly once, whichever of typing / asset preload finishes last.
 function maybeShowPrompt() {
-  if (typingDone.value && assetsLoaded.value) {
-    showPrompt.value = true
-    blinkInterval = setInterval(() => { promptBlink.value = !promptBlink.value }, 500)
-    setTimeout(() => dismiss(), 2000)
-  }
+  if (promptShown || dismissed || unmounted) return
+  if (!typingDone.value || !assetsLoaded.value) return
+  promptShown = true
+  showPrompt.value = true
+  every(() => { promptBlink.value = !promptBlink.value }, 500)
+  later(() => dismiss(), PROMPT_DISMISS_MS)
 }
+
+watch([typingDone, assetsLoaded], maybeShowPrompt)
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise(resolve => later(resolve, ms))
 }
 
-function waitFor(condition, interval = 50) {
+// Resolves when condition() is true; never resolves after unmount (callers bail on `unmounted`).
+function waitFor(condition, interval = POLL_MS) {
   return new Promise(resolve => {
     const check = () => {
+      if (unmounted) return
       if (condition()) resolve()
-      else setTimeout(check, interval)
+      else later(check, interval)
     }
     check()
   })
@@ -130,21 +166,18 @@ onMounted(() => {
   preloadAssets()
   runBootSequence()
 
-  const watcher = setInterval(() => {
-    if (assetsLoaded.value) {
-      clearInterval(watcher)
-      maybeShowPrompt()
-    }
-  }, 100)
-
   window.addEventListener('keydown', handleKeydown)
   window.addEventListener('click', handleClick)
 })
 
 onUnmounted(() => {
+  unmounted = true
   window.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('click', handleClick)
-  if (blinkInterval) clearInterval(blinkInterval)
+  for (const id of timeouts) clearTimeout(id)
+  for (const id of intervals) clearInterval(id)
+  timeouts.clear()
+  intervals.clear()
 })
 </script>
 
@@ -223,13 +256,9 @@ onUnmounted(() => {
   font-weight: bold;
 }
 
-.bios-cursor.blink {
-  animation: blink-cursor 1s step-end infinite;
-}
-
-@keyframes blink-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+/* Blink is driven by the single JS interval toggling .blink (on = visible) */
+.bios-cursor:not(.blink) {
+  visibility: hidden;
 }
 
 /* ── Mobile ── */

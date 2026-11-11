@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, reactive, watch, onUnmounted, nextTick } from 'vue'
 import GaiChanModel from './GaiChanModel.vue'
+import { shuffle } from '../utils/shuffle.js'
+// Bound with .capture on each top-level element of the template
+import { onArtError, onArtLoad } from '../utils/artFallback.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -605,7 +608,7 @@ function getRecommendedBars(count = 3) {
   if (filterState.cash === false)     filtered = filtered.filter(b => !b.tags?.includes('cash-only'))
   if (filterState.japanese === false) filtered = filtered.filter(b => b.tags?.includes('english-ok'))
   // Shuffle and take count
-  return filtered.sort(() => Math.random() - 0.5).slice(0, count)
+  return shuffle(filtered).slice(0, count)
 }
 
 function buildRecommendText(bars) {
@@ -792,6 +795,14 @@ function handleTerminalClick(e) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (!props.rulesAccepted) {
   loadStep(0)
+  // Warm the cache with the rule illustrations once the walkthrough starts
+  // (they're not preloaded at boot), so each step's image shows instantly.
+  for (const step of SCRIPT) {
+    if (!step.image) continue
+    const img = new Image()
+    img.fetchPriority = 'low'
+    img.src = step.image
+  }
 }
 
 onUnmounted(() => {
@@ -819,7 +830,7 @@ watch(() => props.lang, () => {
   <Teleport to="body">
     <!-- Terminal window (slides down from top) -->
     <Transition name="crt">
-      <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick">
+      <div v-if="terminalVisible" class="crt-terminal" @click.stop="handleTerminalClick" @error.capture="onArtError" @load.capture="onArtLoad">
         <div class="crt-screen" :class="{ 'crt-screen--gaichan': !terminalImageVisible }">
           <div
             v-if="isMobile"
@@ -840,7 +851,7 @@ watch(() => props.lang, () => {
             {{ displayedText }}<span v-if="!typingDone" class="dialogue-cursor">▋</span>
           </div>
         </div>
-        <img src="/gaichan/terminal.png" class="crt-window" alt="" draggable="false" />
+        <img src="/gaichan/terminal.webp" class="crt-window" alt="" draggable="false" />
       </div>
     </Transition>
 
@@ -850,6 +861,8 @@ watch(() => props.lang, () => {
       :class="{ tucked: isTucked }"
       @click="handleDialogueClick"
       @touchend="handleTouchEnd"
+      @error.capture="onArtError"
+      @load.capture="onArtLoad"
     >
       <div class="dialogue-body">
 
@@ -857,7 +870,7 @@ watch(() => props.lang, () => {
         <div class="screen-content" :class="{ 'screen-content--tucked': isTucked }">
           <img
             v-if="!isTucked"
-            src="/gaichan/gaichanbackground.png"
+            src="/gaichan/gaichanbackground.webp"
             class="screen-bg"
             alt=""
             draggable="false"
@@ -880,7 +893,7 @@ watch(() => props.lang, () => {
 
         <!-- 2. gaichanwindow.png masked by gaichanwindowtp.png -->
         <img
-          src="/gaichan/gaichanwindow.png"
+          src="/gaichan/gaichanwindow.webp"
           class="layer--window"
           alt=""
           draggable="false"
@@ -965,6 +978,8 @@ watch(() => props.lang, () => {
     <div
       v-if="interactiveMode && isMobile && isTourNode"
       class="small-terminal"
+      @error.capture="onArtError"
+      @load.capture="onArtLoad"
     >
       <div class="small-terminal-screen">
         <div class="small-terminal-sprite">
@@ -972,7 +987,7 @@ watch(() => props.lang, () => {
         </div>
         <div class="small-terminal-scanlines" aria-hidden="true"></div>
       </div>
-      <img src="/gaichan/smallterminaltp.png" class="small-terminal-mask" alt="" draggable="false" />
+      <img src="/gaichan/smallterminaltp.webp" class="small-terminal-mask" alt="" draggable="false" />
     </div>
   </Teleport>
 </template>
@@ -1095,10 +1110,10 @@ watch(() => props.lang, () => {
   width: 100%;
   height: 100%;
   object-fit: fill;
-  -webkit-mask-image: url('/gaichan/gaichanwindowtp.png');
+  -webkit-mask-image: url('/gaichan/gaichanwindowtp.webp');
   -webkit-mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
-  mask-image: url('/gaichan/gaichanwindowtp.png');
+  mask-image: url('/gaichan/gaichanwindowtp.webp');
   mask-size: 100% 100%;
   mask-repeat: no-repeat;
   pointer-events: none;
@@ -1305,10 +1320,10 @@ watch(() => props.lang, () => {
   width: 100%;
   height: 100%;
   object-fit: fill;
-  -webkit-mask-image: url('/gaichan/terminaltp.png');
+  -webkit-mask-image: url('/gaichan/terminaltp.webp');
   -webkit-mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
-  mask-image: url('/gaichan/terminaltp.png');
+  mask-image: url('/gaichan/terminaltp.webp');
   mask-size: 100% 100%;
   mask-repeat: no-repeat;
   pointer-events: none;
@@ -1492,7 +1507,7 @@ watch(() => props.lang, () => {
     padding: 0;
   }
   .crt-screen--gaichan {
-    background-image: url('/gaichan/gaichanbackground.png');
+    background-image: url('/gaichan/gaichanbackground.webp');
     background-size: cover;
     background-position: center 30%;
   }

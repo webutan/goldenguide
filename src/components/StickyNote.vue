@@ -1,15 +1,19 @@
 <script setup>
 import { computed } from 'vue'
+import ReviewActions from './ReviewActions.vue'
 
 const props = defineProps({
   review: { type: Object, required: true },
+  lang: { type: String, default: 'en' },
 })
 
 const COLORS = ['#ffe566', '#f9a8d4', '#86efac', '#93c5fd', '#fca5a5']
 
 const bgColor = computed(() => COLORS[props.review.id % COLORS.length])
 const rotation = computed(() => (-3 + (props.review.id % 7) - 3))
-const barName = computed(() => props.review.name_en || props.review.name_jp || '')
+const barName = computed(() => (props.lang === 'jp'
+  ? (props.review.name_jp || props.review.name_en)
+  : (props.review.name_en || props.review.name_jp)) || '')
 
 // Deterministic position based on review id — two-zone layout to avoid center sign
 const isLeftZone = computed(() => props.review.id % 2 === 0)
@@ -35,8 +39,11 @@ const posY = computed(() =>
       top: posY + 'px',
     }"
   >
+    <!-- Admin mode only (the public Report link lives in the review lists).
+         At the top: the bottom of a note can sit under the taskbar. -->
+    <ReviewActions class="sticky-actions" :review="review" :lang="lang" admin-only />
     <div class="sticky-bar-name">{{ barName }}</div>
-    <div class="sticky-text">{{ review.text }}</div>
+    <div v-if="review.text && review.text.trim()" class="sticky-text">{{ review.text }}</div>
     <img v-if="review.drawing" :src="review.drawing" class="sticky-drawing" alt="" />
     <div class="sticky-nick">— {{ review.nickname }}</div>
   </div>
@@ -85,5 +92,19 @@ const posY = computed(() =>
   color: rgba(0, 0, 0, 0.5);
   text-align: right;
   margin-top: 4px;
+}
+
+/* The note ignores the pointer; only the admin controls take clicks */
+.sticky-actions {
+  margin: -2px 0 5px;
+  padding-bottom: 3px;
+  border-bottom: 1px dotted rgba(0, 0, 0, 0.35);
+  justify-content: space-between;
+}
+
+.sticky-actions :deep(.ra-link),
+.sticky-actions :deep(.ra-link:hover:not(:disabled)) {
+  color: #1a1a1a;
+  font-weight: bold;
 }
 </style>

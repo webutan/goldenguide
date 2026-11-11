@@ -1,35 +1,29 @@
 import { Router } from 'express'
 import pool from '../db.js'
-import admin from '../middleware/admin.js'
+import admin, { isAdminRequest } from '../middleware/admin.js'
+import { pickBarFields, parsePositiveInt, slugify, normalizeTagIds } from '../lib/validate.js'
+// The bar list SELECT and the update itself live in lib/barStore.js, shared
+// with POST /api/suggestions/:id/apply.
+import { selectBars, replaceTags, updateBarInTransaction, clientError } from '../lib/barStore.js'
 
 const router = Router()
 
-// GET /api/bars — all bars with tags
+// GET /api/bars — all bars with tags. Inactive bars are only returned to admin requests.
 router.get('/', async (req, res) => {
   try {
-    const barsResult = await pool.query(`
-      SELECT b.*,
-        COALESCE(
-          json_agg(json_build_object('id', t.id, 'label', t.label, 'label_jp', t.label_jp, 'icon', t.icon, 'color', t.color))
-          FILTER (WHERE t.id IS NOT NULL),
-          '[]'
-        ) AS tags,
-        (SELECT p.filename FROM photos p WHERE p.bar_id = b.id ORDER BY p.sort_order, p.uploaded_at LIMIT 1) AS photo
-      FROM bars b
-      LEFT JOIN bar_tags bt ON bt.bar_id = b.id
-      LEFT JOIN tags t ON t.id = bt.tag_id
-      GROUP BY b.id
-      ORDER BY b.street, b.floor, b.name_jp
-    `)
+    const rows = isAdminRequest(req)
+      ? await selectBars(pool)
+      : await selectBars(pool, 'b.is_active = true')
     res.set('Cache-Control', 'no-store')
-    res.json(barsResult.rows)
+    res.json(rows)
   } catch (err) {
     console.error('GET /api/bars error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-// GET /api/bars/:slug — single bar with photos
+// GET /api/bars/:slug — single bar with photos. An inactive bar is a 404
+// unless the request is admin.
 router.get('/:slug', async (req, res) => {
   try {
     const barResult = await pool.query(`
@@ -52,107 +46,126 @@ router.get('/:slug', async (req, res) => {
       GROUP BY b.id
     `, [req.params.slug])
 
-    if (barResult.rows.length === 0) {
+    const bar = barResult.rows[0]
+    if (!bar || (!bar.is_active && !isAdminRequest(req))) {
       return res.status(404).json({ error: 'Bar not found' })
     }
     res.set('Cache-Control', 'no-store')
-    res.json(barResult.rows[0])
+    res.json(bar)
   } catch (err) {
     console.error('GET /api/bars/:slug error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-// PATCH /api/bars/:id — update bar fields (admin)
+// PATCH /api/bars/:id — update bar fields and/or replace tags (admin).
+// Runs in one transaction and responds with the bar in the GET /api/bars shape.
 router.patch('/:id', admin, async (req, res) => {
+  const id = parsePositiveInt(req.params.id)
+  if (id === null) return res.status(400).json({ error: 'Invalid id' })
+  const body = req.body && typeof req.body === 'object' ? req.body : {}
+  const fields = pickBarFields(body)
+  let tagIds = null
+  if (body.tags !== undefined) {
+    tagIds = normalizeTagIds(body.tags)
+    if (tagIds === null) return res.status(400).json({ error: 'tags must be an array of tag ids' })
+  }
+
+  let client
   try {
-    const id = parseInt(req.params.id)
-    const { tags, ...fields } = req.body
-
-    // Update bar fields
-    const allowedFields = [
-      'name_jp', 'name_en', 'street', 'floor', 'building_id', 'map_x', 'map_y',
-      'lat', 'lng', 'address', 'plus_code', 'google_link', 'charge', 'male_charge', 'drink_price', 'cash_only',
-      'seats', 'phone', 'hours', 'closed_days', 'description', 'sns', 'other_links', 'is_active', 'schedule',
-    ]
-
-    const updates = []
-    const values = []
-    let paramIdx = 1
-
-    for (const [key, value] of Object.entries(fields)) {
-      if (allowedFields.includes(key)) {
-        updates.push(`${key} = $${paramIdx}`)
-        values.push(value)
-        paramIdx++
-      }
-    }
-
-    if (updates.length > 0) {
-      updates.push(`updated_at = now()`)
-      values.push(id)
-      await pool.query(
-        `UPDATE bars SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
-        values
-      )
-    }
-
-    // Replace tags if provided
-    if (Array.isArray(tags)) {
-      await pool.query('DELETE FROM bar_tags WHERE bar_id = $1', [id])
-      for (const tagId of tags) {
-        await pool.query(
-          'INSERT INTO bar_tags (bar_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [id, tagId]
-        )
-      }
-    }
-
-    // Return updated bar
-    const result = await pool.query('SELECT * FROM bars WHERE id = $1', [id])
-    res.json(result.rows[0])
+    client = await pool.connect()
   } catch (err) {
+    console.error('bars: DB connect error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+  try {
+    await client.query('BEGIN')
+    const bar = await updateBarInTransaction(client, id, { fields, tagIds })
+    if (!bar) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Bar not found' })
+    }
+    await client.query('COMMIT')
+    res.json(bar)
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    const known = clientError(err)
+    if (known) return res.status(known.status).json({ error: known.error })
     console.error('PATCH /api/bars/:id error:', err)
     res.status(500).json({ error: 'Internal server error' })
+  } finally {
+    client.release()
   }
 })
 
-// POST /api/bars — create bar (admin)
+// POST /api/bars — create bar (admin). Accepts the same fields as PATCH, plus
+// `slug` (generated from name_en / name_jp when omitted) and `tags`.
 router.post('/', admin, async (req, res) => {
-  try {
-    const { slug, name_jp, name_en, street, floor, tags, ...rest } = req.body
-    const result = await pool.query(
-      `INSERT INTO bars (slug, name_jp, name_en, street, floor, address, plus_code, charge, male_charge, seats, phone, hours, closed_days, description, sns)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING *`,
-      [slug, name_jp, name_en, street, floor || 1,
-       rest.address, rest.plus_code, rest.charge, rest.male_charge,
-       rest.seats, rest.phone, rest.hours, rest.closed_days,
-       rest.description, rest.sns]
-    )
+  const body = req.body && typeof req.body === 'object' ? req.body : {}
+  if (typeof body.name_jp !== 'string' || !body.name_jp.trim()) {
+    return res.status(400).json({ error: 'name_jp is required' })
+  }
+  // Omitted/null columns fall back to their DB defaults (floor, is_active, schedule...)
+  const fields = pickBarFields(body).filter(([, v]) => v !== null)
+  let tagIds = []
+  if (body.tags !== undefined) {
+    tagIds = normalizeTagIds(body.tags)
+    if (tagIds === null) return res.status(400).json({ error: 'tags must be an array of tag ids' })
+  }
+  let slug = null
+  if (body.slug !== undefined && body.slug !== null && body.slug !== '') {
+    if (typeof body.slug !== 'string' || !body.slug.trim()) return res.status(400).json({ error: 'Invalid slug' })
+    slug = body.slug.trim()
+  }
 
-    const bar = result.rows[0]
-    if (Array.isArray(tags)) {
-      for (const tagId of tags) {
-        await pool.query(
-          'INSERT INTO bar_tags (bar_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-          [bar.id, tagId]
-        )
-      }
+  let client
+  try {
+    client = await pool.connect()
+  } catch (err) {
+    console.error('bars: DB connect error:', err.message)
+    return res.status(500).json({ error: 'Internal server error' })
+  }
+  try {
+    await client.query('BEGIN')
+    if (!slug) {
+      const base = slugify(body.name_en) || slugify(body.name_jp) || 'bar'
+      const taken = await client.query(
+        `SELECT slug FROM bars WHERE slug = $1 OR left(slug, length($1) + 1) = $1 || '-'`,
+        [base]
+      )
+      const used = new Set(taken.rows.map(r => r.slug))
+      slug = base
+      for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`
     }
 
+    const cols = ['slug', ...fields.map(([k]) => k)]
+    const vals = [slug, ...fields.map(([, v]) => v)]
+    const { rows } = await client.query(
+      `INSERT INTO bars (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
+      vals
+    )
+    const id = rows[0].id
+    if (tagIds.length > 0) await replaceTags(client, id, tagIds)
+
+    const [bar] = await selectBars(client, 'b.id = $1', [id])
+    await client.query('COMMIT')
     res.status(201).json(bar)
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    const known = clientError(err)
+    if (known) return res.status(known.status).json({ error: known.error })
     console.error('POST /api/bars error:', err)
     res.status(500).json({ error: 'Internal server error' })
+  } finally {
+    client.release()
   }
 })
 
 // DELETE /api/bars/:id (admin)
 router.delete('/:id', admin, async (req, res) => {
   try {
-    const id = parseInt(req.params.id)
-    if (isNaN(id)) return res.status(400).json({ error: 'Invalid id' })
+    const id = parsePositiveInt(req.params.id)
+    if (id === null) return res.status(400).json({ error: 'Invalid id' })
     const result = await pool.query('DELETE FROM bars WHERE id = $1 RETURNING id', [id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Bar not found' })
     res.json({ success: true, id })

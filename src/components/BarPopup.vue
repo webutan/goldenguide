@@ -1,11 +1,15 @@
 <script setup>
+import { yen } from '../utils/barFilters.js'
 import { ref, computed, watch } from 'vue'
 import { useVisited } from '../composables/useVisited.js'
+import { useSuggestEdit } from '../composables/useSuggestEdit.js'
 import { useI18n } from '../composables/useI18n.js'
+import { canNativeShare } from '../composables/useUrlState.js'
 import WinButton from './win2000/WinButton.vue'
 import WinScrollContainer from './win2000/WinScrollContainer.vue'
 import TagIcon from './TagIcon.vue'
 import ReviewDialog from './ReviewDialog.vue'
+import { parseTwitterHandle } from '../utils/twitter.js'
 
 const props = defineProps({
   buildingBars: Array, // array of bars in the clicked building
@@ -15,9 +19,12 @@ const props = defineProps({
   openBarIds: { type: Set, default: () => new Set() },
   twitterOpen: { type: Boolean, default: false },
   autoTwitter: { type: Boolean, default: false },
+  // Which of buildingBars to show (deep links, Back/Forward); first one if absent
+  selectedBarId: { type: [Number, String], default: null },
 })
 
-const emit = defineEmits(['close', 'select-bar', 'show-reviews'])
+const emit = defineEmits(['close', 'select-bar', 'show-reviews', 'change-bar', 'share-bar'])
+const { openSuggestEdit } = useSuggestEdit()
 
 const { isVisited, toggleVisited, isFavorited, toggleFavorited } = useVisited()
 const { t } = useI18n(computed(() => props.lang))
@@ -25,11 +32,23 @@ const { t } = useI18n(computed(() => props.lang))
 const showReviewDialog = ref(false)
 
 // Which bar is selected within the building
-const selectedIndex = ref(0)
+function indexOfSelected() {
+  const i = (props.buildingBars || []).findIndex(b => b.id === props.selectedBarId)
+  return i === -1 ? 0 : i
+}
+const selectedIndex = ref(indexOfSelected())
 
-watch(() => props.buildingBars, (val) => {
-  if (val && val.length > 0) selectedIndex.value = 0
+watch([() => props.buildingBars, () => props.selectedBarId], ([val]) => {
+  if (val && val.length > 0) selectedIndex.value = indexOfSelected()
 })
+
+function selectTab(i) {
+  selectedIndex.value = i
+  emit('change-bar', props.buildingBars[i])
+}
+
+// "Share…" opens the phone's share sheet; elsewhere the link is copied
+const nativeShare = canNativeShare()
 
 const bar = computed(() => {
   if (!props.buildingBars || props.buildingBars.length === 0) return null
@@ -94,15 +113,6 @@ const openStatus = computed(() => {
   return props.openBarIds.has(String(bar.value.id)) ? 'open' : 'closed'
 })
 
-function parseTwitterHandle(url) {
-  if (!url) return null
-  const match = url.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([A-Za-z0-9_]+)/i)
-  if (!match) return null
-  const skip = ['intent', 'search', 'hashtag', 'i', 'share']
-  if (skip.includes(match[1].toLowerCase())) return null
-  return match[1]
-}
-
 const twitterHandle = computed(() => parseTwitterHandle(bar.value?.sns))
 
 function openGoogleMaps() {
@@ -117,8 +127,8 @@ function openGoogleMaps() {
         <div class="win-dialog">
           <!-- Title bar -->
           <div class="win-dialog-titlebar">
-            <span class="win-dialog-title">{{ buildingId || 'Building' }} &mdash; {{ buildingBars.length }} bar{{ buildingBars.length > 1 ? 's' : '' }}</span>
-            <button class="win-ctrl-btn" @click="emit('close')" title="Close">
+            <span class="win-dialog-title">{{ buildingId || t('building') }} &mdash; {{ t(buildingBars.length === 1 ? 'barCountOne' : 'barCount', { n: buildingBars.length }) }}</span>
+            <button class="win-ctrl-btn" @click="emit('close')" :title="t('close')">
               <span class="win-ctrl-icon">&#10005;</span>
             </button>
           </div>
@@ -132,7 +142,7 @@ function openGoogleMaps() {
                 v-for="(b, i) in buildingBars"
                 :key="b.id"
                 :class="['bar-tab', { active: i === selectedIndex }]"
-                @click="selectedIndex = i"
+                @click="selectTab(i)"
               >
                 {{ lang === 'jp' ? (b.name_jp || b.name_en) : (b.name_en || b.name_jp) }}
               </button>
@@ -153,10 +163,10 @@ function openGoogleMaps() {
                   <button
                     v-if="twitterHandle"
                     class="icon-action-btn"
-                    title="Twitter/X"
+                    :title="t('twitterX')"
                     @click="emit('select-bar', bar)"
                   >
-                    <img src="/icons/twitter.png" alt="Twitter/X" class="icon-action-img" />
+                    <img src="/icons/twitter.png" :alt="t('twitterX')" class="icon-action-img" />
                   </button>
                   <button
                     v-if="googleMapsUrl"
@@ -164,7 +174,7 @@ function openGoogleMaps() {
                     :title="t('googleMaps')"
                     @click="openGoogleMaps"
                   >
-                    <img src="/icons/googlemaps.png" alt="Google Maps" class="maps-icon-img" />
+                    <img src="/icons/googlemaps.png" :alt="t('googleMaps')" class="maps-icon-img" />
                   </button>
                 </div>
               </div>
@@ -187,15 +197,15 @@ function openGoogleMaps() {
                 </div>
                 <div v-if="bar.charge" class="info-row">
                   <span class="info-label">{{ t('cover') }}</span>
-                  <span>&yen;{{ bar.charge }}</span>
+                  <span>{{ yen(bar.charge) }}</span>
                 </div>
                 <div v-if="bar.male_charge" class="info-row">
                   <span class="info-label">{{ t('maleCharge') }}</span>
-                  <span>&yen;{{ bar.male_charge }}</span>
+                  <span>{{ yen(bar.male_charge) }}</span>
                 </div>
                 <div v-if="bar.drink_price" class="info-row">
                   <span class="info-label">{{ t('drinks') }}</span>
-                  <span>&yen;{{ bar.drink_price }}~</span>
+                  <span>{{ yen(bar.drink_price) }}~</span>
                 </div>
                 <div v-if="bar.cash_only" class="info-row">
                   <span class="info-label">{{ t('payment') }}</span>
@@ -258,7 +268,13 @@ function openGoogleMaps() {
                   <template v-else>{{ t('markVisited') }}</template>
                 </WinButton>
                 <WinButton @click="emit('show-reviews', bar)">{{ t('reviews') }}</WinButton>
+                <WinButton class="share-btn" @click="emit('share-bar', { bar, anchor: $event.currentTarget })">
+                  <img src="/icons/tags/url1.ico" class="share-btn-icon" alt="" />{{ t(nativeShare ? 'shareBar' : 'copyLink') }}
+                </WinButton>
                 <WinButton @click="emit('close')">{{ t('close') }}</WinButton>
+              </div>
+              <div class="suggest-row">
+                <button class="suggest-link" @click="openSuggestEdit(bar)">&#9998; {{ t('suggestEdit') }}</button>
               </div>
             </template>
             </div></WinScrollContainer>
@@ -607,5 +623,57 @@ function openGoogleMaps() {
 .popup-enter-from,
 .popup-leave-to {
   opacity: 0;
+}
+
+/* "Suggest edit": Win95 hyperlink-style text button under the actions */
+.suggest-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.suggest-link {
+  font-family: var(--win-font);
+  font-size: 11px;
+  line-height: 1;
+  background: none;
+  border: none;
+  padding: 3px 0;
+  color: var(--win-title-text-inactive);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.suggest-link:hover { color: var(--valhalla-orange); }
+
+.suggest-link:focus-visible {
+  outline: 1px dotted currentColor;
+  outline-offset: 1px;
+}
+
+/* Share / copy-link button */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.share-btn-icon {
+  width: 14px;
+  height: 14px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .share-btn {
+    min-height: 40px;
+  }
+  .suggest-link {
+    min-height: 40px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
 }
 </style>

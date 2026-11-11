@@ -1,9 +1,12 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import WinButton from './win2000/WinButton.vue'
 import { useReviews } from '../composables/useReviews.js'
-import { useChat } from '../composables/useChat.js'
+import { useNickname } from '../composables/useChat.js'
+import { useDialog } from '../composables/useDialog.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 
 const props = defineProps({
   bar: { type: Object, required: true },
@@ -13,11 +16,16 @@ const emit = defineEmits(['done'])
 
 const { t } = useI18n(computed(() => props.lang))
 const { submitReview } = useReviews()
-const { nickname } = useChat()
+const { offline } = useOnline()
+// Socket-free: reading the nickname must not open the chat connection
+const { nickname } = useNickname()
+const dialog = useDialog()
 
 const phase = ref('ask')   // 'ask' | 'write'
 const reviewText = ref('')
 const submitting = ref(false)
+const submitError = ref(null) // null | i18n key of the message to show
+const retryAfter = ref(null) // seconds the server asked us to wait (429), if it said
 const canvasRef = ref(null)
 const canvasTouched = ref(false)
 const selectedColor = ref('#ffffff')
@@ -30,6 +38,25 @@ const COLORS = ['#ffffff', '#ffe566', '#93c5fd']
 const charCount = computed(() => reviewText.value.length)
 const canSubmit = computed(() => reviewText.value.trim().length > 0 || canvasTouched.value)
 
+// Overlay click: ask before throwing away unsaved text or drawing
+let confirmingClose = false
+const hasUnsavedWork = computed(() =>
+  phase.value === 'write' && (reviewText.value.trim().length > 0 || canvasTouched.value)
+)
+async function handleOverlayClick() {
+  if (submitting.value || confirmingClose) return
+  if (!hasUnsavedWork.value) { emit('done'); return }
+  confirmingClose = true
+  const discard = await dialog.confirm(t('reviewDiscardText'), {
+    title: t('reviewDiscardTitle'),
+    icon: 'warning',
+    okLabel: t('reviewDiscard'),
+    cancelLabel: t('reviewKeepEditing'),
+  })
+  confirmingClose = false
+  if (discard) emit('done')
+}
+
 const displayName = computed(() => {
   if (!props.bar) return ''
   return props.lang === 'jp' ? (props.bar.name_jp || props.bar.name_en) : (props.bar.name_en || props.bar.name_jp)
@@ -41,13 +68,16 @@ function getCtx() {
   return ctx
 }
 
-onMounted(() => {
-  if (canvasRef.value) {
-    const ctx = getCtx()
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, 280, 140)
-  }
-})
+function fillCanvasBlack() {
+  const ctx = getCtx()
+  if (!ctx) return
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, 280, 140)
+}
+
+// The canvas only exists in the 'write' phase, so paint its black background
+// when it is mounted (not in onMounted, where it is still absent).
+watch(canvasRef, (el) => { if (el) fillCanvasBlack() }, { flush: 'post' })
 
 function getPos(e) {
   const canvas = canvasRef.value
@@ -89,16 +119,14 @@ function endDraw() {
 }
 
 function clearCanvas() {
-  const ctx = getCtx()
-  if (!ctx) return
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, 280, 140)
+  fillCanvasBlack()
   canvasTouched.value = false
 }
 
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) return
   submitting.value = true
+  submitError.value = null
   try {
     let drawingData = null
     if (canvasTouched.value && canvasRef.value) {
@@ -107,21 +135,23 @@ async function handleSubmit() {
     await submitReview({
       barId: props.bar.id,
       nickname: nickname.value,
-      text: reviewText.value.trim() || ' ',
+      text: reviewText.value.trim(),
       drawing: drawingData,
     })
-  } catch (err) {
-    console.error('Review submit error:', err)
-  } finally {
     submitting.value = false
     emit('done')
+  } catch (err) {
+    console.error('Review submit error:', err)
+    retryAfter.value = err?.retryAfter ?? null
+    submitError.value = err?.status === 429 ? 'rateLimited' : offline.value ? 'offlineSend' : 'reviewError'
+    submitting.value = false
   }
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="review-overlay" @click.self="emit('done')">
+    <div class="review-overlay" @click.self="handleOverlayClick">
       <!-- Phase 1: Ask -->
       <div v-if="phase === 'ask'" class="win-dialog">
         <div class="win-dialog-titlebar">
@@ -154,7 +184,7 @@ async function handleSubmit() {
 
           <div class="canvas-section">
             <div class="canvas-toolbar">
-              <span class="canvas-label">Draw? (optional)</span>
+              <span class="canvas-label">{{ t('reviewDrawOptional') }}</span>
               <div class="color-swatches">
                 <button
                   v-for="c in COLORS"
@@ -167,8 +197,8 @@ async function handleSubmit() {
               <button
                 :class="['tool-btn', { active: selectedTool === 'eraser' }]"
                 @click="selectedTool = 'eraser'"
-              >Eraser</button>
-              <button class="tool-btn" @click="clearCanvas">Clear</button>
+              >{{ t('reviewEraser') }}</button>
+              <button class="tool-btn" @click="clearCanvas">{{ t('clear') }}</button>
             </div>
             <canvas
               ref="canvasRef"
@@ -185,14 +215,24 @@ async function handleSubmit() {
             />
           </div>
 
+          <div v-if="submitError" class="submit-error" role="alert">
+            <img
+              :src="submitError === 'reviewError' ? '/icons/msg_error-1.png' : '/icons/msg_warning-1.png'"
+              class="submit-error-icon"
+              alt=""
+            />
+            <span>{{ submitError === 'rateLimited' ? rateLimitMessage(t, retryAfter) : t(submitError) }}</span>
+          </div>
+
           <div class="write-actions">
             <WinButton :disabled="!canSubmit || submitting" @click="handleSubmit">
               {{ submitting ? '...' : t('submitReview') }}
             </WinButton>
-            <WinButton @click="emit('done')">Skip</WinButton>
+            <WinButton @click="emit('done')">{{ t('reviewSkip') }}</WinButton>
           </div>
         </div>
       </div>
+
     </div>
   </Teleport>
 </template>
@@ -384,6 +424,22 @@ async function handleSubmit() {
     inset -1px -1px 0 var(--win-border-light);
   touch-action: none;
   cursor: crosshair;
+}
+
+.submit-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--win-text);
+}
+
+.submit-error-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
 }
 
 .write-actions {

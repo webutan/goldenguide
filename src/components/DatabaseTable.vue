@@ -128,7 +128,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
         placeholder="Search by ID, name, street…"
       />
       <span class="dbt-count">{{ filtered.length }} / {{ bars.length }} bars</span>
-      <span class="dbt-hint">Click a cell to edit · Enter or Tab to save</span>
+      <span class="dbt-hint">Click a cell to edit - Enter or Tab to save</span>
     </div>
 
     <!-- Spreadsheet -->
@@ -224,7 +224,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
                   class="dbt-chip"
                   :style="{ background: t.color || 'var(--valhalla-purple)' }"
                 >{{ t.label }}</span>
-                <span v-if="!(bar.tags || []).length" class="dbt-chip-empty">—</span>
+                <span v-if="!(bar.tags || []).length" class="dbt-chip-empty">-</span>
               </div>
 
               <!-- Floating tag picker -->

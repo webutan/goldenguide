@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { fetchFeed } from '../api/index.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
 
 const props = defineProps({
   lang: { type: String, default: 'en' },
@@ -14,7 +15,7 @@ const { t } = useI18n(computed(() => props.lang))
 const tweets = ref(null)   // null = no API key, use embedded mode
 const accounts = ref([])
 const loading = ref(true)
-const error = ref(null)
+const error = ref(false) // the request failed, or the server reported an upstream error
 
 function formatDate(dateStr) {
   const d = new Date(dateStr)
@@ -65,47 +66,61 @@ function loadTwitterWidgets() {
 
 async function load() {
   loading.value = true
-  error.value = null
+  error.value = false
   try {
     const data = await fetchFeed()
     tweets.value = data.tweets
     accounts.value = data.accounts || []
-    if (data.error) error.value = data.error
+    if (data.error) error.value = true
     if (data.tweets === null && accounts.value.length > 0) {
       await nextTick()
       loadTwitterWidgets()
     }
-  } catch (err) {
-    error.value = err.message
+  } catch {
+    error.value = true
   } finally {
     loading.value = false
   }
 }
 
 onMounted(load)
+
+// The feed is not saved for offline use: say so, and load it once back online
+const { offline } = useOnline()
+watch(offline, (isOffline) => { if (!isOffline && error.value) load() })
 </script>
 
 <template>
   <div class="feed-win">
-    <button class="feed-close-btn" @click="emit('close')" title="Close">
-      <img src="/icons/msg_error-1.png" alt="Close" />
+    <button class="feed-close-btn" @click="emit('close')" :title="t('close')">
+      <img src="/icons/msg_error-1.png" :alt="t('close')" />
     </button>
 
     <!-- Loading -->
     <div v-if="loading" class="feed-status">
       <img src="/icons/desktop/goldengaisprite.ico" class="feed-status-icon" alt="" />
-      Loading...
+      {{ t('loading') }}
+    </div>
+
+    <!-- Offline -->
+    <div v-else-if="offline && error" class="feed-status">
+      {{ t('offlineFeed') }}
+    </div>
+
+    <!-- The request failed: nothing to show, and not the same as "no accounts" -->
+    <div v-else-if="error && accounts.length === 0" class="feed-status">
+      {{ t('feedLoadFailed') }}
     </div>
 
     <!-- No accounts -->
     <div v-else-if="accounts.length === 0" class="feed-status">
-      No Twitter/X accounts found in database.
+      {{ t('noTwitterAccounts') }}
     </div>
 
     <!-- API mode: merged tweet timeline -->
     <template v-else-if="tweets !== null">
-      <div v-if="error" class="feed-error">{{ error }}</div>
-      <div v-if="tweets.length === 0" class="feed-status">No recent tweets found.</div>
+      <div v-if="error" class="feed-error">{{ t('feedLoadFailed') }}</div>
+      <div v-if="tweets.length === 0" class="feed-status">{{ t('noRecentTweets') }}</div>
       <div v-else class="tweet-list">
         <a
           v-for="tweet in tweets"
@@ -146,7 +161,7 @@ onMounted(load)
 
     <!-- Embedded mode: one Twitter timeline per account -->
     <template v-else>
-      <div v-if="error" class="feed-error">{{ error }}</div>
+      <div v-if="error" class="feed-error">{{ t('feedLoadFailed') }}</div>
       <div class="embed-list" ref="embedListRef">
         <div v-for="account in accounts" :key="account.handle" class="embed-item">
           <div class="embed-label">

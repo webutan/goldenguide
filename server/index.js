@@ -1,7 +1,6 @@
 import { createServer } from 'http'
 import express from 'express'
 import cors from 'cors'
-import rateLimit from 'express-rate-limit'
 import { Server as SocketIOServer } from 'socket.io'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
@@ -18,10 +17,21 @@ import annotationsRouter from './routes/annotations.js'
 import feedRouter from './routes/feed.js'
 import reviewsRouter from './routes/reviews.js'
 import partitionsRouter from './routes/partitions.js'
+import suggestionsRouter from './routes/suggestions.js'
+import seoRouter from './routes/seo.js'
+import statsRouter from './routes/stats.js'
 import { registerChatNamespace } from './routes/chat.js'
 import admin from './middleware/admin.js'
+import { feedLimiter } from './middleware/rateLimits.js'
+import { startFeedRefreshSchedule } from './jobs/feedRefresh.js'
+import pool from './db.js'
 
 const app = express()
+// Trust one proxy hop (our nginx) so req.ip comes from X-Forwarded-For and
+// rate limits are per visitor. nginx.conf resolves the real client address
+// (also when a NAS proxy / cloudflared sits in front of it) and forwards
+// exactly that one address.
+app.set('trust proxy', 1)
 const httpServer = createServer(app)
 const PORT = process.env.PORT || 3001
 
@@ -33,24 +43,47 @@ const io = new SocketIOServer(httpServer, {
 })
 
 app.use(cors({ origin: allowedOrigin }))
-app.use(express.json())
-
-const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 })
+app.use(express.json({ limit: '200kb' }))
 
 // Static file serving for uploaded photos
-app.use('/uploads', express.static(resolve(__dirname, 'uploads')))
+app.use('/uploads', express.static(resolve(__dirname, 'uploads'), {
+  index: false,
+  setHeaders(res) {
+    res.set('X-Content-Type-Options', 'nosniff')
+    res.set('Content-Security-Policy', "default-src 'none'; img-src 'self'")
+  },
+}))
 
-// Admin auth check
-app.get('/api/admin/check', adminLimiter, admin, (req, res) => res.json({ ok: true }))
+// Admin auth check. Failed attempts are rate-limited inside the `admin`
+// middleware itself, so every admin route is covered (see rateLimits.js).
+app.get('/api/admin/check', admin, (req, res) => res.json({ ok: true }))
+
+// Health check (used by the docker compose healthcheck)
+app.get('/api/health', async (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  try {
+    await pool.query('SELECT 1')
+    res.json({ ok: true, db: 'ok' })
+  } catch (err) {
+    console.error('[health] db check failed', err.message)
+    res.status(503).json({ ok: false, db: 'error' })
+  }
+})
 
 // API routes
 app.use('/api/bars', barsRouter)
 app.use('/api/tags', tagsRouter)
 app.use('/api/annotations', annotationsRouter)
-app.use('/api/feed', feedRouter)
+app.use('/api/feed', feedLimiter, feedRouter)
 app.use('/api/reviews', reviewsRouter)
 app.use('/api/partitions', partitionsRouter)
+app.use('/api/suggestions', suggestionsRouter)
+app.use('/api/stats', statsRouter)
 app.use('/api', photosRouter)
+
+// Link previews / SEO: /bar/<slug>, /, /map, /directory, /sitemap.xml, /robots.txt
+// (nginx proxies exactly these paths here; everything else is static)
+app.use(seoRouter)
 
 // Socket.io chat namespace
 registerChatNamespace(io)
@@ -60,6 +93,7 @@ runMigrations()
   .then(() => {
     httpServer.listen(PORT, () => {
       console.log(`Golden Gai API running on http://localhost:${PORT}`)
+      startFeedRefreshSchedule()
     })
   })
   .catch(err => {

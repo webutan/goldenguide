@@ -1,9 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import WinTabs from './win2000/WinTabs.vue'
 import WinTextInput from './win2000/WinTextInput.vue'
 import WinButton from './win2000/WinButton.vue'
 import TagIcon from './TagIcon.vue'
+import AdminReviews from './AdminReviews.vue'
+import AdminInbox from './AdminInbox.vue'
+import { useSuggestionInbox } from '../composables/useSuggestEdit.js'
+import { slotBarIds, removeSlotAt } from '../utils/partitions.js'
+const StickerSheet = defineAsyncComponent(() => import('./admin/StickerSheet.vue')) // G05, with the QR encoder
+const showStickers = ref(false)
+import { useDialog } from '../composables/useDialog.js'
+import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
 const props = defineProps({
@@ -11,19 +19,31 @@ const props = defineProps({
   tags: Array,
   placingBar: Object,
   partitions: { type: Object, default: () => ({}) },
+  // { [buildingId]: { unassigned: [barId], stale: [{ slotIndex, barId, reason }] } }
+  partitionIssues: { type: Object, default: () => ({}) },
   selectedBuilding: { type: String, default: null },
+  lang: { type: String, default: 'en' },
 })
 
-const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'open-db'])
+// 'resetPartitions' (buildingId): delete the building's stored split.
+// 'openBar' (bar): show the bar's card (on the map when it is placed).
+const emit = defineEmits(['selectForPlacement', 'unplaceBar', 'reload', 'reorderTags', 'updatePartitions', 'resetPartitions', 'openBar', 'open-db'])
+const dialog = useDialog()
+const { t } = useI18n(computed(() => props.lang))
 
 const mainTab = ref('placement')
-const mainTabOptions = [
+// Open edit suggestions, shown on the tab as "Inbox (N)"
+const { openCount: inboxOpenCount, refreshOpenCount } = useSuggestionInbox()
+refreshOpenCount()
+const mainTabOptions = computed(() => [
   { value: 'placement', label: 'Placement' },
   { value: 'edit-bar', label: 'Edit Bar' },
   { value: 'photos', label: 'Photos' },
   { value: 'tags', label: 'Tags' },
   { value: 'buildings', label: 'Buildings' },
-]
+  { value: 'reviews', label: t('adminTabReviews') },
+  { value: 'inbox', label: t('adminTabInbox', { n: inboxOpenCount.value }) },
+])
 
 // === Placement tab ===
 const search = ref('')
@@ -321,7 +341,11 @@ async function saveCreateBar() {
 }
 
 async function deleteBarEntry(bar) {
-  if (!confirm(`Delete "${bar.name_jp}"? This cannot be undone.`)) return
+  const ok = await dialog.confirm(
+    dialog.t('adminConfirmDeleteBar', { name: bar.name_jp }),
+    { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
   try {
     await apiDeleteBar(bar.id)
     if (editingBar.value?.id === bar.id) editingBar.value = null
@@ -361,7 +385,11 @@ async function addTag() {
 }
 
 async function removeTag(tagId) {
-  if (!confirm(`Delete tag "${tagId}"?`)) return
+  const ok = await dialog.confirm(
+    dialog.t('adminConfirmDeleteTag', { name: tagId }),
+    { title: dialog.t('adminConfirmDeleteTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
   try {
     await deleteTag(tagId)
     emit('reload')
@@ -442,6 +470,59 @@ const currentPartition = computed(() => {
   return props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
 })
 
+// === Corrected map geometry (per-building `geometryV2` opt-in) ===
+// Buildings split before this flag existed keep the original geometry, because
+// their slot sizes and label offsets were tuned by eye against it. An admin
+// switches them over here; the label offsets are dropped at the same time
+// since they were compensating for the old badge / label centres.
+function hasSlots(config) {
+  return !!config && Array.isArray(config.partitions) && config.partitions.length > 0
+}
+
+function toGeometryV2(config) {
+  const { labelOffsetX: _x, labelOffsetY: _y, ...rest } = config
+  return {
+    ...rest,
+    partitions: (config.partitions || []).map(p => {
+      const { labelOffsetX: _px, labelOffsetY: _py, ...slot } = p
+      return slot
+    }),
+    geometryV2: true,
+  }
+}
+
+// Split buildings still on the original geometry
+const legacyGeometryIds = computed(() =>
+  Object.keys(props.partitions).filter(id => hasSlots(props.partitions[id]) && !props.partitions[id].geometryV2)
+)
+
+async function resetGeometryForSelected() {
+  const buildingId = props.selectedBuilding
+  if (!buildingId || !hasSlots(currentPartition.value)) return
+  const ok = await dialog.confirm(
+    dialog.t('geomResetConfirm', { id: buildingId }),
+    { title: dialog.t('geomTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
+  const config = props.partitions[buildingId]
+  if (!hasSlots(config)) return
+  emit('updatePartitions', { buildingId, data: toGeometryV2(config) })
+}
+
+async function applyGeometryToAll() {
+  const count = legacyGeometryIds.value.length
+  if (count === 0) return
+  const ok = await dialog.confirm(
+    dialog.t('geomApplyAllConfirm', { n: count }),
+    { title: dialog.t('geomTitle'), icon: 'warning', yesNo: true },
+  )
+  if (!ok) return
+  // One save per building, through the same path as every other edit
+  for (const buildingId of legacyGeometryIds.value) {
+    emit('updatePartitions', { buildingId, data: toGeometryV2(props.partitions[buildingId]) })
+  }
+}
+
 function setBuildingColor(color) {
   if (!props.selectedBuilding) return
   const data = { ...currentPartition.value, buildingColor: color }
@@ -475,6 +556,9 @@ function addPartition() {
   if (!props.selectedBuilding) return
   const existing = props.partitions[props.selectedBuilding] || { partitions: [], splitDirection: 'auto' }
   const data = { ...existing }
+  // A building that is split for the first time has nothing tuned against the
+  // original geometry, so it starts on the corrected one
+  if (!hasSlots(existing)) data.geometryV2 = true
   data.partitions = [...(data.partitions || []).map(normalizePartition), { color: null, barIds: [], weight: 1 }]
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
@@ -483,6 +567,79 @@ function removePartition() {
   if (!props.selectedBuilding || !currentPartition.value || currentPartition.value.partitions.length === 0) return
   const data = { ...currentPartition.value }
   data.partitions = data.partitions.slice(0, -1)
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+// Remove one slot, wherever it is. The other slots keep their bars, sizes
+// and colours; the removed slot's bars show up under "Unassigned".
+async function removeSlot(index) {
+  const buildingId = props.selectedBuilding
+  const config = currentPartition.value
+  if (!buildingId || !config || !config.partitions[index]) return
+  if (slotBarIds(config.partitions[index]).length > 0) {
+    const ok = await dialog.confirm(
+      t('partRemoveSlotConfirm', { n: index + 1 }),
+      { title: t('partRemoveSlot'), icon: 'question', yesNo: true },
+    )
+    if (!ok) return
+  }
+  // Only if it is still the same slot (the dialog may have been up for a while)
+  const latest = props.partitions[buildingId]
+  const slot = latest && Array.isArray(latest.partitions) ? latest.partitions[index] : null
+  if (props.selectedBuilding !== buildingId || !slot) return
+  if (JSON.stringify(slot) !== JSON.stringify(config.partitions[index])) return
+  emit('updatePartitions', { buildingId, data: removeSlotAt(latest, index) })
+}
+
+// Forget everything stored for this building's split (slots, sizes, colours,
+// label settings): the server row is deleted and the automatic split returns.
+async function resetSplit() {
+  const buildingId = props.selectedBuilding
+  if (!buildingId) return
+  const ok = await dialog.confirm(
+    t('partResetConfirm', { id: buildingId }),
+    { title: t('partResetSplit'), icon: 'warning', yesNo: true, defaultButton: 1 },
+  )
+  if (ok) emit('resetPartitions', buildingId)
+}
+
+// Bars placed in this building that no slot references, and slot references
+// to bars that were deleted or moved elsewhere (computed in App.vue).
+const selectedIssues = computed(() => props.partitionIssues[props.selectedBuilding] || null)
+
+const unassignedBars = computed(() => {
+  const ids = selectedIssues.value?.unassigned || []
+  return ids.map(id => props.bars.find(b => String(b.id) === id)).filter(Boolean)
+})
+
+const staleRefs = computed(() => {
+  return (selectedIssues.value?.stale || []).map(sr => {
+    const bar = props.bars.find(b => String(b.id) === sr.barId)
+    return { ...sr, name: bar ? (bar.name_en || bar.name_jp || `#${sr.barId}`) : `#${sr.barId}` }
+  })
+})
+
+// Give an unassigned bar its own new slot
+function addSlotForBar(barId) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = [...(data.partitions || []).map(normalizePartition), { color: null, barIds: [String(barId)], weight: 1 }]
+  emit('updatePartitions', { buildingId: props.selectedBuilding, data })
+}
+
+// Remove a reference to a deleted/moved bar from a slot. A slot left with no
+// bars is removed too, which is how the map already draws it.
+function removeStaleRef(slotIndex, barId) {
+  if (!props.selectedBuilding) return
+  const data = { ...currentPartition.value }
+  data.partitions = (data.partitions || [])
+    .map((p, i) => {
+      const np = normalizePartition(p)
+      if (i !== slotIndex) return np
+      const barIds = np.barIds.filter(id => String(id) !== String(barId))
+      return barIds.length > 0 ? { ...np, barIds } : null
+    })
+    .filter(Boolean)
   emit('updatePartitions', { buildingId: props.selectedBuilding, data })
 }
 
@@ -612,9 +769,12 @@ function setLabelOffset(axis, val) {
     <template v-else>
       <div class="admin-db-row">
         <WinButton style="width:100%" @click="emit('open-db')">&#128196; Database</WinButton>
+        <WinButton style="width:100%" :pressed="showStickers" data-action="stickers" @click="showStickers = !showStickers">&#128424; {{ t('adminStickers') }}</WinButton>
       </div>
 
-      <WinTabs v-model="mainTab" :tabs="mainTabOptions">
+      <!-- Door stickers (G05): takes the place of the tabs while open -->
+      <StickerSheet v-if="showStickers" :bars="bars" :lang="lang" @close="showStickers = false" />
+      <WinTabs v-show="!showStickers" v-model="mainTab" :tabs="mainTabOptions" class="admin-main-tabs">
 
         <!-- Placement tab -->
         <template v-if="mainTab === 'placement'">
@@ -849,9 +1009,20 @@ function setLabelOffset(axis, val) {
                 class="bar-list-item"
               >
                 <div class="bar-list-content" @click="startEditBar(bar)">
-                  <div class="bar-list-name">{{ bar.name_jp }}</div>
+                  <div class="bar-list-name">
+                    {{ bar.name_jp }}
+                    <span v-if="!bar.is_active" class="bar-inactive-tag" data-testid="bar-inactive">{{ t('adminInactive') }}</span>
+                  </div>
                   <div v-if="bar.name_en" class="bar-list-sub">{{ bar.name_en }}</div>
                 </div>
+                <!-- Also the way to look at an inactive bar: its public link is a 404 -->
+                <button
+                  class="unplace-btn open-bar-btn"
+                  data-testid="open-bar"
+                  :title="t(bar.building_id ? 'adminOpenOnMap' : 'adminOpenCard')"
+                  :aria-label="t(bar.building_id ? 'adminOpenOnMap' : 'adminOpenCard')"
+                  @click.stop="emit('openBar', bar)"
+                ><img src="/icons/desktop/search_web.png" alt="" /></button>
                 <button
                   class="unplace-btn"
                   title="Delete bar"
@@ -999,6 +1170,36 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
 
+            <div class="partition-issues" data-testid="partition-reset">
+              <div class="partition-issues-title">{{ t('partResetSplit') }}</div>
+              <div class="partition-issues-hint">{{ t('partResetHint') }}</div>
+              <WinButton small data-testid="partition-reset-btn" @click="resetSplit">{{ t('partResetSplit') }}</WinButton>
+            </div>
+
+            <div v-if="unassignedBars.length > 0" class="partition-issues" data-testid="partition-unassigned">
+              <div class="partition-issues-title">{{ t('partUnassignedTitle') }}</div>
+              <div class="partition-issues-hint">{{ t('partUnassignedHint') }}</div>
+              <div v-for="bar in unassignedBars" :key="bar.id" class="partition-issue-row">
+                <span class="partition-issue-text">{{ (bar.name_en || bar.name_jp) + ' (' + floorLabel(bar.floor ?? 1) + ')' }}</span>
+                <WinButton small @click="addSlotForBar(bar.id)">{{ t('partAddSlot') }}</WinButton>
+              </div>
+            </div>
+
+            <div v-if="staleRefs.length > 0" class="partition-issues" data-testid="partition-stale">
+              <div class="partition-issues-title">{{ t('partStaleTitle') }}</div>
+              <div class="partition-issues-hint">{{ t('partStaleHint') }}</div>
+              <div v-for="sr in staleRefs" :key="sr.slotIndex + ':' + sr.barId" class="partition-issue-row">
+                <span class="partition-issue-text">{{ t(sr.reason === 'moved' ? 'partStaleMoved' : 'partStaleMissing', { n: sr.slotIndex + 1, name: sr.name }) }}</span>
+                <WinButton small @click="removeStaleRef(sr.slotIndex, sr.barId)">{{ t('partStaleRemove') }}</WinButton>
+              </div>
+            </div>
+
+            <div v-if="currentPartition && currentPartition.partitions.length > 0" class="partition-issues" data-testid="geometry-building">
+              <div class="partition-issues-title">{{ t('geomTitle') }}</div>
+              <div class="partition-issues-hint">{{ currentPartition.geometryV2 ? t('geomStatusOn') : t('geomStatusOff') }}</div>
+              <WinButton small data-testid="geometry-reset" @click="resetGeometryForSelected">{{ t('geomReset') }}</WinButton>
+            </div>
+
             <div v-if="currentPartition && currentPartition.partitions.length > 0" class="edit-field">
               <label>Mode</label>
               <WinButton
@@ -1108,6 +1309,12 @@ function setLabelOffset(axis, val) {
                     @click="setPartitionColor(i, null)"
                     title="Auto color from bar floor"
                   >Auto</button>
+                  <button
+                    class="reset-color-btn slot-remove-btn"
+                    data-testid="slot-remove"
+                    :title="t('partRemoveSlot')"
+                    @click="removeSlot(i)"
+                  >&#10005; {{ t('partStaleRemove') }}</button>
                 </div>
                 <div class="partition-bars-label">Bars in this slot:</div>
                 <div class="partition-bars-list">
@@ -1291,7 +1498,19 @@ function setLabelOffset(axis, val) {
               </div>
             </div>
           </div>
+
+          <div class="partition-issues geometry-all" data-testid="geometry-all">
+            <div class="partition-issues-title">{{ t('geomAllTitle') }}</div>
+            <div class="partition-issues-hint">{{ legacyGeometryIds.length > 0 ? t('geomAllHint', { n: legacyGeometryIds.length }) : t('geomAllNone') }}</div>
+            <WinButton small data-testid="geometry-apply-all" :disabled="legacyGeometryIds.length === 0" @click="applyGeometryToAll">{{ t('geomApplyAll') }}</WinButton>
+          </div>
         </template>
+
+        <!-- REVIEWS TAB -->
+        <AdminReviews v-if="mainTab === 'reviews'" :lang="lang" />
+
+        <!-- INBOX TAB (edit suggestions) -->
+        <AdminInbox v-if="mainTab === 'inbox'" :lang="lang" @reload="emit('reload')" />
 
       </WinTabs>
     </template>
@@ -1311,6 +1530,28 @@ function setLabelOffset(axis, val) {
 .admin-db-row {
   padding: 4px 4px 2px;
   flex-shrink: 0;
+}
+
+/* Seven main tabs don't fit the 280px admin window on one line: tighter tab
+   padding, and the strip wraps onto a second row (Win95 multi-row tabs) */
+.admin-main-tabs > :deep(.win-tabs-header) {
+  flex-wrap: wrap;
+}
+
+.admin-main-tabs > :deep(.win-tabs-header > .win-tab) {
+  padding-left: 5px;
+  padding-right: 5px;
+  white-space: nowrap;
+}
+
+/* Touch: 40px tall (the active tab stays 2px taller, as in WinTabs) */
+@media (max-width: 768px) {
+  .admin-main-tabs > :deep(.win-tabs-header > .win-tab) {
+    min-height: 40px;
+  }
+  .admin-main-tabs > :deep(.win-tabs-header > .win-tab.active) {
+    min-height: 42px;
+  }
 }
 
 /* Sub tabs */
@@ -1383,6 +1624,40 @@ function setLabelOffset(axis, val) {
 }
 .unplace-btn:active {
   box-shadow: inset 1px 1px 0 var(--win-border-dark), inset -1px -1px 0 var(--win-border-light);
+}
+
+/* "Open bar card" in the Edit Bar list */
+.open-bar-btn { margin-right: 3px; }
+.open-bar-btn img {
+  width: 12px;
+  height: 12px;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.bar-inactive-tag {
+  font-size: 9px;
+  font-weight: normal;
+  padding: 0 3px;
+  margin-left: 4px;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+  box-shadow: inset 1px 1px 0 var(--win-border-dark), inset -1px -1px 0 var(--win-border-light);
+}
+.bar-list-item:hover .bar-inactive-tag { color: var(--win-highlight-text); }
+
+/* Per-slot "Remove", pushed to the end of the slot's first row */
+.slot-remove-btn {
+  margin-left: auto;
+  color: var(--valhalla-pink);
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .open-bar-btn { width: 40px; height: 40px; }
+  .open-bar-btn img { width: 24px; height: 24px; }
+  .slot-remove-btn { min-height: 40px; min-width: 40px; padding: 1px 8px; }
+  [data-testid="partition-reset"] > .win-btn { min-height: 40px; }
 }
 
 .bar-list-empty { padding: 12px; text-align: center; color: var(--win-text-disabled); }
@@ -1676,6 +1951,55 @@ function setLabelOffset(axis, val) {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.partition-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px;
+  margin-bottom: 6px;
+  background: var(--win-bg-dark);
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-dark),
+    inset -1px -1px 0 var(--win-border-light);
+}
+
+.partition-issues-title {
+  font-weight: bold;
+}
+
+.geometry-all {
+  margin-top: 8px;
+}
+
+.partition-issues-hint {
+  font-size: 10px;
+  color: var(--win-text-disabled);
+}
+
+.partition-issue-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.partition-issue-text {
+  font-size: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.partition-issue-row > .win-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .partition-issue-row > .win-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
 }
 
 .partition-color-row {

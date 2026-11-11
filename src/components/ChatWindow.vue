@@ -1,7 +1,10 @@
 <script setup>
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
-import { useChat } from '../composables/useChat.js'
+import { useChat, isNearBottom } from '../composables/useChat.js'
 import { useI18n } from '../composables/useI18n.js'
+import { useOnline } from '../composables/usePwa.js'
+import { readString } from '../utils/storage.js'
+import { rateLimitMessage } from '../utils/retryAfter.js'
 import WinButton from './win2000/WinButton.vue'
 
 const props = defineProps({
@@ -9,8 +12,9 @@ const props = defineProps({
   bars: { type: Array, default: () => [] },
 })
 
-const { messages, userCount, connected, nickname, setNickname, sendMessage, checkinList, myCheckinBarId, checkIn, checkOut } = useChat()
+const { messages, userCount, connected, nickname, setNickname, sendMessage, checkinList, myCheckinBarId, checkIn, checkOut, rateLimitNotice, clearRateLimitNotice } = useChat()
 const { t } = useI18n(computed(() => props.lang))
+const { offline } = useOnline()
 
 const inputText = ref('')
 const messagesEl = ref(null)
@@ -47,7 +51,7 @@ const myCheckinBar = computed(() => {
 
 // Check if nickname was auto-generated (Guest####) and show prompt
 onMounted(() => {
-  const saved = localStorage.getItem('golden-gai-chat-nickname')
+  const saved = readString('golden-gai-chat-nickname')
   if (!saved) {
     showNickPrompt.value = true
     nickInput.value = nickname.value
@@ -74,6 +78,14 @@ function sendChat() {
   inputText.value = ''
 }
 
+// The server dropped the last message for being too fast: put the text back
+// (unless the user is already typing something else) so nothing is lost.
+watch(rateLimitNotice, (notice) => {
+  if (notice?.kind === 'message' && notice.text && !inputText.value) {
+    inputText.value = notice.text
+  }
+})
+
 function onKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -81,20 +93,42 @@ function onKeydown(e) {
   }
 }
 
-// Auto-scroll to bottom on new messages
-watch(messages, async () => {
-  await nextTick()
-  if (messagesEl.value) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
+// New messages: follow the conversation only if the reader is already at the
+// bottom. Someone reading history keeps their place and gets a button instead.
+const hasNewMessages = ref(false)
+
+function scrollToBottom() {
+  const el = messagesEl.value
+  if (el) el.scrollTop = el.scrollHeight
+  hasNewMessages.value = false
+}
+
+function onMessagesScroll() {
+  if (hasNewMessages.value && isNearBottom(messagesEl.value)) hasNewMessages.value = false
+}
+
+// Watch the newest message's id rather than deep-watching up to 500 objects.
+// (The id also changes when the list is capped and its length stays the same.)
+// Runs before the DOM update, so the position measured is the reader's own.
+watch(
+  () => {
+    const list = messages.value
+    return list.length ? list[list.length - 1].id : null
+  },
+  async () => {
+    const list = messages.value
+    const last = list[list.length - 1]
+    const follow = isNearBottom(messagesEl.value) || (last && isOwn(last))
+    await nextTick()
+    if (follow) scrollToBottom()
+    else if (last) hasNewMessages.value = true
   }
-}, { deep: true })
+)
 
 // Scroll on mount too
 onMounted(async () => {
   await nextTick()
-  if (messagesEl.value) {
-    messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-  }
+  scrollToBottom()
 })
 
 // Hash-based nickname color (8 distinct hues)
@@ -137,10 +171,10 @@ function formatTime(ts) {
       <div class="chat-nick-box">
         <div class="chat-nick-title">
           <img src="/icons/desktop/network_internet_pcs.png" class="chat-nick-icon" alt="" />
-          Enter Your Screen Name
+          {{ t('chatSignInTitle') }}
         </div>
         <div class="chat-nick-body">
-          <label class="chat-nick-label">Screen Name:</label>
+          <label class="chat-nick-label">{{ t('chatScreenName') }}</label>
           <input
             v-model="nickInput"
             class="chat-nick-input"
@@ -150,7 +184,7 @@ function formatTime(ts) {
           />
         </div>
         <div class="chat-nick-footer">
-          <WinButton @click="submitNick">Sign In</WinButton>
+          <WinButton @click="submitNick">{{ t('chatSignIn') }}</WinButton>
         </div>
       </div>
     </div>
@@ -158,7 +192,7 @@ function formatTime(ts) {
     <!-- AIM header strip -->
     <div class="chat-aim-header">
       <img src="/icons/desktop/network_internet_pcs.png" class="chat-aim-logo" alt="" />
-      <span class="chat-aim-title">Golden Gai Chat</span>
+      <span class="chat-aim-title">{{ t('chatTitle') }}</span>
     </div>
 
     <!-- Who's Here section -->
@@ -172,7 +206,8 @@ function formatTime(ts) {
     </div>
 
     <!-- Messages area -->
-    <div ref="messagesEl" class="chat-messages">
+    <div class="chat-messages-wrap">
+    <div ref="messagesEl" class="chat-messages" @scroll.passive="onMessagesScroll">
       <div
         v-for="msg in messages"
         :key="msg.id"
@@ -189,8 +224,25 @@ function formatTime(ts) {
         </div>
       </div>
       <div v-if="messages.length === 0" class="chat-empty">
-        No messages yet. Say hi!
+        {{ t('chatEmpty') }}
       </div>
+    </div>
+    <WinButton v-if="hasNewMessages" class="chat-new-btn" @click="scrollToBottom">
+      {{ t('chatNewMessages') }}
+    </WinButton>
+    </div>
+
+    <!-- Rate-limit notice -->
+    <div v-if="rateLimitNotice" class="chat-notice" role="alert">
+      <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
+      <span class="chat-notice-text">{{ rateLimitMessage(t, rateLimitNotice.retryAfter) }}</span>
+      <WinButton class="chat-notice-btn" @click="clearRateLimitNotice">{{ t('ok') }}</WinButton>
+    </div>
+
+    <!-- Offline notice (the socket reconnects by itself) -->
+    <div v-else-if="offline && !connected" class="chat-notice" role="status">
+      <img src="/icons/msg_warning-1.png" class="chat-notice-icon" alt="" />
+      <span class="chat-notice-text">{{ t('offlineChat') }}</span>
     </div>
 
     <!-- Input area -->
@@ -199,11 +251,11 @@ function formatTime(ts) {
         <input
           v-model="inputText"
           class="chat-input"
-          placeholder="Type a message..."
+          :placeholder="t('chatPlaceholder')"
           maxlength="500"
           @keydown="onKeydown"
         />
-        <WinButton class="chat-send-btn" @click="sendChat">Send</WinButton>
+        <WinButton class="chat-send-btn" @click="sendChat">{{ t('chatSend') }}</WinButton>
       </div>
     </div>
 
@@ -216,7 +268,7 @@ function formatTime(ts) {
       <input
         v-model="checkinSearch"
         class="checkin-search"
-        placeholder="Search bars..."
+        :placeholder="t('searchBars')"
         autofocus
       />
       <div class="checkin-bar-list">
@@ -235,7 +287,7 @@ function formatTime(ts) {
     <div class="chat-status-strip">
       <!-- Nickname display/edit -->
       <template v-if="!nickEditing">
-        <span class="chat-status-nick" @click="startEditNick" title="Click to change screen name">
+        <span class="chat-status-nick" @click="startEditNick" :title="t('chatChangeName')">
           <img src="/icons/desktop/network_internet_pcs.png" class="chat-status-icon" alt="" />
           {{ nickname }}
         </span>
@@ -248,7 +300,7 @@ function formatTime(ts) {
           @keydown.enter="submitNick"
           @keydown.escape="nickEditing = false"
         />
-        <WinButton class="chat-nick-ok-btn" @click="submitNick">OK</WinButton>
+        <WinButton class="chat-nick-ok-btn" @click="submitNick">{{ t('ok') }}</WinButton>
       </template>
 
       <span class="chat-status-spacer"></span>
@@ -258,7 +310,7 @@ function formatTime(ts) {
         v-if="myCheckinBarId"
         class="chat-checkin-btn chat-checkin-btn--active"
         @click="checkOut()"
-        :title="'Checked in: ' + (myCheckinBar ? getBarName(myCheckinBar) : '')"
+        :title="t('checkedInAt', { bar: myCheckinBar ? getBarName(myCheckinBar) : '' })"
       >
         🍺 {{ myCheckinBar ? getBarName(myCheckinBar) : t('checkedIn') }}
       </button>
@@ -272,7 +324,7 @@ function formatTime(ts) {
 
       <!-- Online count + connection indicator -->
       <span class="chat-status-users">
-        {{ userCount }} online
+        {{ t('onlineCount', { n: userCount }) }}
       </span>
       <span :class="['chat-status-dot', connected ? 'chat-status-dot-on' : 'chat-status-dot-off']"></span>
     </div>
@@ -290,6 +342,15 @@ function formatTime(ts) {
   font-size: 12px;
   position: relative;
   overflow: hidden;
+}
+
+/* In a desktop WinWindow the body is auto-height, so `height: 100%` above
+   resolved to "as tall as all the messages": the whole chat (header, input)
+   scrolled inside the window and the message pane never scrolled itself.
+   Give the window body a definite height so the pane is the scroller. */
+:global(.win-window-body-inner:has(> .chat-window)) {
+  height: 100%;
+  box-sizing: border-box;
 }
 
 /* Nickname prompt overlay */
@@ -428,6 +489,32 @@ function formatTime(ts) {
 }
 
 /* Messages area */
+.chat-messages-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* "New messages" jump button, floating over the bottom of the pane */
+.chat-new-btn {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 5;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .chat-new-btn {
+    min-height: 40px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -507,6 +594,47 @@ function formatTime(ts) {
   white-space: nowrap;
   flex-shrink: 0;
   padding-bottom: 1px;
+}
+
+/* Rate-limit notice: a raised Win95 strip above the input */
+.chat-notice {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--win-bg, #c0c0c0);
+  color: var(--win-text, #000);
+  font-family: var(--win-font, 'W95FA', Arial);
+  font-size: 11px;
+  box-shadow:
+    inset 1px 1px 0 var(--win-border-light),
+    inset -1px -1px 0 var(--win-border-dark),
+    inset 2px 2px 0 var(--win-border-mid),
+    inset -2px -2px 0 var(--win-border-darkest);
+}
+
+.chat-notice-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+}
+
+.chat-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-notice-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .chat-notice-btn {
+    min-height: 40px;
+    min-width: 56px;
+  }
 }
 
 /* Input area */

@@ -6,6 +6,8 @@ import TagFilter from './TagFilter.vue'
 import { useVisited } from '../composables/useVisited.js'
 import { useI18n } from '../composables/useI18n.js'
 import { useOpenNow } from '../composables/useOpenNow.js'
+import { buildSearchIndex, searchBars } from '../utils/searchText.js'
+import { barPasses, hasActiveFilters as hasAnyFilter, hasUnknownFilteredPrice } from '../utils/barFilters.js'
 
 const props = defineProps({
   bars: Array,
@@ -39,11 +41,23 @@ function onResize() { isMobile.value = window.innerWidth <= 768 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
 
+const dirFilters = computed(() => ({
+  tags: dirActiveTags.value,
+  tagMode: dirTagMode.value,
+  chargeMin: dirChargeMin.value,
+  chargeMax: dirChargeMax.value,
+  drinkMin: dirDrinkMin.value,
+  drinkMax: dirDrinkMax.value,
+  floor: dirFloorFilter.value,
+  openNow: dirOpenNowFilter.value,
+  favorites: dirFavoritesFilter.value,
+  visited: dirVisitedFilter.value,
+}))
+
+// Panel filters only (favorites/visited are separate quickbar toggles that
+// clearFilters() doesn't reset), so the badge + clear button keep their meaning.
 const hasActiveFilters = computed(() =>
-  dirActiveTags.value.length > 0 ||
-  dirChargeMin.value != null || dirChargeMax.value != null ||
-  dirDrinkMin.value != null || dirDrinkMax.value != null ||
-  dirFloorFilter.value != null || dirOpenNowFilter.value
+  hasAnyFilter({ ...dirFilters.value, favorites: false, visited: false })
 )
 
 function clearFilters() {
@@ -58,44 +72,22 @@ function clearFilters() {
 
 const search = ref('')
 
-function barPassesFilters(bar) {
-  if (dirFavoritesFilter.value && !isFavorited(bar.id)) return false
-  if (dirVisitedFilter.value && !isVisited(bar.id)) return false
-  if (dirOpenNowFilter.value && !openBarIds.value.has(String(bar.id))) return false
-  if (dirFloorFilter.value != null && (bar.floor ?? 1) !== dirFloorFilter.value) return false
-  if (dirActiveTags.value.length > 0) {
-    const tagIds = (bar.tags || []).map(tg => typeof tg === 'string' ? tg : tg.id)
-    const check = dirTagMode.value === 'and'
-      ? dirActiveTags.value.every(at => tagIds.includes(at))
-      : dirActiveTags.value.some(at => tagIds.includes(at))
-    if (!check) return false
-  }
-  const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
-  if (dirChargeMin.value != null && (charge === null || charge < dirChargeMin.value)) return false
-  if (dirChargeMax.value != null && charge !== null && charge > dirChargeMax.value) return false
-  const drink = bar.drink_price != null && bar.drink_price !== '' ? Number(bar.drink_price) : null
-  if (dirDrinkMin.value != null && (drink === null || drink < dirDrinkMin.value)) return false
-  if (dirDrinkMax.value != null && drink !== null && drink > dirDrinkMax.value) return false
-  return true
-}
+const barPassesFilters = (bar) =>
+  barPasses(bar, dirFilters.value, { openBarIds: openBarIds.value, isFavorited, isVisited })
+
+const priceUnknown = (bar) => hasUnknownFilteredPrice(bar, dirFilters.value)
+
+const searchIndex = computed(() => buildSearchIndex(props.bars))
 
 const filteredBars = computed(() => {
-  let list = props.bars || []
-  if (search.value) {
-    const q = search.value.toLowerCase()
-    list = list.filter(b =>
-      (b.name_jp && b.name_jp.toLowerCase().includes(q)) ||
-      (b.name_en && b.name_en.toLowerCase().includes(q)) ||
-      (b.street && b.street.toLowerCase().includes(q))
-    )
-  }
+  const list = search.value.trim() ? searchBars(searchIndex.value, search.value) : (props.bars || [])
   return list.filter(barPassesFilters)
 })
 
 const barsByStreet = computed(() => {
   const groups = {}
   for (const bar of filteredBars.value) {
-    const street = bar.street || 'Unknown'
+    const street = bar.street || t('unknownStreet')
     if (!groups[street]) groups[street] = []
     groups[street].push(bar)
   }
@@ -180,7 +172,7 @@ function floorLabel(floor) {
           class="quickbar-btn mobile-clear-btn"
           @click="clearFilters"
         >
-          &#10005; Clear
+          &#10005; {{ t('clear') }}
         </button>
       </div>
 
@@ -204,7 +196,7 @@ function floorLabel(floor) {
       </div>
 
       <div class="dir-status">
-        <span>{{ filteredBars.length }} / {{ (bars || []).length }} bar(s)</span>
+        <span>{{ t('directoryCount', { shown: filteredBars.length, total: (bars || []).length }) }}</span>
       </div>
 
       <div class="dir-content">
@@ -261,7 +253,7 @@ function floorLabel(floor) {
                       />
                     </svg>
                   </div>
-                  <div class="icon-floor">{{ floorLabel(bar.floor) }}</div>
+                  <div class="icon-floor">{{ floorLabel(bar.floor) }}<span v-if="priceUnknown(bar)" class="price-unknown" :title="t('priceUnconfirmed')"> &yen;?</span></div>
                 </div>
               </div>
             </div>
@@ -565,6 +557,10 @@ function floorLabel(floor) {
 
 .bar-status-icon {
   flex-shrink: 0;
+}
+
+.price-unknown {
+  cursor: help;
 }
 
 .icon-floor {

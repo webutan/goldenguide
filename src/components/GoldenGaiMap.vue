@@ -1,8 +1,36 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, shallowReactive, shallowRef, computed, onMounted, onUnmounted, watch, watchEffect } from 'vue'
 import panzoom from 'panzoom'
 import WinButton from './win2000/WinButton.vue'
+import MapPartitions from './map/MapPartitions.vue'
+import MapLabels from './map/MapLabels.vue'
+import MapBadges from './map/MapBadges.vue'
+import MapAnnotations from './map/MapAnnotations.vue'
+import MapTooltip from './map/MapTooltip.vue'
 import { useVisited } from '../composables/useVisited.js'
+import { barPasses, hasActiveFilters as hasAnyFilter } from '../utils/barFilters.js'
+import {
+  BUILDING_STATE_CLASSES,
+  passingBarIdSet,
+  computePartitionGeometry,
+  computePartitionSlotState,
+  computeBuildingStyles,
+  diffBuildingStyles,
+  parsePolygonPath,
+  findPartitionAt,
+  screenToMap as screenToMapPure,
+  panToCenter,
+  panToPoint,
+  clampPan,
+  normalizeAngle,
+  touchSpan,
+  pinchScale,
+  snapRotation,
+  wheelZoomFactor,
+} from '../utils/mapGeometry.js'
+import { devCount, devTrackRenders } from '../utils/devPerf.js'
+import { useI18n } from '../composables/useI18n.js'
+import { useMapHover } from '../composables/useMapHover.js'
 import mapSvgUrl from '../assets/map.svg?url'
 import buildings from '../data/buildings.json'
 import {
@@ -36,14 +64,23 @@ const props = defineProps({
   favoritesFilter: { type: Boolean, default: false },
   visitedFilter: { type: Boolean, default: false },
   tourHighlight: { type: String, default: null },
-  labelMode: { type: String, default: 'yoko' },
   tagMode: { type: String, default: 'or' }, // 'or' | 'and'
   hoveredBarId: { type: String, default: null },
+  // false while another view is shown: the map stays mounted but hidden
+  active: { type: Boolean, default: true },
 })
 
-const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'hoverBuilding', 'deselect'])
+const emit = defineEmits(['selectBuilding', 'placeBar', 'selectBuildingForEdit', 'selectPartitionBar', 'deselect'])
+
+// Building under the pointer, shared with the drawer's hover preview
+const { hoveredBuildingId } = useMapHover()
+
+const { t } = useI18n(computed(() => props.lang))
+
+devTrackRenders('GoldenGaiMap')
 
 const containerRef = ref(null)
+const wrapRef = ref(null)
 const svgRef = ref(null)
 const mapContent = ref('')
 let panzoomInstance = null
@@ -55,8 +92,13 @@ const currentZoom = ref(0)
 const baseFitScale = ref(0)
 const showLabels = computed(() => baseFitScale.value > 0 && currentZoom.value >= baseFitScale.value * 2.0)
 
-// User rotation applied via container transform (pinch-to-rotate on mobile)
+// User rotation applied via container transform (two-finger twist), in (-180, 180]
 const userRotation = ref(0)
+// The same in 10-degree steps, for text that is laid out along a building or a
+// street (bar labels, annotations): it turns with the map, and is turned half
+// a turn when it would otherwise read upside down. Steps, so that those layers
+// re-render a few times per twist and not on every frame.
+const labelTurn = computed(() => Math.round(userRotation.value / 10) * 10)
 const mapRotateStyle = computed(() =>
   userRotation.value !== 0 ? { transform: `rotate(${userRotation.value}deg)` } : {}
 )
@@ -64,10 +106,16 @@ const mapRotateStyle = computed(() =>
 const isMobile = ref(window.innerWidth <= 768)
 function onResize() {
   isMobile.value = window.innerWidth <= 768
-  fitToContainer()
 }
 onMounted(() => window.addEventListener('resize', onResize))
 onUnmounted(() => window.removeEventListener('resize', onResize))
+
+// Width (layout px) of the bar drawer, which on desktop lies over the right
+// edge of the map whenever admin mode is off (see BarDrawer.vue / App.vue).
+// The map stays as wide as the desktop, so everything that has to be seen or
+// clicked keeps clear of that strip: the buttons, the fitted map, the pan limits.
+const DRAWER_WIDTH = 300
+const coveredRight = computed(() => (!isMobile.value && !props.adminMode ? DRAWER_WIDTH : 0))
 
 const MAP_W = 3614.12
 const MAP_H = 4096
@@ -125,51 +173,32 @@ const buildingsWithBars = computed(() => {
   return new Set(Object.keys(barsByBuilding.value))
 })
 
+// Shared filter state built from props (see src/utils/barFilters.js)
+const mapFilters = computed(() => ({
+  tags: props.activeTags || [],
+  tagMode: props.tagMode,
+  chargeMin: props.chargeMin,
+  chargeMax: props.chargeMax,
+  drinkMin: props.drinkMin,
+  drinkMax: props.drinkMax,
+  floor: props.floorFilter,
+  openNow: props.openNowFilter,
+  favorites: props.favoritesFilter,
+  visited: props.visitedFilter,
+}))
+
 // Whether any filter is active (includes floor filter)
-const hasActiveFilters = computed(() => {
-  return (props.activeTags && props.activeTags.length > 0) ||
-    props.chargeMin != null || props.chargeMax != null ||
-    props.drinkMin != null || props.drinkMax != null ||
-    props.floorFilter != null ||
-    props.openNowFilter ||
-    props.favoritesFilter ||
-    props.visitedFilter
-})
+const hasActiveFilters = computed(() => hasAnyFilter(mapFilters.value))
 
-// Whether floor filter is active (separate from tag/price filters)
-const hasFloorFilter = computed(() => props.floorFilter != null)
-
-function barPassesFilters(bar) {
-  // Floor filter: exclude bars not on the selected floor
-  if (props.floorFilter != null && (bar.floor ?? 1) !== props.floorFilter) return false
-  if (props.activeTags && props.activeTags.length > 0) {
-    const tagIds = (bar.tags || []).map(t => typeof t === 'string' ? t : t.id)
-    const check = props.tagMode === 'and'
-      ? props.activeTags.every(at => tagIds.includes(at))
-      : props.activeTags.some(at => tagIds.includes(at))
-    if (!check) return false
-  }
-  const charge = bar.charge != null && bar.charge !== '' ? Number(bar.charge) : null
-  const drinkPrice = bar.drink_price != null && bar.drink_price !== '' ? Number(bar.drink_price) : null
-  if (props.chargeMin != null && charge != null && !isNaN(charge) && charge < props.chargeMin) return false
-  if (props.chargeMax != null && charge != null && !isNaN(charge) && charge > props.chargeMax) return false
-  if (props.drinkMin != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice < props.drinkMin) return false
-  if (props.drinkMax != null && drinkPrice != null && !isNaN(drinkPrice) && drinkPrice > props.drinkMax) return false
-  if (props.openNowFilter && !props.openBarIds.has(String(bar.id))) return false
-  if (props.favoritesFilter && !isFavorited(bar.id)) return false
-  if (props.visitedFilter && !isVisited(bar.id)) return false
-  return true
-}
-
-// Street-based building colors (replaces count-based color system)
-const STREET_COLORS = {
-  'hanazono-1':  '#8B2500',   // deep red-orange
-  'hanazono-3':  '#005559',   // teal
-  'hanazono-5':  '#3a5c20',   // olive green
-  'hanazono-8':  '#6a1a48',   // dark wine
-  'maneki-dori': '#4a3010',   // dark brown
-}
-const STREET_COLOR_DEFAULT = '#1a0e2a'  // fallback: dark purple
+// The one place the filter function runs: IDs (as strings) of the bars that
+// pass the active filters, or null when no filter is active. Badges, dimming,
+// labels and the tooltip all read this set.
+const passingBarIds = computed(() =>
+  passingBarIdSet(props.bars, hasActiveFilters.value, (bar) =>
+    barPasses(bar, mapFilters.value, { openBarIds: props.openBarIds, isFavorited, isVisited })
+  )
+)
+const barPassesFilters = (bar) => passingBarIds.value === null || passingBarIds.value.has(String(bar.id))
 
 // For each building, find the most common street among its bars
 const buildingDominantStreet = computed(() => {
@@ -197,7 +226,7 @@ const buildingBarCountBadges = computed(() => {
 
     // Check if this building uses independent-building mode
     if (props.partitions[bldgId]?.isIndependentBuilding) {
-      const pdata = partitionRects.value[bldgId]
+      const pdata = partitionGeometry.value[bldgId]
       if (!pdata) continue
       const partData = props.partitions[bldgId] || {}
       const bldgOffsetX = partData.labelOffsetX ?? 0
@@ -205,7 +234,7 @@ const buildingBarCountBadges = computed(() => {
       for (const rect of pdata.rects) {
         if (!rect.barIds || rect.barIds.length === 0) continue
         const bars = rect.barIds.map(id => barById.value[id]).filter(Boolean)
-        const filtered = hasActiveFilters.value ? bars.filter(barPassesFilters).length : bars.length
+        const filtered = bars.filter(barPassesFilters).length
         const key = `${bldgId}__${rect.partIndex}`
         const partObj = (partData.partitions || [])[rect.partIndex] || {}
         const offsetX = partObj.labelOffsetX ?? bldgOffsetX
@@ -221,30 +250,11 @@ const buildingBarCountBadges = computed(() => {
       continue
     }
 
-    const total = barsInBldg.length
-    const filtered = hasActiveFilters.value
-      ? barsInBldg.filter(barPassesFilters).length
-      : total
+    const filtered = barsInBldg.filter(barPassesFilters).length
     result[bldgId] = { cx: bldg.cx, cy: bldg.cy, count: filtered, dimmed: hasActiveFilters.value && filtered === 0, active: hasActiveFilters.value }
   }
   return result
 })
-
-// Floor color system — two variants per floor (primary, lighter)
-const FLOOR_COLORS = {
-  '-3': ['#0f2040', '#1e3a5f'],
-  '-2': ['#2a1845', '#3d2a6a'],
-  '-1': ['#1a3868', '#2a508a'],
-   1:  ['#934400', '#b85800'],
-   2:  ['#005559', '#007a70'],
-   3:  ['#4a6030', '#607840'],
-   4:  ['#7a2050', '#9a3070'],
-   5:  ['#5a3020', '#7a4838'],
-}
-
-function floorColors(floor) {
-  return FLOOR_COLORS[floor] ?? FLOOR_COLORS[1]
-}
 
 // Lookup bar by ID
 const barById = computed(() => {
@@ -255,44 +265,9 @@ const barById = computed(() => {
   return map
 })
 
-// Lookup bar floor by ID
-const barFloorMap = computed(() => {
-  const map = {}
-  for (const bar of props.bars) {
-    map[String(bar.id)] = bar.floor ?? 1
-  }
-  return map
-})
-
-// Buildings that match active filters (tags + price)
-const buildingsMatchingTags = computed(() => {
-  if (!hasActiveFilters.value) return null // null = no filter active
-  const matching = new Set()
-  for (const [buildingId, barsInBldg] of Object.entries(barsByBuilding.value)) {
-    if (barsInBldg.some(barPassesFilters)) matching.add(buildingId)
-  }
-  return matching
-})
-
-// Individual bar IDs that pass filters (for partition-level dimming)
-// Uses String() to match partition barIds which come from <select> (always strings)
-const barsMatchingFilters = computed(() => {
-  if (!hasActiveFilters.value) return null
-  const matching = new Set()
-  for (const bar of props.bars) {
-    if (barPassesFilters(bar)) matching.add(String(bar.id))
-  }
-  return matching
-})
-
 const unplacedBars = computed(() => {
   return props.bars.filter(b => !b.building_id)
 })
-
-// Return the primary color for a bar — uses its partition color if assigned
-function barFloorPrimaryColor(bar) {
-  return barPartitionColor.value[String(bar.id)] || floorColors(bar.floor ?? 1)[0]
-}
 
 // Convert ASCII digits/letters to full-width Unicode equivalents.
 // Full-width chars all have the same advance width as CJK glyphs, preventing
@@ -388,7 +363,7 @@ const buildingLabelData = computed(() => {
         dx = (i - (n - 1) / 2) * slotW
         dy = 0
       }
-      const passes = !hasActiveFilters.value || barPassesFilters(bar)
+      const passes = barPassesFilters(bar)
       const isSearchHL = props.searchHighlightedBars.size > 0 && props.searchHighlightedBars.has(String(bar.id))
       const faved = isFavorited(bar.id)
       const visited = isVisited(bar.id)
@@ -423,7 +398,7 @@ const buildingLabelData = computed(() => {
 
     // Independent building mode: one label group per partition, positioned at its center
     if (partData.isIndependentBuilding) {
-      const pdata = partitionRects.value[bldgId]
+      const pdata = partitionGeometry.value[bldgId]
       if (!pdata) continue
       for (const rect of pdata.rects) {
         const partBarIds = rect.barIds || []
@@ -433,13 +408,18 @@ const buildingLabelData = computed(() => {
           const fd = (b.floor ?? 1) - (a.floor ?? 1)
           return fd !== 0 ? fd : (a.name_en || '').localeCompare(b.name_en || '')
         })
-        // Estimate usable partition dimensions
-        const estW = pdata.dir === 'vertical'
-          ? (bldg.width / pdata.count) - PAD * 2
-          : bldg.width - PAD * 2
-        const estH = pdata.dir === 'horizontal'
-          ? (bldg.height / pdata.count) - PAD * 2
-          : bldg.height - PAD * 2
+        // Estimate usable partition dimensions (geometryV2 knows the visible
+        // size of the slot; the original geometry guesses from the bbox)
+        const estW = rect.visibleSize
+          ? rect.visibleSize.width - PAD * 2
+          : pdata.dir === 'vertical'
+            ? (bldg.width / pdata.count) - PAD * 2
+            : bldg.width - PAD * 2
+        const estH = rect.visibleSize
+          ? rect.visibleSize.height - PAD * 2
+          : pdata.dir === 'horizontal'
+            ? (bldg.height / pdata.count) - PAD * 2
+            : bldg.height - PAD * 2
         const usableW = Math.max(20, estW)
         const usableH = Math.max(20, estH)
         const autoOrient = usableW >= usableH ? 'horizontal' : 'vertical'
@@ -452,13 +432,23 @@ const buildingLabelData = computed(() => {
         const partOffsetY = partObj.labelOffsetY ?? offsetY
         const partAdminRotation = partObj.labelTextRotation ?? adminRotation
         const isTate = partOrientOverride === 'tate'
-        const orientation = isTate ? 'tate' : (partOrientOverride === 'auto' ? autoOrient : partOrientOverride)
+        let orientation = isTate ? 'tate' : (partOrientOverride === 'auto' ? autoOrient : partOrientOverride)
+        let items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, partFontSizeOverride)
+        if (rect.visibleSize && partOrientOverride === 'auto') {
+          // geometryV2 knows the real size of the slot, so "auto" can take
+          // whichever of the two layouts fits the larger text
+          const other = orientation === 'horizontal' ? 'vertical' : 'horizontal'
+          const alt = makeLabelItems(sortedBars, other, false, usableW, usableH, partFontSizeOverride)
+          if (alt[0].fontSize > items[0].fontSize) {
+            orientation = other
+            items = alt
+          }
+        }
         const baseRotation = (orientation === 'horizontal' || orientation === 'tate') ? (-MAP_ROTATION + 90) : -MAP_ROTATION
         const groupRotation = baseRotation + partAdminRotation
         const cx = rect.visibleCenter.x + partOffsetX
         const cy = rect.visibleCenter.y + partOffsetY
-        const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, partFontSizeOverride)
-        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, items }
+        result[`${bldgId}__${rect.partIndex}`] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
       }
       continue
     }
@@ -484,71 +474,75 @@ const buildingLabelData = computed(() => {
     const groupRotation = baseRotation + adminRotation
 
     const items = makeLabelItems(sortedBars, orientation, isTate, usableW, usableH, fontSizeOverride)
-    result[bldgId] = { cx, cy, groupRotation, items }
+    result[bldgId] = { cx, cy, groupRotation, screenAngle: groupRotation + MAP_ROTATION, items }
   }
   return result
 })
 
-// Selected building state (persists until cleared)
-const selectedBuilding = ref(null)
+// Hovered / selected building. Kept in one reactive object that is handed to
+// MapPartitions as-is, so a hover re-renders only the partition layer and not
+// this component.
+const interaction = reactive({ hovered: null, selected: null })
 
-function setSelectedBuilding(id) {
-  if (selectedBuilding.value && svgRef.value) {
-    const old = svgRef.value.querySelector(`#${CSS.escape(selectedBuilding.value)}`)
-    if (old) old.classList.remove('building-selected')
-  }
-  selectedBuilding.value = id
-  if (id && svgRef.value) {
-    const el = svgRef.value.querySelector(`#${CSS.escape(id)}`)
-    if (el) el.classList.add('building-selected')
-  }
+// The one place a building path is looked up or gets its hover/selection class.
+function buildingEl(id) {
+  if (!id || !svgRef.value) return null
+  return svgRef.value.querySelector(`#${CSS.escape(id)}`)
 }
 
-// Hover tooltip state
-const hoveredBuilding = ref(null)
-const tooltip = ref({ visible: false, x: 0, y: 0, bars: [] })
+function setBuildingFlag(id, cls, on) {
+  const el = buildingEl(id)
+  if (el) el.classList.toggle(cls, on)
+}
+
+function setSelectedBuilding(id) {
+  setBuildingFlag(interaction.selected, 'building-selected', false)
+  interaction.selected = id
+  setBuildingFlag(id, 'building-selected', true)
+}
+
+// Hover tooltip state (mutated in place; only MapTooltip reads it)
+const TOOLTIP_DELAY_MS = 150
+const tooltip = shallowReactive({ visible: false, x: 0, y: 0, bars: [] })
 let hoverTimer = null
+let tooltipFrame = null
+// Latest pointer position over the map, so the tooltip opens at (and then
+// follows) the cursor rather than where the pointer first entered the building
+const lastPointer = { clientX: 0, clientY: 0 }
 
-// Tooltip bars grouped by floor, sorted descending
-const tooltipFloorGroups = computed(() => {
-  const groups = {}
-  for (const bar of tooltip.value.bars) {
-    const f = bar.floor ?? 1
-    if (!groups[f]) groups[f] = []
-    groups[f].push(bar)
-  }
-  return Object.entries(groups)
-    .map(([f, bars]) => ({
-      floor: Number(f),
-      floorLabel: Number(f) < 0 ? `B${Math.abs(Number(f))}F` : `${f}F`,
-      bars,
-    }))
-    .sort((a, b) => b.floor - a.floor)
-})
-
-function showTooltip(buildingId, mouseEvent) {
-  const barsInBuilding = barsByBuilding.value[buildingId]
-  if (!barsInBuilding || barsInBuilding.length === 0) return
-
-  const barsToShow = hasActiveFilters.value
-    ? barsInBuilding.filter(barPassesFilters)
-    : barsInBuilding
-  if (barsToShow.length === 0) return
-
+function positionTooltip() {
+  if (!containerRef.value) return
   const rect = containerRef.value.getBoundingClientRect()
   // getBoundingClientRect returns viewport coords; CSS positioning uses local (pre-zoom) coords.
   // Divide by the effective zoom so the tooltip tracks the cursor correctly.
   const zoom = rect.width / containerRef.value.offsetWidth || 1
-  const rawX = (mouseEvent.clientX - rect.left) / zoom + 12
-  const rawY = (mouseEvent.clientY - rect.top) / zoom - 8
+  const rawX = (lastPointer.clientX - rect.left) / zoom + 12
+  const rawY = (lastPointer.clientY - rect.top) / zoom - 8
   const tooltipW = 220
   const tooltipH = 120
-  tooltip.value = {
-    visible: true,
-    x: Math.min(rawX, containerRef.value.offsetWidth - tooltipW),
-    y: Math.min(rawY, containerRef.value.offsetHeight - tooltipH),
-    bars: barsToShow,
-  }
+  tooltip.x = Math.min(rawX, containerRef.value.offsetWidth - tooltipW)
+  tooltip.y = Math.min(rawY, containerRef.value.offsetHeight - tooltipH)
+}
+
+function showTooltip(buildingId) {
+  const barsInBuilding = barsByBuilding.value[buildingId]
+  if (!barsInBuilding || barsInBuilding.length === 0) return
+
+  const barsToShow = barsInBuilding.filter(barPassesFilters)
+  if (barsToShow.length === 0) return
+
+  positionTooltip()
+  tooltip.bars = barsToShow
+  tooltip.visible = true
+}
+
+// At most one reposition per frame while the pointer moves inside a building
+function followTooltip() {
+  if (!tooltip.visible || tooltipFrame !== null) return
+  tooltipFrame = requestAnimationFrame(() => {
+    tooltipFrame = null
+    if (tooltip.visible) positionTooltip()
+  })
 }
 
 function hideTooltip() {
@@ -556,7 +550,14 @@ function hideTooltip() {
     clearTimeout(hoverTimer)
     hoverTimer = null
   }
-  tooltip.value = { visible: false, x: 0, y: 0, bars: [] }
+  if (tooltipFrame !== null) {
+    cancelAnimationFrame(tooltipFrame)
+    tooltipFrame = null
+  }
+  if (tooltip.visible) {
+    tooltip.visible = false
+    tooltip.bars = []
+  }
 }
 
 function resolveBuilding(e) {
@@ -567,18 +568,19 @@ function resolveBuilding(e) {
   const partEl = e.target.closest('[data-partition-building]')
   if (partEl) {
     const bldgId = partEl.dataset.partitionBuilding
-    const el = svgRef.value && svgRef.value.querySelector(`#${CSS.escape(bldgId)}`)
-    return { id: bldgId, el }
+    return { id: bldgId, el: buildingEl(bldgId) }
   }
   return { id: null, el: null }
 }
 
 function onSvgMouseMove(e) {
+  lastPointer.clientX = e.clientX
+  lastPointer.clientY = e.clientY
   if (props.adminMode && props.placingBar) {
     const { id: newId, el: target } = resolveBuilding(e)
-    if (newId !== hoveredBuilding.value) {
+    if (newId !== interaction.hovered) {
       clearHighlight()
-      hoveredBuilding.value = newId
+      interaction.hovered = newId
       if (target) {
         target.classList.add('building-hover')
       }
@@ -587,92 +589,134 @@ function onSvgMouseMove(e) {
   }
   // Normal mode: highlight buildings with bars
   const { id: newId, el: target } = resolveBuilding(e)
-  if (newId !== hoveredBuilding.value) {
+  if (newId !== interaction.hovered) {
     clearHighlight()
     hideTooltip()
     if (newId && buildingsWithBars.value.has(newId)) {
-      hoveredBuilding.value = newId
+      interaction.hovered = newId
       if (target) target.classList.add('building-hover')
-      emit('hoverBuilding', newId)
-      // Start 0.5s timer for tooltip
+      hoveredBuildingId.value = newId
+      // Show the tooltip after a short delay, at wherever the pointer is by then
       hoverTimer = setTimeout(() => {
-        showTooltip(newId, e)
-      }, 150)
+        hoverTimer = null
+        showTooltip(newId)
+      }, TOOLTIP_DELAY_MS)
     } else {
-      hoveredBuilding.value = null
-      emit('hoverBuilding', null)
+      interaction.hovered = null
+      hoveredBuildingId.value = null
     }
+  } else {
+    followTooltip()
   }
 }
 
 function onSvgMouseLeave() {
   clearHighlight()
   hideTooltip()
-  emit('hoverBuilding', null)
+  hoveredBuildingId.value = null
 }
 
 function clearHighlight() {
-  if (hoveredBuilding.value && svgRef.value) {
-    const el = svgRef.value.querySelector(`#${hoveredBuilding.value}`)
-    if (el) el.classList.remove('building-hover')
-  }
-  hoveredBuilding.value = null
+  setBuildingFlag(interaction.hovered, 'building-hover', false)
+  interaction.hovered = null
 }
 
-// Color buildings by street; dim those with no filter matches
-function updateBuildingColors() {
-  if (!svgRef.value) return
-  const paths = svgRef.value.querySelectorAll('path[id^="bldg-"]')
-  const tagFilter = buildingsMatchingTags.value
-  const searchHL = props.searchHighlighted
+// === Building colours (declarative) ===
+// Wanted fill + state classes of every building path that differs from the raw
+// SVG: street colour, neutral base under partitions, filter dimming and search
+// highlight. Hover / selection classes are not part of this (see setBuildingFlag).
+const buildingStyle = computed(() => computeBuildingStyles({
+  barsByBuilding: barsByBuilding.value,
+  partitions: props.partitions,
+  dominantStreet: buildingDominantStreet.value,
+  passingBarIds: passingBarIds.value,
+  searchHighlighted: props.searchHighlighted,
+}))
 
-  for (const path of paths) {
-    // Search highlighting
-    if (searchHL.size > 0 && searchHL.has(path.id)) {
-      path.classList.add('search-highlight')
-    } else {
-      path.classList.remove('search-highlight')
+// The base map is raw SVG injected with v-html, so the styles are applied to
+// the DOM by hand: diff against what was applied last and touch only the paths
+// that changed.
+let buildingPaths = null      // id → path elements of the injected SVG
+let buildingPathsFor = null   // the mapContent the index was built from
+let appliedBuildingStyle = {}
+
+// Outline of every building (buildingId → { rings, contains }), read from the
+// injected SVG once. Feeds the geometryV2 partition layout: `rings` gives the
+// building's real extent, `contains` is the exact isPointInFill test used to
+// keep badges and labels inside L-shaped buildings.
+const buildingShapes = shallowRef(null)
+
+function readBuildingShapes(pathsById) {
+  const shapes = {}
+  for (const [id, paths] of pathsById) {
+    const path = paths[0]
+    let rings = parsePolygonPath(path.getAttribute('d') || '')
+    if (!rings) {
+      // Not a plain polygon: sample the outline instead
+      try {
+        const len = path.getTotalLength()
+        const ring = []
+        for (let i = 0; i < 128; i++) {
+          const pt = path.getPointAtLength(len * i / 128)
+          ring.push({ x: pt.x, y: pt.y })
+        }
+        rings = [ring]
+      } catch {
+        continue
+      }
     }
-
-    const barsInBldg = barsByBuilding.value[path.id]
-    if (barsInBldg && barsInBldg.length > 0) {
-      path.classList.add('has-bars')
-      const isPartitioned = !!(props.partitions[path.id]?.partitions?.length)
-      if (isPartitioned) {
-        // Partition rects handle per-rect coloring; use a neutral base and skip tag-dimmed
-        path.style.setProperty('--bldg-fill', '#111122')
-        path.classList.remove('tag-dimmed')
-      } else {
-        const overrideColor = props.partitions[path.id]?.buildingColor
-        const dominantStreet = buildingDominantStreet.value[path.id]
-        const color = overrideColor || STREET_COLORS[dominantStreet] || STREET_COLOR_DEFAULT
-        path.style.setProperty('--bldg-fill', color)
-        if (tagFilter !== null && !tagFilter.has(path.id)) {
-          path.classList.add('tag-dimmed')
-        } else {
-          path.classList.remove('tag-dimmed')
+    const shape = { rings }
+    if (typeof path.isPointInFill === 'function') {
+      const probe = svgRef.value?.createSVGPoint?.()
+      if (probe) {
+        shape.contains = (x, y) => {
+          probe.x = x
+          probe.y = y
+          return path.isPointInFill(probe)
         }
       }
-    } else {
-      path.classList.remove('has-bars', 'tag-dimmed')
-      path.style.removeProperty('--bldg-fill')
     }
+    shapes[id] = shape
   }
+  return shapes
 }
 
-// Panzoom
-function fitToContainer(zoomMultiplier = 1) {
-  if (!containerRef.value || !svgRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const scaleX = rect.width / VB_W
-  const scaleY = rect.height / VB_H
-  const scale = Math.min(scaleX, scaleY) * zoomMultiplier
-  const offsetX = (rect.width - VB_W * scale) / 2
-  const offsetY = (rect.height - VB_H * scale) / 2
-  if (panzoomInstance) {
-    panzoomInstance.zoomAbs(0, 0, scale)
-    panzoomInstance.moveTo(offsetX, offsetY)
+watchEffect(() => {
+  const wanted = buildingStyle.value
+  const content = mapContent.value
+  if (!content || !svgRef.value) return
+  if (buildingPathsFor !== content) {
+    buildingPaths = new Map()
+    for (const path of svgRef.value.querySelectorAll('path[id^="bldg-"]')) {
+      if (!buildingPaths.has(path.id)) buildingPaths.set(path.id, [])
+      buildingPaths.get(path.id).push(path)
+    }
+    buildingPathsFor = content
+    appliedBuildingStyle = {}
+    buildingShapes.value = readBuildingShapes(buildingPaths)
   }
+  for (const { id, fill, classes } of diffBuildingStyles(appliedBuildingStyle, wanted)) {
+    const wantedClasses = classes ? classes.split(' ') : []
+    for (const path of buildingPaths.get(id) || []) {
+      for (const cls of BUILDING_STATE_CLASSES) {
+        path.classList.toggle(cls, wantedClasses.includes(cls))
+      }
+      if (fill === null) path.style.removeProperty('--bldg-fill')
+      else path.style.setProperty('--bldg-fill', fill)
+    }
+  }
+  appliedBuildingStyle = wanted
+}, { flush: 'post' })
+
+// Panzoom
+// Zoom all the way out: the whole map, in the middle of the part of the
+// container that is not covered (the pan limits put it there)
+function fitToContainer() {
+  const size = containerSize()
+  if (!panzoomInstance || !size || !size.w || !size.h) return
+  cancelZoomAnimation()
+  panzoomInstance.zoomAbs(0, 0, fitScaleFor(size))
+  clampToBounds()
 }
 
 function resetView() {
@@ -680,72 +724,211 @@ function resetView() {
   fitToContainer()
 }
 
-function centerOnPoint(mapX, mapY) {
-  if (!containerRef.value || !panzoomInstance) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const scale = baseFitScale.value
-  const screenX = (mapX - VB_MIN_X) * scale
-  const screenY = (mapY - VB_MIN_Y) * scale
-  const offsetX = rect.width / 2 - screenX
-  const offsetY = rect.height / 2 - screenY
-  panzoomInstance.moveTo(offsetX, offsetY)
-}
-
 function resetZoom() {
   fitToContainer()
 }
 
+// Zoom by a factor about the middle of the container (buttons and keyboard)
+function zoomAtCentre(factor) {
+  const view = currentView()
+  if (!view) return
+  cancelZoomAnimation()
+  zoomAbout({ x: view.left + view.width * view.zoom / 2, y: view.top + view.height * view.zoom / 2 }, view.scale * factor)
+}
+
 function zoomIn() {
-  if (!panzoomInstance || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 1.5)
+  zoomAtCentre(1.5)
 }
 
 function zoomOut() {
-  if (!panzoomInstance || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  panzoomInstance.zoomTo(rect.width / 2, rect.height / 2, 0.67)
+  zoomAtCentre(0.67)
+}
+
+// === Screen ↔ map coordinates ===
+// Everything between a map point (raw SVG coordinates, as in buildings.json)
+// and the viewport: MAP_ROTATION, the viewBox origin, panzoom, the two-finger
+// userRotation of .map-svg-wrap and the CSS zoom of #app. Pure math (see
+// utils/mapGeometry.js), no getScreenCTM.
+function currentView() {
+  if (!panzoomInstance || !containerRef.value) return null
+  const el = containerRef.value
+  const rect = el.getBoundingClientRect()
+  const { x: tx, y: ty, scale } = panzoomInstance.getTransform()
+  // getBoundingClientRect is in viewport px, the layout size in the element's
+  // own px: they differ by the CSS zoom on #app (1.25 on desktop)
+  const zoom = el.offsetWidth ? rect.width / el.offsetWidth : 1
+  return {
+    mapRotation: MAP_ROTATION, mapCx: MAP_CX, mapCy: MAP_CY,
+    vbMinX: VB_MIN_X, vbMinY: VB_MIN_Y,
+    tx, ty, scale,
+    userRotation: userRotation.value,
+    width: el.clientWidth, height: el.clientHeight,
+    // overflow is hidden, but focus / scrollIntoView can still scroll the container
+    left: rect.left - el.scrollLeft * zoom,
+    top: rect.top - el.scrollTop * zoom,
+    zoom,
+    // the strip under the bar drawer does not count for the pan limits
+    insetRight: coveredRight.value,
+  }
+}
+
+function screenToMap(clientX, clientY) {
+  const view = currentView()
+  return view ? screenToMapPure({ x: clientX, y: clientY }, view) : null
+}
+
+// Pan (keeping the zoom level) so a map point sits in the middle of the container
+function centerOnMapPoint(x, y) {
+  const view = currentView()
+  if (!view) return
+  const pan = panToCenter({ x, y }, view)
+  panzoomInstance.moveTo(pan.x, pan.y)
 }
 
 function clampToBounds() {
-  if (!panzoomInstance || !containerRef.value) return
-  const { x: tx, y: ty, scale: s } = panzoomInstance.getTransform()
-  const W = containerRef.value.clientWidth
-  const H = containerRef.value.clientHeight
-  const mapW = VB_W * s
-  const mapH = VB_H * s
-  const nx = mapW >= W ? Math.min(0, Math.max(tx, W - mapW)) : (W - mapW) / 2
-  const ny = mapH >= H ? Math.min(0, Math.max(ty, H - mapH)) : (H - mapH) / 2
-  if (Math.abs(nx - tx) > 0.5 || Math.abs(ny - ty) > 0.5) {
+  const view = currentView()
+  if (!view) return
+  const { x: nx, y: ny } = clampPan(view, VB_W, VB_H)
+  if (Math.abs(nx - view.tx) > 0.5 || Math.abs(ny - view.ty) > 0.5) {
     panzoomInstance.moveTo(nx, ny)
   }
 }
 
-function initPanzoom() {
-  if (panzoomInstance) panzoomInstance.dispose()
-  if (!svgRef.value || !containerRef.value) return
-  const rect = containerRef.value.getBoundingClientRect()
-  const fitScale = Math.min(rect.width / VB_W, rect.height / VB_H)
-  panzoomInstance = panzoom(svgRef.value, {
-    maxZoom: 8,
-    minZoom: fitScale,
-    smoothScroll: false,
-    zoomDoubleClickSpeed: 1.5,
-  })
-  panzoomInstance.on('panend', clampToBounds)
-  panzoomInstance.on('zoom', clampToBounds)
-  panzoomInstance.on('zoom', () => { currentZoom.value = panzoomInstance.getTransform().scale })
-  fitToContainer(1.5)
-  const { scale: initScale } = panzoomInstance.getTransform()
-  currentZoom.value = initScale
-  baseFitScale.value = initScale
-  // Center on bldg-5 area on initial load
-  centerOnPoint(1679.29, 2495.3)
-  // Delay color update to ensure SVG is rendered
-  setTimeout(updateBuildingColors, 100)
+// Size of the container: layout px (what panzoom works in) and viewport px
+// (they differ by the CSS zoom of #app). All zero while the map is hidden.
+function containerSize() {
+  const el = containerRef.value
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  return { w: el.clientWidth, h: el.clientHeight, rw: rect.width, rh: rect.height }
 }
 
+// Zoom at which the whole map fits the uncovered part of the container (the
+// lower zoom limit). In layout px, which is what panzoom scales.
+function fitScaleFor(size) {
+  const w = size.w - coveredRight.value
+  return Math.min((w > 0 ? w : size.w) / VB_W, size.h / VB_H)
+}
+
+// The view the map opens with was picked by eye and is kept as it was: 1.5x
+// the zoom at which the map fits the container, with OPENING_POINT (viewBox
+// px, around bldg-5) in the middle. On desktop that was always measured in
+// viewport px, so the CSS zoom of #app is part of it: the map opens that much
+// larger and the point sits that much further right and down. The bar labels
+// appear at twice this zoom (baseFitScale).
+const OPENING_POINT = { x: 1679.29, y: 2495.3 }
+function openingScaleFor(size) {
+  return Math.min(size.rw / VB_W, size.rh / VB_H) * 1.5
+}
+
+// The container size the current pan / zoom limits were worked out for
+let fittedSize = null
+// The injected SVG is in the DOM and panzoom may be set up
+let initDue = false
+
+// whenReady(): resolves true once panzoom is set up, false if the map is
+// hidden before that happens (it cannot be measured while hidden).
+let mapReady = false
+let readyWaiters = []
+function whenReady() {
+  if (mapReady) return Promise.resolve(true)
+  if (!props.active) return Promise.resolve(false)
+  return new Promise(resolve => readyWaiters.push(resolve))
+}
+function settleReady(value) {
+  const waiters = readyWaiters
+  readyWaiters = []
+  for (const resolve of waiters) resolve(value)
+}
+
+function initPanzoom() {
+  initDue = true
+  if (!svgRef.value || !containerRef.value) return
+  const size = containerSize()
+  // Hidden (another view is shown): set up on the next show instead
+  if (!size.rw || !size.rh) return
+  if (panzoomInstance) panzoomInstance.dispose()
+  const fitScale = fitScaleFor(size)
+  panzoomInstance = panzoom(svgRef.value, {
+    maxZoom: 8,
+    minZoom: fitScaleFor(size),
+    smoothScroll: false,
+    // panzoom keeps the transform, but measures the pointer in viewport px and
+    // knows nothing about the CSS zoom of #app or the rotation of
+    // .map-svg-wrap. So every input is handled here instead (see Gestures):
+    // returning true makes panzoom leave the event alone (touches and
+    // double-clicks never reach it). It keeps the arrow keys.
+    beforeMouseDown: startMouseDrag,
+    beforeWheel: zoomWithWheel,
+    filterKey: (e, dx, dy, dz) => dz !== 0,
+  })
+  panzoomInstance.on('zoom', clampToBounds)
+  panzoomInstance.on('zoom', () => { currentZoom.value = panzoomInstance.getTransform().scale })
+  const scale = openingScaleFor(size)
+  panzoomInstance.zoomAbs(0, 0, scale)
+  // Open on OPENING_POINT, as near as the pan limits allow, so that the first
+  // drag or zoom does not make the map jump
+  panzoomInstance.moveTo(size.rw / 2 - (OPENING_POINT.x - VB_MIN_X) * scale, size.rh / 2 - (OPENING_POINT.y - VB_MIN_Y) * scale)
+  clampToBounds()
+  currentZoom.value = panzoomInstance.getTransform().scale
+  baseFitScale.value = scale
+  fittedSize = size
+  mapReady = true
+  settleReady(true)
+}
+
+// The container changed size (window resize, phone rotation, or either of
+// those while the map was hidden): keep the zoom and the map point that was in
+// the middle, and bring the zoom / pan limits in line with the new size.
+function refitToContainer() {
+  const size = containerSize()
+  if (!size || !size.rw || !size.rh) return
+  if (!panzoomInstance) {
+    if (initDue) initPanzoom()
+    return
+  }
+  const prev = fittedSize
+  if (prev && Math.abs(prev.w - size.w) < 0.5 && Math.abs(prev.h - size.h) < 0.5 &&
+      Math.abs(prev.rw - size.rw) < 0.5 && Math.abs(prev.rh - size.rh) < 0.5) return
+  const view = currentView()
+  // Map point at the middle of the container as it was before the change
+  const centre = screenToMapPure(
+    { x: prev.w / 2, y: prev.h / 2 },
+    { ...view, width: prev.w, height: prev.h, left: 0, top: 0, zoom: 1 },
+  )
+  baseFitScale.value = openingScaleFor(size)
+  fittedSize = size
+  applyZoomLimit(size)
+  centerOnMapPoint(centre.x, centre.y)
+  clampToBounds()
+}
+
+// Bring the lower zoom limit in line with the container (and the drawer)
+function applyZoomLimit(size) {
+  const fitScale = fitScaleFor(size)
+  panzoomInstance.setMinZoom(fitScale)
+  if (panzoomInstance.getTransform().scale < fitScale) panzoomInstance.zoomAbs(0, 0, fitScale)
+}
+
+// The drawer came or went (admin mode): the limits moved with it
+watch(coveredRight, () => {
+  const size = containerSize()
+  if (!panzoomInstance || !size || !size.rw || !size.rh) return
+  applyZoomLimit(size)
+  clampToBounds()
+})
+
+let resizeObserver = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined') return
+  // Also fires when the map is shown again after being hidden
+  resizeObserver = new ResizeObserver(() => refitToContainer())
+  resizeObserver.observe(containerRef.value)
+})
+onUnmounted(() => resizeObserver?.disconnect())
+
 function onKeyDown(e) {
+  if (!props.active) return
   // Don't intercept when typing in inputs
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
   if (e.key === '+' || e.key === '=') {
@@ -775,35 +958,6 @@ watch(mapContent, () => {
 watch(() => props.placingBar, (val) => {
   if (!val) clearHighlight()
 })
-
-// Re-color buildings when bars data or tag filters change
-watch(buildingsWithBars, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(buildingsMatchingTags, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.searchHighlighted, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.floorFilter, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.activeTags, () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => [props.chargeMin, props.chargeMax, props.drinkMin, props.drinkMax, props.openNowFilter], () => {
-  setTimeout(updateBuildingColors, 50)
-})
-
-watch(() => props.partitions, () => {
-  setTimeout(updateBuildingColors, 50)
-}, { deep: true })
 
 // === GPS location tracking ===
 
@@ -900,24 +1054,22 @@ const userSvgPos = computed(() => {
 })
 
 function panToUserLocation() {
-  if (!userSvgPos.value || !panzoomInstance || !containerRef.value) return
-  const { x, y } = userSvgPos.value
-  const rotated = rotatePoint(x, y)
-  const rect = containerRef.value.getBoundingClientRect()
-  const { scale } = panzoomInstance.getTransform()
-  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
-  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
-  panzoomInstance.moveTo(offsetX, offsetY)
+  if (!userSvgPos.value) return
+  centerOnMapPoint(userSvgPos.value.x, userSvgPos.value.y)
 }
 
 function startGeoTracking() {
   if (!navigator.geolocation) {
-    geoError.value = 'Geolocation not supported by your browser'
+    geoError.value = t('geoUnsupported')
     return
   }
   geoWatching.value = true
   geoError.value = null
-  let firstFix = true
+  watchGeoPosition(true)
+}
+
+function watchGeoPosition(panOnFirstFix) {
+  let firstFix = panOnFirstFix
   geoWatchId = navigator.geolocation.watchPosition(
     (pos) => {
       geoPosition.value = {
@@ -933,6 +1085,7 @@ function startGeoTracking() {
     (err) => {
       geoError.value = err.message
       geoWatching.value = false
+      geoWatchId = null
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   )
@@ -953,9 +1106,35 @@ function toggleGeoTracking() {
   else startGeoTracking()
 }
 
+// === Hidden / shown ===
+// While another view is shown the map stays mounted (so zoom and position
+// survive) but must not do anything: no hover or tooltip left behind, no
+// position updates, no drag in progress. Keyboard zoom checks props.active.
+watch(() => props.active, (active) => {
+  if (active) {
+    // Location tracking the user had switched on carries on (without re-centring)
+    if (geoWatching.value && geoWatchId === null) watchGeoPosition(false)
+    return
+  }
+  clearHighlight()
+  hideTooltip()
+  hoveredBuildingId.value = null
+  cancelGestures()
+  if (draggingAnnotation) onAnnotationDragEnd()
+  if (geoWatchId !== null) {
+    navigator.geolocation.clearWatch(geoWatchId)
+    geoWatchId = null
+  }
+  // Nothing can be measured until the map is shown again
+  if (!mapReady) settleReady(false)
+})
+
 onUnmounted(() => {
+  cancelGestures()
   if (panzoomInstance) panzoomInstance.dispose()
   hideTooltip()
+  hoveredBuildingId.value = null
+  settleReady(false)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('mousemove', onAnnotationDrag)
   window.removeEventListener('mouseup', onAnnotationDragEnd)
@@ -964,24 +1143,12 @@ onUnmounted(() => {
 
 function panToBuilding(buildingId) {
   if (!svgRef.value || !panzoomInstance || !containerRef.value) return
-  const el = svgRef.value.querySelector(`[id="${buildingId}"]`)
+  const el = buildingEl(buildingId)
   if (!el) return
 
+  // Keep the current zoom level, just centre on the building's bbox (map coordinates)
   const bbox = el.getBBox()
-  // Center in local (unrotated) coordinates
-  const localCx = bbox.x + bbox.width / 2
-  const localCy = bbox.y + bbox.height / 2
-  // Transform through the rotation to get viewport coordinates
-  const rotated = rotatePoint(localCx, localCy)
-
-  const rect = containerRef.value.getBoundingClientRect()
-  // Keep current zoom level, just center on the building
-  const { scale } = panzoomInstance.getTransform()
-  // Account for viewBox origin offset when computing pan target
-  const offsetX = rect.width / 2 - (rotated.x - VB_MIN_X) * scale
-  const offsetY = rect.height / 2 - (rotated.y - VB_MIN_Y) * scale
-
-  panzoomInstance.moveTo(offsetX, offsetY)
+  centerOnMapPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2)
 
   // Pulse highlight
   el.classList.add('building-highlight-pulse')
@@ -1023,11 +1190,6 @@ async function addAnnotation() {
   }
 }
 
-function annotationText(ann) {
-  if (props.lang === 'jp' && ann.text_jp) return ann.text_jp
-  return ann.text_en || ''
-}
-
 async function updateAnnotation(id, field, value) {
   const ann = annotations.value.find(a => a.id === id)
   if (!ann) return
@@ -1056,12 +1218,10 @@ function onAnnotationMouseDown(e, ann) {
   selectedAnnotation.value = ann.id
   draggingAnnotation = ann.id
 
-  // Get SVG coordinates
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const svgPt = pt.matrixTransform(svgRef.value.getScreenCTM().inverse())
-  dragOffset = { x: svgPt.x - ann.x, y: svgPt.y - ann.y }
+  // Where on the label (in map coordinates) it was grabbed
+  const mapPt = screenToMap(e.clientX, e.clientY)
+  if (!mapPt) return
+  dragOffset = { x: mapPt.x - ann.x, y: mapPt.y - ann.y }
 
   // Pause panzoom during drag
   if (panzoomInstance) panzoomInstance.pause()
@@ -1071,16 +1231,12 @@ function onAnnotationMouseDown(e, ann) {
 }
 
 function onAnnotationDrag(e) {
-  if (!draggingAnnotation || !svgRef.value) return
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  const svgPt = pt.matrixTransform(svgRef.value.getScreenCTM().inverse())
-
+  if (!draggingAnnotation) return
+  const mapPt = screenToMap(e.clientX, e.clientY)
   const ann = annotations.value.find(a => a.id === draggingAnnotation)
-  if (ann) {
-    ann.x = Math.round(svgPt.x - dragOffset.x)
-    ann.y = Math.round(svgPt.y - dragOffset.y)
+  if (mapPt && ann) {
+    ann.x = Math.round(mapPt.x - dragOffset.x)
+    ann.y = Math.round(mapPt.y - dragOffset.y)
   }
 }
 
@@ -1126,102 +1282,26 @@ const partitionedBuildings = computed(() => {
   return s
 })
 
-const partitionRects = computed(() => {
-  const result = {}
-  const searchSet = props.searchHighlightedBars
-
-  for (const [bldgId, data] of Object.entries(props.partitions)) {
-    const bldg = buildingMap[bldgId]
-    if (!bldg || !data.partitions || data.partitions.length === 0) continue
-
-    const { minX, minY, maxX, maxY, width, height } = bldg
-    const count = data.partitions.length
-    const dir = count === 3 ? 'horizontal'
-      : data.splitDirection === 'auto'
-        ? (width > height ? 'vertical' : 'horizontal')
-        : (data.splitDirection || 'horizontal')
-
-    // SVG-space angle: user's splitAngle offset compensates for the map's own rotation
-    // so that splitAngle=0 means "aligned with the screen", not the raw SVG axes.
-    const svgAngle = (data.splitAngle || 0) - MAP_ROTATION
-
-    const splitX = minX + (maxX - minX) * ((data.splitCenterX ?? 50) / 100)
-    const splitY = minY + (maxY - minY) * ((data.splitCenterY ?? 50) / 100)
-    // Extend well beyond bounding box so rects fully cover the building after clipping
-    const pad = Math.max(width, height) * 2
-
-    const weights = data.partitions.map(p => p.weight || 1)
-    const totalWeight = weights.reduce((a, b) => a + b, 0)
-
-    const rects = data.partitions.map((p, i) => {
-      // Support both barIds (array) and legacy barId (single string)
-      const barIds = p.barIds
-        ? p.barIds.map(String).filter(Boolean)
-        : (p.barId ? [String(p.barId)] : [])
-      const bars = barIds.map(id => barById.value[id]).filter(Boolean)
-      const firstBar = bars[0] ?? null
-
-      // Dimmed: no bar assigned, or filters active with no match in this partition
-      const dimmed = barIds.length === 0
-        ? true
-        : hasActiveFilters.value
-          ? !barIds.some(id => { const b = barById.value[id]; return b && barPassesFilters(b) })
-          : false
-
-      // Highlighted if any bar in this partition is hovered or search-matched
-      const isHoveredBar = props.hoveredBarId != null
-        && barIds.includes(String(props.hoveredBarId))
-      const isSearchHL = searchSet.size > 0 && barIds.some(id => searchSet.has(id))
-      const highlighted = isHoveredBar || isSearchHL
-
-      let x, y, w, h
-      if (count === 4) {
-        const col = i % 2
-        const row = Math.floor(i / 2)
-        x = col === 0 ? splitX - pad : splitX
-        y = row === 0 ? splitY - pad : splitY
-        w = pad
-        h = pad
-      } else if (dir === 'vertical') {
-        const totalPad = pad * 2
-        const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        x = splitX - pad + totalPad * weightBefore / totalWeight
-        y = splitY - pad
-        w = totalPad * weights[i] / totalWeight
-        h = pad * 2
-      } else {
-        const totalPad = pad * 2
-        const weightBefore = weights.slice(0, i).reduce((a, b) => a + b, 0)
-        x = splitX - pad
-        y = splitY - pad + totalPad * weightBefore / totalWeight
-        w = pad * 2
-        h = totalPad * weights[i] / totalWeight
-      }
-
-      // Color: use per-partition custom color first, then derive from first bar's floor
-      const color = p.color
-        || (firstBar ? floorColors(firstBar.floor ?? 1)[0] : STREET_COLOR_DEFAULT)
-
-      // Visible center: midpoint of this rect clamped to building bounding box
-      const vcx = Math.max(minX, Math.min(maxX, x + w / 2))
-      const vcy = Math.max(minY, Math.min(maxY, y + h / 2))
-
-      return {
-        x, y, width: w, height: h,
-        color, dimmed, highlighted,
-        barIds, partIndex: i,
-        visibleCenter: { x: vcx, y: vcy },
-      }
-    })
-    result[bldgId] = { rects, angle: svgAngle, cx: splitX, cy: splitY, dir, count }
-  }
-  return result
+// Pure geometry of the split buildings: depends only on the partition data,
+// the building boxes and the bars. Hover, search and filters must not be read
+// here, or every hover would recompute every split building.
+const partitionGeometry = computed(() => {
+  devCount('geometry')
+  return computePartitionGeometry(props.partitions, buildingMap, barById.value, MAP_ROTATION, buildingShapes.value)
 })
+
+// Highlight / dim state per building and slot (cheap; changes on hover, search and filters)
+const partitionSlotState = computed(() => computePartitionSlotState(partitionGeometry.value, {
+  barById: barById.value,
+  passingBarIds: passingBarIds.value,
+  hoveredBarId: props.hoveredBarId,
+  searchBarIds: props.searchHighlightedBars,
+}))
 
 // Map bar ID → its partition color (for tooltip swatches)
 const barPartitionColor = computed(() => {
   const map = {}
-  for (const pdata of Object.values(partitionRects.value)) {
+  for (const pdata of Object.values(partitionGeometry.value)) {
     for (const rect of pdata.rects) {
       for (const id of rect.barIds) {
         map[id] = rect.color
@@ -1231,102 +1311,296 @@ const barPartitionColor = computed(() => {
   return map
 })
 
-// Find which partition was clicked by checking SVG coordinates
+// Find which partition was clicked (map coordinates). Uses the same rects the
+// overlay draws, so the hit-test always agrees with what is on screen.
 function findClickedPartition(buildingId, svgX, svgY) {
-  const pdata = partitionRects.value[buildingId]
-  if (!pdata) return null
-  const { rects, angle, cx, cy } = pdata
-  // Rotate click point into the partition coordinate space (inverse of splitAngle)
-  let px = svgX, py = svgY
-  if (angle) {
-    const rad = -angle * Math.PI / 180
-    const dx = svgX - cx, dy = svgY - cy
-    px = cx + dx * Math.cos(rad) - dy * Math.sin(rad)
-    py = cy + dx * Math.sin(rad) + dy * Math.cos(rad)
+  return findPartitionAt(partitionGeometry.value[buildingId], svgX, svgY)
+}
+
+// Map coordinates of a mouse / touch event
+function getSvgPoint(e) {
+  return screenToMap(e.clientX, e.clientY)
+}
+
+// === Gestures ===
+// Touch is handled here, not by panzoom: panzoom measures a touch against the
+// bounding box of .map-svg-wrap, which is wrong as soon as the wrap is rotated,
+// and it cannot rotate. One handler owns one- and two-finger touches, so drag,
+// pinch and twist compose. They all work the same way: the map point under the
+// finger (or between the two fingers) when the gesture starts is kept under
+// the finger(s) as they move, at whatever zoom and rotation the fingers ask
+// for. The mouse works the same way (drag, wheel, double-click), and so do the
+// zoom buttons and keys, so there is one implementation, correct at any
+// rotation and under the CSS zoom of #app. panzoom only holds the transform.
+const TAP_MAX_MOVE = 8      // viewport px a finger may travel and still be a tap
+const TAP_MAX_MS = 300
+const DOUBLE_TAP_MS = 300
+const DOUBLE_TAP_MAX_DIST = 30
+const DRAG_MIN_MOVE = 5     // viewport px after which a mouse press is a drag, not a click
+const DOUBLE_CLICK_ZOOM = 1.5 // zoom factor of a double-click / double-tap
+const ROTATION_SNAP_DEG = 6 // a twist that ends this close to straight snaps back to it
+
+// Put the map point `anchor` under the viewport point `at` with the given zoom
+// and rotation, within the pan limits. Returns true when the limits held it back.
+function moveAnchorTo(anchor, at, scale, rotation) {
+  if (rotation !== userRotation.value) userRotation.value = rotation
+  if (Math.abs(scale - panzoomInstance.getTransform().scale) > 1e-9) panzoomInstance.zoomAbs(0, 0, scale)
+  const view = currentView()
+  const want = panToPoint(anchor, at, view)
+  const pan = clampPan({ ...view, tx: want.x, ty: want.y }, VB_W, VB_H)
+  panzoomInstance.moveTo(pan.x, pan.y)
+  return Math.abs(pan.x - want.x) > 0.5 || Math.abs(pan.y - want.y) > 0.5
+}
+
+// Zoom to `scale` (kept within the zoom limits), holding the map point that is
+// under the viewport point `at` where it is
+function zoomAbout(at, scale) {
+  const anchor = screenToMap(at.x, at.y)
+  if (!anchor) return
+  const limited = Math.min(panzoomInstance.getMaxZoom(), Math.max(panzoomInstance.getMinZoom(), scale))
+  moveAnchorTo(anchor, at, limited, userRotation.value)
+}
+
+// Double-click / double-tap: the same, eased over a few frames. Any other
+// input takes over from it.
+const ZOOM_ANIMATION_MS = 400
+let zoomAnimation = null
+
+function animateZoomAbout(at, factor) {
+  cancelZoomAnimation()
+  const anchor = screenToMap(at.x, at.y)
+  if (!anchor) return
+  const from = panzoomInstance.getTransform().scale
+  const to = Math.min(panzoomInstance.getMaxZoom(), Math.max(panzoomInstance.getMinZoom(), from * factor))
+  if (to === from) return
+  const start = performance.now()
+  const step = (now) => {
+    const t = Math.min(1, Math.max(0, (now - start) / ZOOM_ANIMATION_MS))
+    const eased = 1 - (1 - t) ** 3
+    moveAnchorTo(anchor, at, from + (to - from) * eased, userRotation.value)
+    zoomAnimation = t < 1 ? requestAnimationFrame(step) : null
   }
-  for (const r of rects) {
-    if (px >= r.x && px <= r.x + r.width && py >= r.y && py <= r.y + r.height) {
-      return r
+  zoomAnimation = requestAnimationFrame(step)
+}
+
+function cancelZoomAnimation() {
+  if (zoomAnimation !== null) cancelAnimationFrame(zoomAnimation)
+  zoomAnimation = null
+}
+
+// The touch gesture in progress: { ids, target, startX, startY, startTime,
+// moved, multi, anchor, at, scale, distance, angle }
+let gesture = null
+let lastTap = null
+
+// The (at most two) fingers of the gesture that are still down, as viewport points
+function gesturePoints(e) {
+  const points = []
+  for (const id of gesture.ids) {
+    for (const t of e.touches) {
+      if (t.identifier === id) points.push({ x: t.clientX, y: t.clientY })
     }
   }
-  return null
+  return points
 }
 
-function getSvgPoint(e) {
-  if (!svgRef.value) return null
-  const pt = svgRef.value.createSVGPoint()
-  pt.x = e.clientX
-  pt.y = e.clientY
-  // Transform through the SVG's CTM (includes panzoom transforms)
-  const ctm = svgRef.value.getScreenCTM()
-  if (!ctm) return null
-  const svgPt = pt.matrixTransform(ctm.inverse())
-  // Also undo the map rotation
-  const rad = -MAP_ROTATION * Math.PI / 180
-  const dx = svgPt.x - MAP_CX, dy = svgPt.y - MAP_CY
-  return {
-    x: MAP_CX + dx * Math.cos(rad) - dy * Math.sin(rad),
-    y: MAP_CY + dx * Math.sin(rad) + dy * Math.cos(rad),
+function spanOf(points) {
+  return points.length === 2
+    ? touchSpan(points[0], points[1])
+    : { x: points[0].x, y: points[0].y, distance: 0, angle: 0 }
+}
+
+// (Re)start measuring from the fingers that are down now: called whenever a
+// finger lands or lifts, so the map does not jump when the finger count changes
+function rebaseGesture(points) {
+  const span = spanOf(points)
+  gesture.at = { x: span.x, y: span.y }
+  gesture.anchor = screenToMap(span.x, span.y)
+  gesture.scale = panzoomInstance.getTransform().scale
+  gesture.distance = span.distance
+  gesture.angle = span.angle
+}
+
+function onTouchStart(e) {
+  if (!panzoomInstance || !props.active) return
+  // Only touches on the map itself; the buttons and the toolbar keep theirs
+  if (e.target !== containerRef.value && !wrapRef.value.contains(e.target)) return
+  // Keep the touch from panzoom, and from scrolling / zooming the page or
+  // turning into a synthetic click
+  e.stopPropagation()
+  if (e.cancelable) e.preventDefault()
+  cancelZoomAnimation()
+  if (!gesture) {
+    const t = e.changedTouches[0]
+    gesture = { ids: [], target: e.target, startX: t.clientX, startY: t.clientY, startTime: Date.now(), moved: 0, multi: false }
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onTouchEnd)
+    document.addEventListener('touchcancel', onTouchEnd)
   }
-}
-
-// Emit building selection for admin editing
-let rotTouchStartAngle = null
-let rotTouchStartRotation = 0
-
-function getTouchAngle(touches) {
-  const dx = touches[1].clientX - touches[0].clientX
-  const dy = touches[1].clientY - touches[0].clientY
-  return Math.atan2(dy, dx) * 180 / Math.PI
-}
-
-function onContainerTouchStart(e) {
-  if (e.touches.length === 2) {
-    rotTouchStartAngle = getTouchAngle(e.touches)
-    rotTouchStartRotation = userRotation.value
+  // Forget fingers whose end was never seen, then take up to two
+  const down = [...e.touches].map(t => t.identifier)
+  gesture.ids = gesture.ids.filter(id => down.includes(id))
+  for (const t of e.changedTouches) {
+    if (gesture.ids.length < 2 && !gesture.ids.includes(t.identifier)) gesture.ids.push(t.identifier)
   }
+  if (gesture.ids.length > 1) gesture.multi = true
+  rebaseGesture(gesturePoints(e))
 }
 
-function onContainerTouchMove(e) {
-  if (e.touches.length === 2 && rotTouchStartAngle !== null) {
-    const currentAngle = getTouchAngle(e.touches)
-    const delta = currentAngle - rotTouchStartAngle
-    userRotation.value = rotTouchStartRotation + delta
+function onTouchMove(e) {
+  if (!gesture) return
+  const points = gesturePoints(e)
+  if (!points.length || !gesture.anchor) return
+  if (e.cancelable) e.preventDefault()
+  const span = spanOf(points)
+  gesture.at = { x: span.x, y: span.y }
+  if (points.length === 1) {
+    gesture.moved = Math.max(gesture.moved, Math.hypot(span.x - gesture.startX, span.y - gesture.startY))
+    const held = moveAnchorTo(gesture.anchor, gesture.at, gesture.scale, userRotation.value)
+    // At the edge of the map, let go of the anchor so that dragging back
+    // moves the map straight away
+    if (held) gesture.anchor = screenToMap(span.x, span.y)
+    return
   }
+  // Twist: by how much the line between the fingers has turned since the last move
+  const rotation = normalizeAngle(userRotation.value + normalizeAngle(span.angle - gesture.angle))
+  gesture.angle = span.angle
+  const scale = pinchScale(gesture.scale, gesture.distance, span.distance,
+    panzoomInstance.getMinZoom(), panzoomInstance.getMaxZoom())
+  moveAnchorTo(gesture.anchor, gesture.at, scale, rotation)
 }
 
-function onContainerTouchEnd(e) {
-  if (e.touches.length < 2) {
-    rotTouchStartAngle = null
+function onTouchEnd(e) {
+  if (!gesture) return
+  const points = gesturePoints(e)
+  const down = [...e.touches].map(t => t.identifier)
+  gesture.ids = gesture.ids.filter(id => down.includes(id))
+  if (points.length) {
+    // One of two fingers lifted: carry on as a drag with the other
+    rebaseGesture(points)
+    return
   }
-}
-
-
-// Touch tap detection (panzoom consumes touch events so @click never fires on mobile)
-let touchStartX = 0
-let touchStartY = 0
-let touchStartTime = 0
-
-function onSvgTouchStart(e) {
-  if (e.touches.length !== 1) return
-  touchStartX = e.touches[0].clientX
-  touchStartY = e.touches[0].clientY
-  touchStartTime = Date.now()
-}
-
-function onSvgTouchEnd(e) {
-  if (e.changedTouches.length !== 1) return
-  const dx = e.changedTouches[0].clientX - touchStartX
-  const dy = e.changedTouches[0].clientY - touchStartY
-  const dt = Date.now() - touchStartTime
-  if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && dt < 300) {
-    e.preventDefault() // prevent the 300ms-delayed synthetic click
-    handleMapClick({
-      target: e.target,
-      clientX: e.changedTouches[0].clientX,
-      clientY: e.changedTouches[0].clientY,
-    })
+  const g = endGesture()
+  if (e.type === 'touchcancel' || g.multi || g.moved >= TAP_MAX_MOVE || Date.now() - g.startTime >= TAP_MAX_MS) return
+  // A tap (the touch never becomes a click, see onTouchStart)
+  const t = e.changedTouches[0]
+  const now = Date.now()
+  if (lastTap && now - lastTap.time < DOUBLE_TAP_MS &&
+      Math.hypot(t.clientX - lastTap.x, t.clientY - lastTap.y) < DOUBLE_TAP_MAX_DIST) {
+    lastTap = null
+    animateZoomAbout({ x: t.clientX, y: t.clientY }, DOUBLE_CLICK_ZOOM)
+  } else {
+    lastTap = { time: now, x: t.clientX, y: t.clientY }
   }
+  handleMapClick({ target: g.target, clientX: t.clientX, clientY: t.clientY })
+}
+
+// Stop following the fingers and settle the view
+function endGesture() {
+  const g = gesture
+  gesture = null
+  document.removeEventListener('touchmove', onTouchMove)
+  document.removeEventListener('touchend', onTouchEnd)
+  document.removeEventListener('touchcancel', onTouchEnd)
+  // The pan limits were applied on every move, so there is nothing to settle
+  // but the rotation (and a plain tap leaves the view exactly as it was)
+  if (g && g.multi && g.anchor && panzoomInstance) {
+    const settled = snapRotation(userRotation.value, ROTATION_SNAP_DEG)
+    if (settled !== userRotation.value) {
+      moveAnchorTo(g.anchor, g.at, panzoomInstance.getTransform().scale, settled)
+    }
+  }
+  return g
+}
+
+// --- Mouse (panzoom's beforeMouseDown / beforeWheel: returning true makes
+// panzoom leave the event alone) ---
+let mouseDrag = null
+
+function startMouseDrag(e) {
+  if (e.button !== 0) return true
+  cancelZoomAnimation()
+  const anchor = screenToMap(e.clientX, e.clientY)
+  if (!anchor) return true
+  e.preventDefault() // no text selection while dragging
+  // ...which also keeps the click from focusing the map, and the arrow keys need that
+  wrapRef.value?.focus({ preventScroll: true })
+  mouseDrag = { anchor }
+  window.addEventListener('mousemove', onMouseDrag)
+  window.addEventListener('mouseup', endMouseDrag)
+  return true
+}
+
+function onMouseDrag(e) {
+  if (!mouseDrag || !panzoomInstance) return
+  const scale = panzoomInstance.getTransform().scale
+  const held = moveAnchorTo(mouseDrag.anchor, { x: e.clientX, y: e.clientY }, scale, userRotation.value)
+  // At the edge of the map, let go of the anchor (as for a finger)
+  if (held) mouseDrag.anchor = screenToMap(e.clientX, e.clientY)
+}
+
+function endMouseDrag() {
+  mouseDrag = null
+  window.removeEventListener('mousemove', onMouseDrag)
+  window.removeEventListener('mouseup', endMouseDrag)
+}
+
+function zoomWithWheel(e) {
+  if (!currentView()) return true
+  // Same step per wheel notch as panzoom, about the point under the pointer
+  const factor = wheelZoomFactor(e.deltaY, e.deltaMode)
+  if (factor !== 1) {
+    cancelZoomAnimation()
+    zoomAbout({ x: e.clientX, y: e.clientY }, panzoomInstance.getTransform().scale * factor)
+    e.preventDefault()
+  }
+  return true
+}
+
+function onDoubleClick(e) {
+  if (!panzoomInstance || !props.active || e.button !== 0) return
+  // Only on the map itself (as for touches), and never panzoom's own zoom
+  if (e.target !== containerRef.value && !wrapRef.value.contains(e.target)) return
+  e.stopPropagation()
+  animateZoomAbout({ x: e.clientX, y: e.clientY }, DOUBLE_CLICK_ZOOM)
+}
+
+// --- A mouse press that turns into a drag must not end in a click ---
+let mousePress = null
+let mouseDragged = false
+
+function onSvgMouseDown(e) {
+  mousePress = { x: e.clientX, y: e.clientY }
+  mouseDragged = false
+  window.addEventListener('mousemove', trackMousePress)
+  window.addEventListener('mouseup', endMousePress)
+}
+
+function trackMousePress(e) {
+  if (mousePress && Math.hypot(e.clientX - mousePress.x, e.clientY - mousePress.y) >= DRAG_MIN_MOVE) mouseDragged = true
+}
+
+function endMousePress() {
+  mousePress = null
+  window.removeEventListener('mousemove', trackMousePress)
+  window.removeEventListener('mouseup', endMousePress)
+}
+
+function onSvgClick(e) {
+  // mouseDragged is still set here: the click comes right after the mouseup
+  if (mouseDragged) {
+    mouseDragged = false
+    return
+  }
+  handleMapClick(e)
+}
+
+// Drop whatever touch or mouse gesture is in progress (the map is being hidden or removed)
+function cancelGestures() {
+  if (gesture) endGesture()
+  cancelZoomAnimation()
+  endMouseDrag()
+  endMousePress()
 }
 
 function handleMapClick(e) {
@@ -1373,29 +1647,27 @@ function handleMapClick(e) {
   }
 }
 
-defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection: () => setSelectedBuilding(null) })
+defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, clearSelection: () => setSelectedBuilding(null) })
 </script>
 
 <template>
   <div
     class="map-container"
     ref="containerRef"
-    @touchstart.passive="onContainerTouchStart"
-    @touchmove.passive="onContainerTouchMove"
-    @touchend.passive="onContainerTouchEnd"
+    @touchstart.capture="onTouchStart"
+    @dblclick.capture="onDoubleClick"
   >
-    <div class="map-svg-wrap" :style="mapRotateStyle">
+    <div class="map-svg-wrap" ref="wrapRef" :style="mapRotateStyle">
     <svg
       ref="svgRef"
       :viewBox="`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`"
       :width="VB_W"
       :height="VB_H"
       :class="['golden-gai-svg', { 'placing-mode': adminMode && placingBar }]"
-      @click="handleMapClick"
+      @mousedown="onSvgMouseDown"
+      @click="onSvgClick"
       @mousemove="onSvgMouseMove"
       @mouseleave="onSvgMouseLeave"
-      @touchstart.passive="onSvgTouchStart"
-      @touchend="onSvgTouchEnd"
     >
       <g :transform="`rotate(${MAP_ROTATION}, ${MAP_CX}, ${MAP_CY})`">
       <!-- ClipPaths must live inside the rotation group so their coordinate space
@@ -1411,112 +1683,31 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       </defs>
       <g v-html="mapContent" class="map-bg" />
 
-      <!-- Partition color overlays (clipped to each building shape).
-           IMPORTANT: clip-path is on the OUTER <g> (no transform) so the clip region
-           is in the building's coordinate space. The rotation (splitAngle) is on the
-           INNER <g> so the split line rotates while the clip boundary stays on the building. -->
-      <g class="partition-overlay">
-        <g
-          v-for="(pdata, bldgId) in partitionRects"
-          :key="bldgId"
-          :clip-path="`url(#pclip-${bldgId})`"
-          style="pointer-events: none"
-        >
-          <g :transform="pdata.angle !== 0 ? `rotate(${pdata.angle}, ${pdata.cx}, ${pdata.cy})` : undefined">
-            <rect
-              v-for="(rect, ri) in pdata.rects"
-              :key="ri"
-              :x="rect.x" :y="rect.y"
-              :width="rect.width" :height="rect.height"
-              :fill="rect.highlighted ? '#ffffff' : rect.color"
-              :opacity="
-                rect.dimmed
-                  ? ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.3 : 0.12)
-                  : (rect.highlighted ? 0.9 : ((selectedBuilding === bldgId || hoveredBuilding === bldgId) ? 0.95 : 0.75))
-              "
-            />
-          </g>
-        </g>
-      </g>
+      <!-- Partition color overlays (clipped to each building shape) -->
+      <MapPartitions
+        :geometry="partitionGeometry"
+        :slot-state="partitionSlotState"
+        :interaction="interaction"
+      />
 
       <!-- Bar name labels (visible when sufficiently zoomed in) -->
       <Transition name="labels-fade">
-      <g v-if="showLabels" class="building-labels" style="pointer-events: none">
-        <g
-          v-for="(bldgLabels, bldgId) in buildingLabelData"
-          :key="bldgId"
-          :transform="`translate(${bldgLabels.cx}, ${bldgLabels.cy}) rotate(${bldgLabels.groupRotation})`"
-        >
-          <text
-            v-for="label in bldgLabels.items"
-            :key="label.barId"
-            :x="label.dx"
-            :y="label.dy"
-            :font-size="label.fontSize"
-            :fill="label.fill"
-            :opacity="label.opacity"
-            :style="label.writingMode ? `font-weight:bold;writing-mode:${label.writingMode}` : 'font-weight:bold'"
-            text-anchor="middle"
-            dominant-baseline="central"
-            font-family="var(--win-font), sans-serif"
-          >{{ label.text }}</text>
-        </g>
-      </g>
+        <MapLabels v-if="showLabels" :labels="buildingLabelData" :turn="labelTurn" />
       </Transition>
 
       <!-- Bar count badges: always shown when zoomed out -->
-      <g v-if="!showLabels" class="filter-count-badges" style="pointer-events: none">
-        <g
-          v-for="(badge, bldgId) in buildingBarCountBadges"
-          :key="bldgId"
-          :transform="`translate(${badge.cx}, ${badge.cy}) rotate(${-MAP_ROTATION})`"
-        >
-          <text
-            x="0" y="0"
-            text-anchor="middle"
-            dominant-baseline="central"
-            font-size="80"
-            font-weight="bold"
-            :fill="badge.dimmed ? '#666' : (badge.active ? '#ffcc44' : '#ffffff')"
-            :opacity="badge.dimmed ? 0.3 : 1"
-            stroke="#1a0800"
-            stroke-width="14"
-            paint-order="stroke"
-            font-family="var(--win-font), sans-serif"
-          >{{ badge.count }}</text>
-        </g>
-      </g>
+      <MapBadges v-if="!showLabels" :badges="buildingBarCountBadges" :rotation="-MAP_ROTATION - userRotation" />
 
       <!-- Annotations -->
-      <g class="annotations">
-        <template v-for="ann in annotations" :key="ann.id">
-          <image v-if="ann.image_url"
-            :href="`/uploads/${ann.image_url}`"
-            :x="ann.x - (ann.image_width || 200) / 2"
-            :y="ann.y - (ann.image_height || 200) / 2"
-            :width="ann.image_width || 200"
-            :height="ann.image_height || 200"
-            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
-            preserveAspectRatio="xMidYMid meet"
-            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
-            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
-            @mousedown="onAnnotationMouseDown($event, ann)"
-          />
-          <text v-else
-            :x="ann.x"
-            :y="ann.y"
-            :fill="ann.color"
-            :font-size="ann.font_size"
-            :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
-            text-anchor="middle"
-            font-family="var(--win-font), monospace"
-            font-weight="bold"
-            :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedAnnotation === ann.id }]"
-            :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
-            @mousedown="onAnnotationMouseDown($event, ann)"
-          >{{ annotationText(ann) }}</text>
-        </template>
-      </g>
+      <MapAnnotations
+        :annotations="annotations"
+        :admin-mode="adminMode"
+        :selected-id="selectedAnnotation"
+        :lang="lang"
+        :map-rotation="MAP_ROTATION"
+        :turn="labelTurn"
+        @annotation-mousedown="onAnnotationMouseDown"
+      />
       <!-- User GPS location marker -->
       <g v-if="userSvgPos" :transform="`translate(${userSvgPos.x}, ${userSvgPos.y})`" class="user-location-marker" style="pointer-events: none">
         <circle class="user-pulse-ring" r="60" />
@@ -1527,47 +1718,17 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
     </div><!-- close map-svg-wrap -->
 
     <!-- Hover tooltip -->
-    <div
-      v-if="tooltip.visible"
-      class="map-tooltip"
-      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
-    >
-      <template v-for="group in tooltipFloorGroups" :key="group.floor">
-        <div v-if="tooltipFloorGroups.length > 1" class="tooltip-floor-header">{{ group.floorLabel }}</div>
-        <div v-for="bar in group.bars" :key="bar.id" class="tooltip-bar">
-          <span
-            class="tooltip-color-swatch"
-            :style="{ background: barFloorPrimaryColor(bar) }"
-          ></span>
-          <img
-            v-if="bar.photo"
-            :src="`/uploads/${bar.photo}`"
-            :alt="lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp)"
-            class="tooltip-img"
-          />
-          <div class="tooltip-info">
-            <div class="tooltip-name">
-              <span v-if="isFavorited(bar.id)" class="tooltip-fav">&#9829;</span>
-              <span v-if="isVisited(bar.id)" class="tooltip-visited">&#10003;</span>
-              {{ lang === 'jp' ? (bar.name_jp || bar.name_en) : (bar.name_en || bar.name_jp) }}
-            </div>
-            <div v-if="bar.name_en && bar.name_jp" class="tooltip-sub">{{ lang === 'jp' ? bar.name_en : bar.name_jp }}</div>
-            <div v-if="bar.charge" class="tooltip-meta">&#165;{{ bar.charge }} cover</div>
-            <div v-if="bar.hours" class="tooltip-meta">{{ bar.hours }}</div>
-          </div>
-        </div>
-      </template>
-    </div>
+    <MapTooltip :tooltip="tooltip" :bar-colors="barPartitionColor" :lang="lang" />
 
-    <div v-if="!isMobile" class="map-controls" style="right: 8px">
-      <WinButton class="zoom-btn" title="Zoom in" @click="zoomIn">+</WinButton>
-      <WinButton class="zoom-btn" title="Zoom out" @click="zoomOut">&minus;</WinButton>
-      <WinButton class="zoom-btn" title="Fit to view" @click="resetZoom">&#x27F3;</WinButton>
-      <WinButton v-if="adminMode" class="zoom-btn" title="Add label" @click="addAnnotation">Aa+</WinButton>
+    <div v-if="!isMobile" class="map-controls" :style="{ right: `${coveredRight + 8}px` }">
+      <WinButton class="zoom-btn" :title="t('zoomIn')" @click="zoomIn">+</WinButton>
+      <WinButton class="zoom-btn" :title="t('zoomOut')" @click="zoomOut">&minus;</WinButton>
+      <WinButton class="zoom-btn" :title="t('fitToView')" @click="resetZoom">&#x27F3;</WinButton>
+      <WinButton v-if="adminMode" class="zoom-btn" :title="t('annAddLabel')" @click="addAnnotation">Aa+</WinButton>
       <WinButton
         class="zoom-btn"
         :class="{ 'geo-btn-active': geoWatching, 'geo-btn-error': geoError, 'tour-highlight': tourHighlight === 'map-location' }"
-        :title="geoError ? geoError : (geoWatching ? `Stop location tracking (${gpsTransform?.calibrationCount} bars calibrated)` : (gpsTransform ? `Show my location (${gpsTransform.calibrationCount} bars calibrated)` : 'Show my location (need 3+ bars with plus codes or lat/lng set on the map)') )"
+        :title="geoError ? geoError : (geoWatching ? `${t('stopLocation')} (${t('locationCalibrated', { n: gpsTransform?.calibrationCount })})` : (gpsTransform ? `${t('showLocation')} (${t('locationCalibrated', { n: gpsTransform.calibrationCount })})` : `${t('showLocation')} (${t('locationNeedsCalibration')})`) )"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
     </div>
@@ -1577,12 +1738,12 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
       <WinButton
         class="zoom-btn zoom-btn--location-mobile"
         :class="{ 'tour-highlight': tourHighlight === 'map-location', 'geo-btn-active': geoWatching, 'geo-btn-error': geoError }"
-        :title="geoError ? geoError : (geoWatching ? 'Stop location tracking' : 'Show my location')"
+        :title="geoError ? geoError : (geoWatching ? t('stopLocation') : t('showLocation'))"
         @click="toggleGeoTracking"
       >&#x2316;</WinButton>
       <WinButton
         class="zoom-btn zoom-btn--location-mobile"
-        title="Reset rotation and zoom"
+        :title="t('resetView')"
         @click="resetView"
       >&#x27F3;</WinButton>
     </div>
@@ -1596,7 +1757,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
           :value="selectedAnn.text_en || selectedAnn.text || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_en', $event.target.value)"
           class="ann-input"
-          placeholder="English text"
+          :placeholder="t('annTextEn')"
         />
       </label>
       <label class="ann-field">
@@ -1606,11 +1767,11 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
           :value="selectedAnn.text_jp || ''"
           @input="updateAnnotation(selectedAnn.id, 'text_jp', $event.target.value)"
           class="ann-input"
-          placeholder="Japanese text"
+          :placeholder="t('annTextJp')"
         />
       </label>
       <label class="ann-field">
-        <span>Size</span>
+        <span>{{ t('annSize') }}</span>
         <input
           type="number"
           :value="selectedAnn.font_size"
@@ -1621,7 +1782,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
         />
       </label>
       <label class="ann-field">
-        <span>Rot</span>
+        <span>{{ t('annRotation') }}</span>
         <input
           type="number"
           :value="selectedAnn.rotation"
@@ -1637,7 +1798,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
         :value="selectedAnn.color"
         @input="updateAnnotation(selectedAnn.id, 'color', $event.target.value)"
         class="ann-color"
-        title="Color"
+        :title="t('annColor')"
       />
       <label v-if="selectedAnn.image_url" class="ann-field">
         <span>W</span>
@@ -1652,7 +1813,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
           class="ann-num" min="10" max="5000" />
       </label>
       <label v-if="!selectedAnn.image_url" class="ann-field">
-        <span>Icon</span>
+        <span>{{ t('annIcon') }}</span>
         <input type="file" accept="image/*" @change="onAnnotationIconUpload($event)" style="width:80px;font-size:9px" />
       </label>
       <WinButton small @click="deleteAnnotation(selectedAnn.id)">&#10005;</WinButton>
@@ -1666,6 +1827,8 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
 
 <style scoped>
 .map-svg-wrap {
+  /* every touch on the map is a map gesture (see onTouchStart) */
+  touch-action: none;
   width: 100%;
   height: 100%;
   transform-origin: center center;
@@ -1757,94 +1920,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
   cursor: crosshair;
 }
 
-/* Hover tooltip */
-.map-tooltip {
-  position: absolute;
-  z-index: 100;
-  background: var(--win-bg);
-  box-shadow:
-    inset 1px 1px 0 var(--win-border-light),
-    inset -1px -1px 0 var(--win-border-dark),
-    3px 3px 6px rgba(0, 0, 0, 0.5);
-  padding: 3px;
-  pointer-events: none;
-  max-width: 220px;
-}
-
-.tooltip-floor-header {
-  font-family: var(--win-font);
-  font-size: 9px;
-  font-weight: bold;
-  color: var(--win-text-disabled);
-  text-transform: uppercase;
-  padding: 2px 3px 1px;
-  background: var(--win-bg-dark);
-  letter-spacing: 0.5px;
-}
-
-.tooltip-bar {
-  display: flex;
-  gap: 6px;
-  padding: 3px;
-}
-
-.tooltip-bar + .tooltip-bar {
-  border-top: 1px solid var(--win-border-dark);
-}
-
-.tooltip-img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  flex-shrink: 0;
-  box-shadow:
-    inset 1px 1px 0 var(--win-border-dark),
-    inset -1px -1px 0 var(--win-border-light);
-}
-
-.tooltip-info {
-  min-width: 0;
-}
-
-.tooltip-name {
-  font-family: var(--win-font);
-  font-size: var(--win-font-size);
-  color: var(--valhalla-orange);
-  font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tooltip-fav {
-  color: #e87898;
-  margin-right: 2px;
-}
-
-.tooltip-visited {
-  color: #70d0a0;
-  margin-right: 2px;
-}
-
-.tooltip-sub {
-  font-family: var(--win-font);
-  font-size: 10px;
-  color: var(--win-text-disabled);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tooltip-meta {
-  font-family: var(--win-font);
-  font-size: 10px;
-  color: var(--win-text-disabled);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-
 :deep(.building-highlight-pulse) {
   animation: building-pulse 0.5s ease-in-out 4;
 }
@@ -1872,33 +1947,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
 .labels-fade-enter-from,
 .labels-fade-leave-to {
   opacity: 0;
-}
-
-/* Building name labels */
-.building-labels text {
-  paint-order: stroke fill;
-  stroke: rgba(0, 0, 0, 0.9);
-  stroke-width: 5;
-  stroke-linejoin: round;
-  font-family: var(--win-font), 'MS Gothic', sans-serif;
-  letter-spacing: 0.5px;
-}
-
-/* Annotations */
-.annotation-text {
-  opacity: 0.6;
-  letter-spacing: 4px;
-}
-
-.annotation-admin {
-  opacity: 0.8;
-}
-
-.annotation-selected {
-  opacity: 1;
-  stroke: var(--valhalla-orange);
-  stroke-width: 1;
-  paint-order: stroke;
 }
 
 /* Annotation toolbar */
@@ -1981,14 +2029,6 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, clearSelection
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
   z-index: 5;
-}
-
-/* Tooltip partition color swatch */
-.tooltip-color-swatch {
-  width: 6px;
-  flex-shrink: 0;
-  align-self: stretch;
-  border-radius: 1px;
 }
 
 /* Larger zoom buttons */

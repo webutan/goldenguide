@@ -6,19 +6,25 @@ export function setAdminPassword(pwd) {
   adminPassword = pwd
 }
 
-function adminHeaders(extra = {}) {
+export function adminHeaders(extra = {}) {
   return { 'X-Admin-Password': adminPassword, ...extra }
 }
 
-export async function fetchBars() {
-  const res = await fetch(`${BASE}/bars`)
-  if (!res.ok) throw new Error('Failed to fetch bars')
-  return res.json()
+// When the bar list in hand left the server. Offline, the service worker
+// answers with its saved copy, whose Date header is that of the original
+// response; the offline balloon shows it ("saved data from ...").
+let barsServedAt = null
+
+export function getBarsServedAt() {
+  return barsServedAt
 }
 
-export async function fetchBar(slug) {
-  const res = await fetch(`${BASE}/bars/${encodeURIComponent(slug)}`)
-  if (!res.ok) throw new Error('Failed to fetch bar')
+export async function fetchBars() {
+  // Admin mode sends the password so the API also returns inactive bars
+  const res = await fetch(`${BASE}/bars`, adminPassword ? { headers: adminHeaders() } : undefined)
+  if (!res.ok) throw new Error('Failed to fetch bars')
+  const served = new Date(res.headers.get('date') || NaN)
+  barsServedAt = Number.isNaN(served.getTime()) ? new Date() : served
   return res.json()
 }
 
@@ -158,6 +164,16 @@ export async function savePartition(buildingId, data) {
     body: JSON.stringify(data),
   })
   if (!res.ok) throw new Error('Failed to save partition')
+  return res.json()
+}
+
+/** Admin: forget a building's stored split (it falls back to the automatic one). */
+export async function deletePartition(buildingId) {
+  const res = await fetch(`${BASE}/partitions/${encodeURIComponent(buildingId)}`, {
+    method: 'DELETE',
+    headers: adminHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to reset partition')
   return res.json()
 }
 
