@@ -68,7 +68,9 @@ echo "Restoring..."
   echo "BEGIN;"
   echo "DROP SCHEMA public CASCADE;"
   echo "CREATE SCHEMA public;"
-  gunzip -c "$FILE"
+  # A dump written by a newer pg_dump than the server has settings and psql
+  # commands the server does not know; they are not needed to restore.
+  gunzip -c "$FILE" | grep -v -E '^(SET transaction_timeout|\\restrict|\\unrestrict)'
   echo "COMMIT;"
 } | run_psql
 
