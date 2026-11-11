@@ -1,4 +1,5 @@
 import pool from './db.js'
+import { backupOnStart, backupMode } from './lib/backup.js'
 
 const MIGRATIONS = [
   {
@@ -286,9 +287,24 @@ export async function runMigrations() {
 
     const { rows } = await client.query('SELECT name FROM _migrations')
     const applied = new Set(rows.map(r => r.name))
+    const pending = MIGRATIONS.filter(m => !applied.has(m.name))
 
-    for (const migration of MIGRATIONS) {
-      if (applied.has(migration.name)) continue
+    // Back the database up before touching it (see lib/backup.js). With
+    // BACKUP_ON_START=required a failed backup stops here, so the schema is
+    // never migrated without a copy to go back to.
+    try {
+      await backupOnStart({ hasData: applied.size > 0, pending: pending.map(m => m.name) })
+    } catch (err) {
+      if (backupMode() === 'required' && pending.length > 0) {
+        throw new Error(
+          `Backup failed (${err.message}) and ${pending.length} migration(s) are pending. ` +
+          'Nothing was changed. Fix the backup (disk space, the backups folder) or set BACKUP_ON_START=auto to update without one.'
+        )
+      }
+      console.warn(`[backup] FAILED, continuing without one: ${err.message}`)
+    }
+
+    for (const migration of pending) {
 
       console.log(`Applying migration: ${migration.name}`)
       await client.query('BEGIN')

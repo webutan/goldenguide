@@ -334,6 +334,22 @@ Additional controls: Label Size (px), Label Rotation (°), Label Offset X/Y. All
 - The reverse (new `api`, old `web`) is safe for pages, but new API behaviour the old frontend does not know about is simply unused.
 - Set `PUBLIC_URL` (see §9) to the site's public address. Without it link previews, canonical URLs, `sitemap.xml` and `robots.txt` are built from each request's `Host` header.
 
+### Automatic database backup on every update
+
+Every time the API container starts (so on every `docker compose up -d --build`, and on restarts) it dumps the database with `pg_dump` **before** running any migration (`server/lib/backup.js`, called from `server/migrate.js`). Files are gzipped SQL in `./backups/` next to `docker-compose.yml`:
+
+- `golden-gai-<UTC date>-<time>-before-<first pending migration>.sql.gz` when the update changes the database, otherwise `golden-gai-<date>-<time>.sql.gz`.
+- The newest `BACKUP_KEEP` (14) are kept. A plain restart within an hour of the last backup doesn't take another; an update with pending migrations always does.
+- `BACKUP_ON_START=required` (the Docker default): if the backup fails (disk full, folder not writable) and migrations are pending, the API refuses to start and changes nothing. `auto` warns and carries on; `off` disables it.
+- **Not included:** uploaded photos (the `uploads` Docker volume; updates don't touch it) and the code (that's git).
+
+**If an update goes wrong:**
+
+1. Go back to the previous code: `git log` to find the commit you were on, `git checkout <commit>`, `docker compose up -d --build`.
+2. Restore the data: `./scripts/restore-db.sh` lists the backups; `./scripts/restore-db.sh backups/<file>` restores one. It stops the API, saves the current database as `...-before-restore.sql.gz` (so a restore can be undone), replaces the database in one transaction, and starts the API.
+
+If you restore without going back to the old code, the API just re-applies the newer migrations to the restored data on start, which is what you want after losing data but not after a bad migration.
+
 ### CRITICAL: Server May Have Untracked Changes
 1. **PostgreSQL bar data** — NOT in git. Git push/pull never affects this.
 2. **Server-side code** may be ahead of local. **DO NOT overwrite server/ files without first pulling the server's version.**

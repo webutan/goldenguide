@@ -28,8 +28,13 @@ services:
       # Link previews / SEO (server/routes/seo.js)
       PUBLIC_URL: ${PUBLIC_URL:-}
       SPA_TEMPLATE_URL: ${SPA_TEMPLATE_URL:-http://web/index.html}
+      # Database backup at every API start (i.e. on every update), always
+      # before migrations. Files land in ./backups next to this file.
+      BACKUP_ON_START: ${BACKUP_ON_START:-required}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
     volumes:
       - uploads:/app/uploads
+      - ./backups:/app/backups
     depends_on:
       db:
         condition: service_healthy

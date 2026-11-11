@@ -8,6 +8,10 @@ dist/
 # Environment — contains real credentials, never commit
 .env
 
+# Automatic database backups (written by the API at start-up)
+backups/
+server/backups/
+
 # Runtime uploads — bar photos persisted via Docker volume in production
 server/uploads/
 
