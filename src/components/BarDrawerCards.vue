@@ -288,7 +288,7 @@ function getOpenStatus(bar) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,7 +372,7 @@ function getOpenStatus(bar) {
 .price-unknown {
   color: var(--win-text-disabled);
   margin-left: 2px;
-  cursor: help;
+  cursor: var(--cursor-help);
 }
 
 .info-sns-link {
@@ -432,7 +432,7 @@ function getOpenStatus(bar) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -515,7 +515,7 @@ function getOpenStatus(bar) {
   padding: 3px 0;
   color: var(--win-title-text-inactive);
   text-decoration: underline;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .suggest-link:hover { color: var(--valhalla-orange); }

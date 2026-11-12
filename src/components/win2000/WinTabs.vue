@@ -44,7 +44,7 @@ defineEmits(['update:modelValue'])
   background: var(--win-bg);
   border: none;
   padding: 3px 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   position: relative;
   top: 2px;
   box-shadow:

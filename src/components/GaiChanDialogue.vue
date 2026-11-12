@@ -1022,7 +1022,7 @@ watch(() => props.lang, () => {
   transition:
     left 0.5s cubic-bezier(0.4, 0, 0.2, 1),
     transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
 }
 
@@ -1167,7 +1167,7 @@ watch(() => props.lang, () => {
   background: transparent;
   border: 1px solid rgba(255, 220, 140, 0.25);
   padding: 2px 7px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   letter-spacing: 0.03em;
   transition: color 0.15s, border-color 0.15s;
   z-index: 5;
@@ -1218,7 +1218,7 @@ watch(() => props.lang, () => {
   background: transparent;
   border: 1px solid rgba(255, 200, 80, 0.45);
   padding: 3px 12px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   letter-spacing: 0.04em;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
@@ -1247,7 +1247,7 @@ watch(() => props.lang, () => {
   background: transparent;
   border: 1px solid rgba(255, 220, 140, 0.3);
   padding: 4px 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   text-align: left;
   letter-spacing: 0.03em;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -1275,7 +1275,7 @@ watch(() => props.lang, () => {
   font-size: 11px;
   color: #ffcc44;
   text-decoration: underline;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: color 0.15s;
 }
 .bar-link:hover {

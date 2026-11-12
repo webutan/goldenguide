@@ -349,7 +349,7 @@ function openGoogleMaps() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -400,7 +400,7 @@ function openGoogleMaps() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);
@@ -472,7 +472,7 @@ function openGoogleMaps() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -581,7 +581,7 @@ function openGoogleMaps() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -641,7 +641,7 @@ function openGoogleMaps() {
   padding: 3px 0;
   color: var(--win-title-text-inactive);
   text-decoration: underline;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .suggest-link:hover { color: var(--valhalla-orange); }

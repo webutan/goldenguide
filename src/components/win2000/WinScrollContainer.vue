@@ -189,7 +189,7 @@ onBeforeUnmount(() => { ro?.disconnect(); mo?.disconnect(); stopHold() })
   background-repeat: no-repeat;
   background-position: center;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   padding: 0;
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
@@ -219,7 +219,7 @@ onBeforeUnmount(() => { ro?.disconnect(); mo?.disconnect(); stopHold() })
 .win-sc-track {
   flex: 1;
   position: relative;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .win-sc-thumb {

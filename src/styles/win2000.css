@@ -57,6 +57,17 @@
   /* Taskbar */
   --taskbar-height: max(32px, calc(32px + env(safe-area-inset-bottom)));
 
+  /* Mouse cursors — classic Windows shapes (public/cursors, drawn by
+     scripts/make-cursors.py). Use these instead of the bare keywords, which
+     show the visitor's own system cursor. */
+  --cursor-default: url('/cursors/default.cur'), default;
+  --cursor-pointer: url('/cursors/pointer.cur') 5 0, pointer;
+  --cursor-text: url('/cursors/text.cur'), text;
+  --cursor-help: url('/cursors/help.cur'), help;
+  --cursor-not-allowed: url('/cursors/not-allowed.cur') 9 9, not-allowed;
+  --cursor-crosshair: url('/cursors/crosshair.cur'), crosshair;
+  --cursor-move: url('/cursors/move.cur'), move;
+
   /* Fonts — pixelated MS Sans Serif + Japanese pixel fallback */
   --win-font: 'W95FA', 'PixelMplus10', 'MS Sans Serif', 'Microsoft Sans Serif', sans-serif;
   --win-font-size: 11px;

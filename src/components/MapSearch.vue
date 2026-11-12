@@ -145,7 +145,7 @@ watch(showDropdown, async (val) => {
   justify-content: space-between;
   align-items: center;
   padding: 3px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);

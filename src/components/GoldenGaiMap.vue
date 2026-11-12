@@ -1872,7 +1872,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
   fill: var(--bldg-fill, #3a2010) !important;
   stroke: #1a0a00 !important;
   stroke-width: 1.8 !important;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* Dimmed buildings that don't match active tag filter */
@@ -1897,7 +1897,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
 
 /* Admin placing mode */
 .placing-mode :deep(#BUILDINGS path) {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .placing-mode :deep(#BUILDINGS path:hover) {
@@ -1917,7 +1917,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
 }
 
 .golden-gai-svg.placing-mode {
-  cursor: crosshair;
+  cursor: var(--cursor-crosshair);
 }
 
 :deep(.building-highlight-pulse) {
@@ -2009,7 +2009,7 @@ defineExpose({ resetZoom, resetView, unplacedBars, panToBuilding, whenReady, cle
   height: 18px;
   padding: 0;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   background: var(--win-bg-dark);
   box-shadow:
     inset 1px 1px 0 var(--win-border-dark),

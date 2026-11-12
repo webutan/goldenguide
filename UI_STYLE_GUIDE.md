@@ -36,6 +36,8 @@ Mobile override (`max-width: 768px`): `--taskbar-height: max(52px, calc(52px + e
 }
 ```
 
+**Mouse cursors:** classic Windows arrow, hand and "unavailable" in `public/cursors/` (drawn by `scripts/make-cursors.py`). In CSS always write `cursor: var(--cursor-pointer)` (also `--cursor-default`, `-text`, `-help`, `-not-allowed`, `-crosshair`, `-move`; defined in `win2000.css`), never the bare keyword, which shows the visitor's own system cursor. Elements inherit their parent's cursor.
+
 **Image rendering:**
 - Pixel-art sprites/icons: `image-rendering: pixelated`
 - Photos and natural images: `image-rendering: auto`

@@ -92,12 +92,12 @@ function remember(id, drawing) {
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
   padding: 2px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   text-align: center;
   white-space: normal;
   word-break: break-word;
   overflow: hidden;
 }
 
-.admin-drawing-pending:disabled { cursor: default; }
+.admin-drawing-pending:disabled { cursor: var(--cursor-default); }
 </style>

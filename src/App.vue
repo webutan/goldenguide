@@ -505,7 +505,7 @@ function handleOpenApp(app) {
       about: '&#8505;',
       reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
       roulette: '<img src="/icons/desktop/charmap.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
-      tonight: '<img src="/icons/desktop/chart1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+      tonight: '<img src="/icons/desktop/calendar.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
     }
     if (!wm.getWindow(app)) {
       wm.register(app, WINDOW_TITLE_KEYS[app] ? t(WINDOW_TITLE_KEYS[app]) : app, icons[app] || '')
@@ -1586,7 +1586,7 @@ async function handleUnplaceBar(bar) {
   height: 22px;
   background: transparent;
   border: 1px solid transparent;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
@@ -1676,7 +1676,7 @@ async function handleUnplaceBar(bar) {
   font-family: var(--win-font);
   font-size: 12px;
   color: var(--win-text);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -1718,7 +1718,7 @@ async function handleUnplaceBar(bar) {
   font-family: var(--win-font);
   font-size: 12px;
   color: var(--valhalla-orange, #c86400);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -1804,7 +1804,7 @@ async function handleUnplaceBar(bar) {
   font-family: inherit;
   color: var(--win-text);
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .rules-hint-main:focus-visible {
@@ -1843,7 +1843,7 @@ async function handleUnplaceBar(bar) {
   padding: 2px;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .rules-hint-close-box {
@@ -1915,7 +1915,7 @@ async function handleUnplaceBar(bar) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -294,7 +294,7 @@ async function handleSubmit() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -379,7 +379,7 @@ async function handleSubmit() {
   width: 14px;
   height: 14px;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
@@ -403,7 +403,7 @@ async function handleSubmit() {
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .tool-btn.active {
@@ -423,7 +423,7 @@ async function handleSubmit() {
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
   touch-action: none;
-  cursor: crosshair;
+  cursor: var(--cursor-crosshair);
 }
 
 .submit-error {

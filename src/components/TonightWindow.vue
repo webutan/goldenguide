@@ -375,7 +375,7 @@ const unknownOpen = ref(false)
 
 .tonight-mapfilters.is-disabled {
   color: var(--win-text-disabled);
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 /* ── Chart: a sunken field that scrolls ── */
@@ -505,7 +505,7 @@ const unknownOpen = ref(false)
   color: inherit;
   font: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .tonight-row,
@@ -632,7 +632,7 @@ const unknownOpen = ref(false)
   color: inherit;
   font: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-darkest);
@@ -666,7 +666,7 @@ const unknownOpen = ref(false)
   color: inherit;
   font: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .unknown-item:hover,

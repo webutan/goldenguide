@@ -1562,7 +1562,7 @@ function setLabelOffset(axis, val) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);
@@ -1589,7 +1589,7 @@ function setLabelOffset(axis, val) {
   align-items: center;
   justify-content: space-between;
   padding: 3px 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .bar-list-item:hover {
@@ -1611,7 +1611,7 @@ function setLabelOffset(axis, val) {
   border: none;
   box-shadow: inset 1px 1px 0 var(--win-border-light), inset -1px -1px 0 var(--win-border-dark);
   width: 16px; height: 16px;
-  cursor: pointer; font-size: 8px;
+  cursor: var(--cursor-pointer); font-size: 8px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; color: var(--win-text);
 }
@@ -1736,7 +1736,7 @@ function setLabelOffset(axis, val) {
   align-items: center;
   gap: 2px;
   font-size: 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .edit-tag-item input {
@@ -1795,7 +1795,7 @@ function setLabelOffset(axis, val) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* Photo upload */
@@ -1922,7 +1922,7 @@ function setLabelOffset(axis, val) {
   height: 22px;
   padding: 0;
   border: 1px solid var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .reset-color-btn {
@@ -1932,7 +1932,7 @@ function setLabelOffset(axis, val) {
   background: var(--win-bg);
   border: 1px solid var(--win-border-dark);
   color: var(--win-text);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .color-hint {
@@ -2023,7 +2023,7 @@ function setLabelOffset(axis, val) {
   height: 18px;
   padding: 0;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -2045,11 +2045,11 @@ function setLabelOffset(axis, val) {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .partition-bar-check input[type="checkbox"] {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -2104,7 +2104,7 @@ function setLabelOffset(axis, val) {
   background: var(--win-bg);
   border: none;
   padding: 2px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
@@ -2124,7 +2124,7 @@ function setLabelOffset(axis, val) {
   background: none;
   border: none;
   color: var(--valhalla-orange);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-size: 12px;
   font-weight: bold;
   padding: 0 4px;
@@ -2151,7 +2151,7 @@ function setLabelOffset(axis, val) {
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
   padding: 2px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);

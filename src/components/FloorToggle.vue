@@ -50,7 +50,7 @@ const floorOptions = computed(() => {
   background: var(--win-bg);
   color: var(--win-text);
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   font-weight: 600;

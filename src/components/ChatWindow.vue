@@ -692,7 +692,7 @@ function formatTime(ts) {
 }
 
 .chat-status-nick {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -758,7 +758,7 @@ function formatTime(ts) {
   background: #c0c0c0;
   border: 2px solid;
   border-color: #ffffff #808080 #808080 #ffffff;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: Arial, sans-serif;
   color: #000;
   white-space: nowrap;
@@ -809,7 +809,7 @@ function formatTime(ts) {
 .checkin-picker-close {
   background: #c0c0c0;
   border: 1px solid #808080;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-size: 10px;
   padding: 0 4px;
   color: #000;
@@ -843,7 +843,7 @@ function formatTime(ts) {
   border: none;
   font-size: 11px;
   font-family: Arial, sans-serif;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   color: #000;
   border-radius: 0;
 }

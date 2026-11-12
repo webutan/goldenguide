@@ -61,10 +61,10 @@ const translations = {
   'screensaverMenu': { en: 'Screen Saver', jp: 'スクリーンセーバー' },
   'screensaverLabel': { en: 'Screen saver: Gai-chan asleep. Press any key to return.', jp: 'スクリーンセーバー：おやすみ中のガイちゃん。キーを押すと戻ります。' },
 
-  // Tonight timeline (F03)
-  'iconTonight': { en: 'Tonight', jp: '今夜の営業' },
-  'tonightTitle': { en: "Who's Open Tonight", jp: '今夜の営業タイムライン' },
-  'tonightMenu': { en: "Who's Open Tonight...", jp: '今夜の営業タイムライン...' },
+  // Schedule: the night's timeline (F03). Shown to visitors as "Schedule"
+  'iconTonight': { en: 'Schedule', jp: 'スケジュール' },
+  'tonightTitle': { en: 'Schedule', jp: 'スケジュール' },
+  'tonightMenu': { en: 'Schedule...', jp: 'スケジュール...' },
   'tonightDay': { en: 'Night:', jp: '日付：' },
   'tonightDayTonight': { en: 'Tonight ({day})', jp: '今夜（{day}）' },
   'tonightDayTomorrow': { en: 'Tomorrow ({day})', jp: '明日（{day}）' },

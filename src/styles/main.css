@@ -18,13 +18,20 @@ body {
   color: var(--win-text, #c8c0d0);
 }
 
+/* The arrow everywhere, and every element takes its parent's cursor: the
+   hand on a button also covers the icon and text inside it. (Setting the
+   arrow on `*` put it back on those children.) */
+html {
+  cursor: var(--cursor-default);
+}
+
 * {
-  cursor: url('/cursors/default.cur'), default;
+  cursor: inherit;
 }
 
 /* Text editing */
 input[type="text"], input[type="time"], input[type="search"], textarea {
-  cursor: url('/cursors/text.cur'), text;
+  cursor: var(--cursor-text);
 }
 
 /* Clickable elements — pointer */
@@ -34,17 +41,17 @@ select, input[type="checkbox"], input[type="radio"], input[type="file"],
 .closed-day-btn, .sub-tab, .bar-tab, .win-ctrl-btn,
 .photo-tab-back, .unplace-btn, .override-add-btn,
 .drag-handle, .tag-list-item {
-  cursor: url('/cursors/pointer.cur'), pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* Not allowed */
 [disabled], button:disabled {
-  cursor: url('/cursors/not-allowed.cur'), not-allowed;
+  cursor: var(--cursor-not-allowed);
 }
 
 /* Help */
 [title]:not(button):not(a) {
-  cursor: url('/cursors/help.cur'), help;
+  cursor: var(--cursor-help);
 }
 
 /* Resize handles */
@@ -54,11 +61,11 @@ select, input[type="checkbox"], input[type="radio"], input[type="file"],
 [style*="nesw-resize"]            { cursor: url('/cursors/nesw-resize.cur'), nesw-resize; }
 
 /* Precision / crosshair */
-.precision { cursor: url('/cursors/crosshair.cur'), crosshair; }
+.precision { cursor: var(--cursor-crosshair); }
 
 /* Map drag */
 .map-container:active {
-  cursor: url('/cursors/move.cur'), move;
+  cursor: var(--cursor-move);
 }
 
 /* Busy / loading — GIF for Firefox/Chrome, ANI for Edge */

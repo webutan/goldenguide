@@ -82,7 +82,7 @@ const MARKER_R = 18
 
 <style scoped>
 .bar-marker {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: opacity 0.2s;
 }
 
@@ -97,6 +97,6 @@ const MARKER_R = 18
 }
 
 .bar-marker.admin-draggable {
-  cursor: move;
+  cursor: var(--cursor-move);
 }
 </style>

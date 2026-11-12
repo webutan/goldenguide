@@ -67,7 +67,7 @@ async function run(action) {
   padding: 3px 0;
   color: var(--win-title-text-inactive);
   text-decoration: underline;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
 }
 
@@ -81,7 +81,7 @@ async function run(action) {
 .ra-link:disabled {
   color: var(--win-text-disabled);
   text-decoration: none;
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 .ra-admin { color: var(--valhalla-orange); }
