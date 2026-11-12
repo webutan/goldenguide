@@ -70,6 +70,7 @@ golden-gai-map/
 │   │   ├── ReviewPanel.vue       ← A bar's reviews
 │   │   ├── ReviewsWindow.vue     ← This week's reviews
 │   │   ├── RouletteWindow.vue    ← Roulette.exe: random bar picker; 3D Gai-chan spins a wheel
+│   │   ├── Screensaver.vue       ← Screensaver: 3D Gai-chan asleep, bouncing GAI OS logo wakes her (idle 3 min on the desktop, or Start menu)
 │   │   ├── ReviewActions.vue     ← Report (visitor) / hide / delete (admin) links on a review
 │   │   ├── StickyNote.vue        ← A review shown as a note on the desktop
 │   │   ├── SuggestEditDialog.vue ← "Suggest an edit" / "report a missing bar" form
@@ -122,9 +123,10 @@ golden-gai-map/
 │   │   ├── twitter.js         ← parseTwitterHandle (same rules as server/lib/feedCore.js)
 │   │   ├── shuffle.js         ← Fisher–Yates shuffle
 │   │   ├── roulette.js        ← Bar Roulette: candidates, weighted pick, reel order
+│   │   ├── screensaver.js     ← Screensaver: settings (`golden-gai-screensaver`), idle timer, logo bounce, sleep/wake cycle
 │   │   ├── artFallback.js     ← Hide Gai-chan images that fail to load (DOM)
 │   │   └── devPerf.js         ← Dev-only render counters
-│   ├── gaichan3d/         ← three.js stage for the 3D Gai-chan (own chunk); lab.js = dev sandbox (dev/gaichan-lab.html); RouletteWheel.js = the wheel in Roulette.exe
+│   ├── gaichan3d/         ← three.js stage for the 3D Gai-chan (own chunk); lab.js = dev sandbox (dev/gaichan-lab.html); RouletteWheel.js = the wheel in Roulette.exe; SleepScene.js = futon, snot bubble and Zs for the screensaver (`?view=sleep` in the lab)
 │   ├── styles/            ← win2000.css (theme variables, fonts), main.css (page, cursors, #app zoom)
 │   ├── fonts/             ← W95FA (Latin) and PixelMplus10 (Japanese ranges only)
 │   └── data/

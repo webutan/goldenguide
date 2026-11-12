@@ -18,6 +18,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 // Scenery for Roulette.exe. Re-exported from here so it stays in this chunk.
 export { RouletteWheel } from './RouletteWheel.js'
+// Scenery for the screensaver, likewise.
+export { SleepScene } from './SleepScene.js'
 
 const BASE = '/gaichan/model/'
 

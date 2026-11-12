@@ -57,6 +57,10 @@ const translations = {
   'iconContact': { en: 'Contact', jp: '連絡先' },
   'iconRoulette': { en: 'Roulette', jp: 'ルーレット' },
 
+  // Screensaver (F07)
+  'screensaverMenu': { en: 'Screen Saver', jp: 'スクリーンセーバー' },
+  'screensaverLabel': { en: 'Screen saver: Gai-chan asleep. Press any key to return.', jp: 'スクリーンセーバー：おやすみ中のガイちゃん。キーを押すと戻ります。' },
+
   // Bar Roulette (F02)
   'rouletteTitle': { en: 'Bar Roulette', jp: 'バールーレット' },
   'rouletteMenu': { en: 'Bar Roulette...', jp: 'バールーレット...' },

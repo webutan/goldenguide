@@ -179,7 +179,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 | ✓ | ID | Task | Size | Agent | Review | Depends on |
 |---|----|------|------|-------|--------|-----------|
 | ✅ | [F02](tasks/F02-roulette.md) | Roulette.exe: random bar picker | S–M | 2 h | 15 m | B03, R05, B02 |
-| ☐ | [F07](tasks/F07-screensaver.md) | Screensaver ("Neon Alley") | S–M | 2 h | 10 m | – |
+| ✅ | [F07](tasks/F07-screensaver.md) | Screensaver (Gai-chan asleep, bouncing GAI OS logo) | S–M | 2 h | 10 m | – |
 | ☐ | [F03](tasks/F03-tonight-timeline.md) | "Who's open tonight" timeline | M | 3 h | 20 m | B02, B03 |
 | ☐ | [F10](tasks/F10-guestbook-counter.md) | About window: guestbook + hit counter | S–M | 3 h | 20 m | S02 |
 | ☐ | [F12](tasks/F12-feed-alternative.md) | Curated news feed (no X dependency) | M | 3 h | 20 m | S01, S02 |
@@ -240,4 +240,5 @@ Small or speculative items that didn't justify a task. Pick up when touching the
 - **Admin:** on phones Search is still hidden in admin mode; the taskbar shows an Explorer button that does nothing in admin mode; "Reset split" can race an in-flight save for the same building (the save is fire-and-forget and could recreate the row); the bar review panel loads at most 100 hidden reviews per bar; the reported-queue paging can repeat or skip a row if report counts change between pages; the mobile admin taskbar button is an emoji rather than a pixel icon.
 - **Suggestions:** the Hours tab edits `schedule` only, not the free-text `hours` / `closed_days` that cards also show.
 - **Roulette (after F02):** "Open now" means what it does on the map (open, or hours unknown), so a spin can land on a bar whose hours are unknown; the card says so. "No cover charge" only counts bars whose charge is recorded as 0 or "free" (none in the seed data; check production). On a phone the Gai-chan dialogue is unmounted while the roulette panel is up (as for Chat). The wheel's wedges are decoration and don't map to bars; Gai-chan has no dedicated "spin" clip in the .blend, so the wave pose stands in for it.
+- **Screensaver (after F07):** the "Lanterns" scene and a settings screen wait for F08 (the settings are already read from `golden-gai-screensaver`). Only her head stops the logo, so it drifts behind the futon and quilt. She has no sleeping clip in the .blend: she lies on her side with her head propped up in code, the quilt hides her straight legs, and her lower twin-tail pokes into the pillow. Without WebGL only the logo shows. It doesn't start over an open window's text field but does start over open windows on the desktop view; chat messages arriving don't count as activity. On a phone it is off unless `mobile` is set.
 - **Untested platforms:** Safari/iOS throughout (gestures, install steps, time picker, share sheet), Firefox, real printers, the Docker Compose wiring for link previews.

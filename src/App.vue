@@ -25,6 +25,7 @@ import { useWindowManager } from './composables/useWindowManager.js'
 import { useOpenNow } from './composables/useOpenNow.js'
 import { useDialog, useDialogHost } from './composables/useDialog.js'
 import { usePwa } from './composables/usePwa.js'
+import { useScreensaver } from './composables/useScreensaver.js'
 import { useUrlState, parseUrl, barShareUrl, barTitle, pageTitle, htmlLang, resolveLang, canNativeShare } from './composables/useUrlState.js'
 import { updateBar, fetchPartitions, savePartition, deletePartition } from './api/index.js'
 import { readJSON, writeJSON, readString, writeString, isStringArray, isPlainObject } from './utils/storage.js'
@@ -43,6 +44,8 @@ const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vu
 const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
 const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
 const RouletteWindow = lazyWindow(() => import('./components/RouletteWindow.vue'))
+// No loading placeholder: it covers the screen itself the moment it mounts
+const Screensaver = defineAsyncComponent(() => import('./components/Screensaver.vue'))
 
 const { bars, tags, loading, error, dataTime, stale: dataStale, listIsAdmin, reload, refreshQuietly } = useApi()
 const { visitedCount } = useVisited()
@@ -478,7 +481,9 @@ function handleSwitchView(view) {
 }
 
 function handleOpenApp(app) {
-  if (app === 'map') {
+  if (app === 'screensaver') {
+    screensaver.show()
+  } else if (app === 'map') {
     activeView.value = 'map'
   } else if (app === 'directory') {
     activeView.value = 'directory'
@@ -849,6 +854,18 @@ const wantInstallOffer = computed(() => shouldOfferInstall({
   busy: !!popupBuildingBars.value || !!reviewPanelBar.value || showContact.value,
 }))
 let installOfferTimer = null
+
+// Screensaver: comes on by itself only over the idle desktop, never over
+// onboarding, a dialog, the wizard or the admin console.
+const screensaver = useScreensaver({
+  isMobile: () => isMobile.value,
+  canStart: () => activeView.value === 'desktop'
+    && !showBios.value && !loading.value && !error.value
+    && lang.value !== null && firstVisit.value !== null
+    && !showRules.value && !tourMode.value
+    && !isAdmin.value && !showInstallWizard.value && !showContact.value
+    && !dialogHost.current.value,
+})
 watch(wantInstallOffer, (want) => {
   clearTimeout(installOfferTimer)
   if (!want) return
@@ -885,6 +902,8 @@ async function handleUnplaceBar(bar) {
   <SuggestEditHost :lang="effectiveLang" />
   <!-- "Install GAI OS" setup wizard -->
   <InstallWizard v-if="showInstallWizard" :lang="effectiveLang" @close="showInstallWizard = false" />
+  <!-- Screensaver: Gai-chan asleep under the bouncing GAI OS logo -->
+  <Screensaver v-if="screensaver.active.value" :lang="effectiveLang" @dismiss="screensaver.dismiss()" />
 
   <div v-if="loading" class="loading-screen">{{ t('loading') }}</div>
   <div v-else-if="error" class="loading-screen">{{ t('errorPrefix') }} {{ error }}</div>

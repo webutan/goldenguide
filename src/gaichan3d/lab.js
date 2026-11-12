@@ -2,10 +2,12 @@
 //   ?view=grid      every mood side by side
 //   ?view=props     every prop
 //   ?view=dialogue  the real GaiChanDialogue component (rules walkthrough)
+//   ?view=sleep     the screensaver, without the idle wait (window.__screensaver to poke at it)
 //   (default)       single model with controls
 import { createApp, h, ref, reactive } from 'vue'
 import GaiChanModel from '../components/GaiChanModel.vue'
 import GaiChanDialogue from '../components/GaiChanDialogue.vue'
+import Screensaver from '../components/Screensaver.vue'
 import { MOODS, PROPS } from './GaiChanStage.js'
 import '../styles/win2000.css'
 import '../styles/main.css'
@@ -34,6 +36,7 @@ const App = {
         return h('div', { style: 'display:flex;flex-wrap:wrap;gap:12px;padding:12px' },
           Object.keys(PROPS).map(p => cell(p, h(GaiChanModel, { onReady, mood: 'happy', prop: p, framing, followPointer: false }))))
       }
+      if (view === 'sleep') return h(Screensaver, { onDismiss: () => console.log('dismiss') })
       if (view === 'dialogue') {
         return h('div', { style: 'position:fixed;inset:0;background:url(/gaichan/gaichanbg.webp) center/cover, #1a1420' }, [
           h(GaiChanDialogue, { lang: 'en', rulesAccepted: params.has('tucked'), bars: [] }),
