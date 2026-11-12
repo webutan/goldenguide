@@ -3,15 +3,9 @@
 // so the expensive partition geometry can be memoised separately from the
 // cheap per-slot highlight/dim state.
 
-// Street-based building colors
-export const STREET_COLORS = {
-  'hanazono-1':  '#8B2500',   // deep red-orange
-  'hanazono-3':  '#005559',   // teal
-  'hanazono-5':  '#3a5c20',   // olive green
-  'hanazono-8':  '#6a1a48',   // dark wine
-  'maneki-dori': '#4a3010',   // dark brown
-}
-export const STREET_COLOR_DEFAULT = '#1a0e2a'  // fallback: dark purple
+// Street-based building colors live in streets.js (the timeline uses them too)
+import { STREET_COLORS, STREET_COLOR_DEFAULT } from './streets.js'
+export { STREET_COLORS, STREET_COLOR_DEFAULT }
 
 // Neutral base under partition overlays (the overlay rects carry the colour)
 export const PARTITIONED_BASE_FILL = '#111122'

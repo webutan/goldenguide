@@ -24,6 +24,7 @@ const icons = [
   { id: 'chatroom', icon: '/icons/desktop/network_internet_pcs.png', labelKey: 'iconChatroom' },
   { id: 'reviews', icon: '/icons/winrep-1.png', labelKey: 'iconReviews' },
   { id: 'roulette', icon: '/icons/desktop/charmap.png', labelKey: 'iconRoulette' },
+  { id: 'tonight', icon: '/icons/desktop/chart1.png', labelKey: 'iconTonight' },
   { id: 'about', icon: '/icons/desktop/about.png', labelKey: 'iconAbout' },
   { id: 'contact', icon: '/icons/desktop/contact.png', labelKey: 'iconContact' },
 ]

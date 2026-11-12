@@ -11,6 +11,7 @@ import { slotBarIds, removeSlotAt } from '../utils/partitions.js'
 const StickerSheet = defineAsyncComponent(() => import('./admin/StickerSheet.vue')) // G05, with the QR encoder
 const showStickers = ref(false)
 import { useDialog } from '../composables/useDialog.js'
+import { STREET_COLORS, STREET_COLOR_DEFAULT } from '../utils/streets.js'
 import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
@@ -430,14 +431,6 @@ function onTagDragEnd() {
 
 // === Buildings tab (partition editor) ===
 
-const STREET_COLORS = {
-  'hanazono-1':  '#8B2500',
-  'hanazono-3':  '#005559',
-  'hanazono-5':  '#3a5c20',
-  'hanazono-8':  '#6a1a48',
-  'maneki-dori': '#4a3010',
-}
-const STREET_COLOR_DEFAULT = '#1a0e2a'
 const STREET_NAMES = {
   'hanazono-1':  'Hanazono 1 (red)',
   'hanazono-3':  'Hanazono 3 (teal)',

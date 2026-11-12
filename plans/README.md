@@ -180,7 +180,7 @@ Tick these off as they merge. "Review" is your time; "Agent" is the subagent's.
 |---|----|------|------|-------|--------|-----------|
 | ✅ | [F02](tasks/F02-roulette.md) | Roulette.exe: random bar picker | S–M | 2 h | 15 m | B03, R05, B02 |
 | ✅ | [F07](tasks/F07-screensaver.md) | Screensaver (Gai-chan asleep, bouncing GAI OS logo) | S–M | 2 h | 10 m | – |
-| ☐ | [F03](tasks/F03-tonight-timeline.md) | "Who's open tonight" timeline | M | 3 h | 20 m | B02, B03 |
+| ✅ | [F03](tasks/F03-tonight-timeline.md) | "Who's open tonight" timeline | M | 3 h | 20 m | B02, B03 |
 | ☐ | [F10](tasks/F10-guestbook-counter.md) | About window: guestbook + hit counter | S–M | 3 h | 20 m | S02 |
 | ☐ | [F12](tasks/F12-feed-alternative.md) | Curated news feed (no X dependency) | M | 3 h | 20 m | S01, S02 |
 | ☐ | [F11](tasks/F11-doodle-gallery.md) | Doodle gallery | S–M | 2 h | 15 m | S04 |

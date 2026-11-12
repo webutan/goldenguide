@@ -44,6 +44,7 @@ const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vu
 const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
 const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
 const RouletteWindow = lazyWindow(() => import('./components/RouletteWindow.vue'))
+const TonightWindow = lazyWindow(() => import('./components/TonightWindow.vue'))
 // No loading placeholder: it covers the screen itself the moment it mounts
 const Screensaver = defineAsyncComponent(() => import('./components/Screensaver.vue'))
 
@@ -330,6 +331,7 @@ const WINDOW_TITLE_KEYS = {
   about: 'iconAbout',
   reviews: 'iconReviews',
   roulette: 'rouletteTitle',
+  tonight: 'tonightTitle',
 }
 
 // Keep registered window titles in sync with language
@@ -372,6 +374,7 @@ const hasActiveMapFilters = computed(() =>
   favoritesFilter.value || visitedFilter.value
 )
 // The map's filters as one object (the shape barPasses takes), for Roulette
+// and the Tonight timeline
 const mapFilters = computed(() => ({
   tags: activeTags.value,
   tagMode: tagMode.value,
@@ -474,10 +477,15 @@ function handleOpenDb() {
 }
 
 function handleSwitchView(view) {
+  tonightReturn = false
   activeView.value = view
   closePopup()
-  // On a phone the roulette is a full-screen panel that would hide the view
-  if (isMobile.value) wm.minimize('roulette')
+  // On a phone the roulette and the timeline are full-screen panels that
+  // would hide the view
+  if (isMobile.value) {
+    wm.minimize('roulette')
+    wm.minimize('tonight')
+  }
 }
 
 function handleOpenApp(app) {
@@ -497,6 +505,7 @@ function handleOpenApp(app) {
       about: '&#8505;',
       reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
       roulette: '<img src="/icons/desktop/charmap.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+      tonight: '<img src="/icons/desktop/chart1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
     }
     if (!wm.getWindow(app)) {
       wm.register(app, WINDOW_TITLE_KEYS[app] ? t(WINDOW_TITLE_KEYS[app]) : app, icons[app] || '')
@@ -512,6 +521,25 @@ function handleOpenApp(app) {
 function handleRouletteShowOnMap(bar) {
   wm.minimize('roulette')
   handleSearchSelect({ bar, buildingId: bar.building_id || null })
+}
+
+// A row of the Tonight timeline: the bar's card, as from the directory. On a
+// phone the timeline is a full-screen panel over the card, so it steps aside
+// and comes back, as it was, when the card is closed.
+let tonightReturn = false
+watch(popupBuildingBars, (open) => {
+  if (open || !tonightReturn) return
+  tonightReturn = false
+  if (isMobile.value && wm.getWindow('tonight')) wm.restore('tonight')
+})
+function handleTonightSelectBar(bar) {
+  if (isMobile.value) {
+    wm.minimize('tonight')
+    tonightReturn = true
+  }
+  twitterBar.value = null
+  reviewPanelBar.value = null
+  handleSelectBarFromDirectory(bar)
 }
 
 function handleSelectBuilding({ buildingId, bars: barsInBuilding }) {
@@ -925,7 +953,7 @@ async function handleUnplaceBar(bar) {
          - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
       :key="rulesWalkKey"
-      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && (wm.getWindow('chatroom') || (wm.getWindow('roulette') && !wm.getWindow('roulette').minimized)))"
+      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && (wm.getWindow('chatroom') || (wm.getWindow('roulette') && !wm.getWindow('roulette').minimized) || (wm.getWindow('tonight') && !wm.getWindow('tonight').minimized)))"
       :lang="effectiveLang"
       :rules-accepted="rulesAccepted || firstVisit === false"
       :bars="bars"
@@ -1377,6 +1405,48 @@ async function handleUnplaceBar(bar) {
             :has-map-filters="hasActiveMapFilters"
             @show-on-map="handleRouletteShowOnMap"
             @share-bar="handleShareBar"
+          />
+        </WinWindow>
+      </template>
+
+      <!-- Tonight timeline: mobile = full-screen panel, desktop = draggable WinWindow.
+           Shown in every view; minimising keeps the toolbar choices. -->
+      <template v-if="wm.getWindow('tonight')">
+        <div v-if="isMobile" v-show="!wm.getWindow('tonight').minimized" class="mobile-feed-panel">
+          <div class="mobile-feed-titlebar">
+            <span v-html="wm.getWindow('tonight').icon" class="mobile-feed-icon"></span>
+            <span class="mobile-feed-title">{{ wm.getWindow('tonight').title }}</span>
+            <button class="mobile-feed-close" :aria-label="t('close')" @click="wm.unregister('tonight')">&#10005;</button>
+          </div>
+          <TonightWindow
+            :bars="bars"
+            :lang="effectiveLang"
+            :map-filters="mapFilters"
+            :has-map-filters="hasActiveMapFilters"
+            @select-bar="handleTonightSelectBar"
+          />
+        </div>
+        <WinWindow
+          v-else
+          :title="wm.getWindow('tonight').title"
+          :icon="wm.getWindow('tonight').icon"
+          :width="560"
+          :height="430"
+          :initial-x="140"
+          :initial-y="24"
+          :active="wm.isActive('tonight')"
+          :minimized="wm.getWindow('tonight').minimized"
+          :z-index="wm.getWindow('tonight').zIndex"
+          @focus="wm.focus('tonight')"
+          @minimize="wm.minimize('tonight')"
+          @close="wm.unregister('tonight')"
+        >
+          <TonightWindow
+            :bars="bars"
+            :lang="effectiveLang"
+            :map-filters="mapFilters"
+            :has-map-filters="hasActiveMapFilters"
+            @select-bar="handleTonightSelectBar"
           />
         </WinWindow>
       </template>

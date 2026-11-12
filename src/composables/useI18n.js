@@ -61,6 +61,27 @@ const translations = {
   'screensaverMenu': { en: 'Screen Saver', jp: 'スクリーンセーバー' },
   'screensaverLabel': { en: 'Screen saver: Gai-chan asleep. Press any key to return.', jp: 'スクリーンセーバー：おやすみ中のガイちゃん。キーを押すと戻ります。' },
 
+  // Tonight timeline (F03)
+  'iconTonight': { en: 'Tonight', jp: '今夜の営業' },
+  'tonightTitle': { en: "Who's Open Tonight", jp: '今夜の営業タイムライン' },
+  'tonightMenu': { en: "Who's Open Tonight...", jp: '今夜の営業タイムライン...' },
+  'tonightDay': { en: 'Night:', jp: '日付：' },
+  'tonightDayTonight': { en: 'Tonight ({day})', jp: '今夜（{day}）' },
+  'tonightDayTomorrow': { en: 'Tomorrow ({day})', jp: '明日（{day}）' },
+  'tonightSort': { en: 'Sort:', jp: '並び順：' },
+  'tonightSort_opens': { en: 'Opens earliest', jp: '開店が早い順' },
+  'tonightSort_closes': { en: 'Closes latest', jp: '閉店が遅い順' },
+  'tonightSort_name': { en: 'Name', jp: '店名順' },
+  'tonightStreet': { en: 'Street:', jp: '通り：' },
+  'tonightMapFilters': { en: 'Use map filters', jp: 'マップのフィルターを使う' },
+  'tonightBarColumn': { en: 'Bar', jp: '店名' },
+  'tonight24h': { en: '24 hours', jp: '24時間営業' },
+  'tonightEmpty': { en: 'No bar with known hours opens on this night.', jp: 'この夜に営業するお店（営業時間が分かっているもの）はありません。' },
+  'tonightUnknown': { en: 'Hours unknown ({n})', jp: '営業時間不明（{n}軒）' },
+  'tonightCount': { en: '{n} bars open, {closed} closed', jp: '営業 {n}軒・休み {closed}軒' },
+  'tonightOpenNow': { en: 'Open now: {n}', jp: '営業中：{n}軒' },
+  'tonightClock': { en: 'Tokyo {time}', jp: '東京 {time}' },
+
   // Bar Roulette (F02)
   'rouletteTitle': { en: 'Bar Roulette', jp: 'バールーレット' },
   'rouletteMenu': { en: 'Bar Roulette...', jp: 'バールーレット...' },

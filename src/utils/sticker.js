@@ -58,10 +58,8 @@ export function isLocalBaseUrl(base) {
   return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31) || (a === 169 && b === 254)
 }
 
-/** Street id -> label for the filter: "hanazono-1" -> "Hanazono 1". */
-export function streetName(id) {
-  return String(id || '').split(/[-_\s]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
-}
+// Street id -> label for the filter ("hanazono-1" -> "Hanazono 1")
+export { streetName } from './streets.js'
 
 /** Host shown in small print on the sticker ("goldengai.example"). */
 export function displayHost(base) {

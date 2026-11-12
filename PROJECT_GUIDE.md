@@ -70,6 +70,7 @@ golden-gai-map/
 │   │   ├── ReviewPanel.vue       ← A bar's reviews
 │   │   ├── ReviewsWindow.vue     ← This week's reviews
 │   │   ├── RouletteWindow.vue    ← Roulette.exe: random bar picker; 3D Gai-chan spins a wheel
+│   │   ├── TonightWindow.vue     ← "Who's Open Tonight": scheduler-style timeline of the night, 18:00–06:00 Tokyo time
 │   │   ├── Screensaver.vue       ← Screensaver: 3D Gai-chan asleep, bouncing GAI OS logo wakes her (idle 3 min on the desktop, or Start menu)
 │   │   ├── ReviewActions.vue     ← Report (visitor) / hide / delete (admin) links on a review
 │   │   ├── StickyNote.vue        ← A review shown as a note on the desktop
@@ -123,6 +124,8 @@ golden-gai-map/
 │   │   ├── twitter.js         ← parseTwitterHandle (same rules as server/lib/feedCore.js)
 │   │   ├── shuffle.js         ← Fisher–Yates shuffle
 │   │   ├── roulette.js        ← Bar Roulette: candidates, weighted pick, reel order
+│   │   ├── tonight.js         ← Tonight timeline: a night's strips per bar, the "now" position, sorting, list windowing
+│   │   ├── streets.js         ← Street colours (map + timeline) and street names
 │   │   ├── screensaver.js     ← Screensaver: settings (`golden-gai-screensaver`), idle timer, logo bounce, sleep/wake cycle
 │   │   ├── artFallback.js     ← Hide Gai-chan images that fail to load (DOM)
 │   │   └── devPerf.js         ← Dev-only render counters

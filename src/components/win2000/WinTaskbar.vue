@@ -188,6 +188,10 @@ onUnmounted(() => {
           <img src="/icons/desktop/charmap.png" class="start-menu-icon" alt="" />
           <span>{{ t('rouletteMenu') }}</span>
         </div>
+        <div class="start-menu-item" role="button" @click="emit('openApp', 'tonight')">
+          <img src="/icons/desktop/chart1.png" class="start-menu-icon" alt="" />
+          <span>{{ t('tonightMenu') }}</span>
+        </div>
         <div class="start-menu-item" role="button" @click="emit('openApp', 'screensaver')">
           <img src="/icons/desktop/monitor_blue_grad.png" class="start-menu-icon" alt="" />
           <span>{{ t('screensaverMenu') }}</span>
