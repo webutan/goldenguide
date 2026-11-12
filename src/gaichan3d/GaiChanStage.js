@@ -216,7 +216,7 @@ export class GaiChanStage {
     for (const clip of gltf.animations) {
       const name = clip.name.replace(/^pose\./, '')
       const action = this.mixer.clipAction(clip)
-      const looping = clip.duration > 0.1 && name === 'wave'
+      const looping = clip.duration > 0.1 && (name === 'wave' || name === 'spin')
       action.setLoop(looping ? LoopRepeat : LoopOnce, Infinity)
       action.clampWhenFinished = true
       this.actions[name] = action
