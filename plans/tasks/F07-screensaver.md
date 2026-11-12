@@ -11,7 +11,7 @@ Pure delight, and very on-brand. Idle desktops in bars and hotel rooms become a 
 3. Any input dismisses it (and doesn't trigger a click underneath). Pause when the tab is hidden. Cap at 30 fps, and use DPR 1 for performance.
 4. Off on mobile by default.
 
-5. (Changed during the work, at the owner's request.) Instead of "Neon Alley", the screensaver is the 3D Gai-chan asleep on a futon, anime style: a snot bubble at her nose swells and shrinks as she breathes, and the GAI OS logo bounces around the screen like a DVD logo. When it hits her head she jolts awake, looks left and right, yawns and goes back to sleep. Without WebGL the logo bounces alone. "Lanterns" (step 2) is left for F08.
+5. (Changed during the work, at the owner's request.) Instead of "Neon Alley", the screensaver is the 3D Gai-chan asleep on a futon, anime style: a snot bubble at her nose swells and shrinks as she breathes, and the GAI OS logo bounces around the screen like a DVD logo. When it hits her head she jolts upright clutching the blanket, looks around, yawns and settles back to sleep. She lies on her back with one arm on the covers; the blanket is a draped sheet that follows her. Without WebGL the logo bounces alone. "Lanterns" (step 2) is left for F08.
 6. (Added.) A "Screen Saver" entry in the Start menu shows it at once. Settings are read from localStorage `golden-gai-screensaver` (`{ enabled, idleSeconds, mobile }`), ready for F08's Control Panel. It never starts by itself under `prefers-reduced-motion`.
 
 ## Acceptance criteria

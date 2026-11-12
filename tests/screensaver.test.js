@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   screensaverSettings, SCREENSAVER_DEFAULTS, createIdleTimer,
   stepLogo, spawnLogo,
-  createSleeper, bonkSleeper, stepSleeper, bubbleSize, sitUp, breath,
+  createSleeper, bonkSleeper, stepSleeper, bubbleSize, sitUp, breath, clutch, reach,
   WAKE_PHASES, BREATH_SECONDS,
 } from '../src/utils/screensaver.js'
 
@@ -235,5 +235,81 @@ describe('snot bubble', () => {
     expect(bubbleSize(s)).toBeLessThan(0.05)       // starts from nothing
     stepSleeper(s, BREATH_SECONDS * 2.5)
     expect(bubbleSize(s)).toBeGreaterThan(0.9)
+  })
+})
+
+describe('clutching the blanket', () => {
+  it('arms rest while she sleeps, grab on the jolt, hold while she looks around, let go as she sinks', () => {
+    const s = createSleeper()
+    stepSleeper(s, 10)
+    expect(clutch(s)).toBe(0)
+    bonkSleeper(s)
+    expect(clutch(s)).toBe(0)
+    const seen = {}
+    let last = 0
+    while (s.phase !== 'asleep') {
+      stepSleeper(s, 1 / 30)
+      const c = clutch(s)
+      expect(c).toBeGreaterThanOrEqual(0)
+      expect(c).toBeLessThanOrEqual(1)
+      if (s.phase === 'startled') expect(c).toBeGreaterThanOrEqual(last - 1e-9)      // only tightens
+      if (s.phase === 'drowsy') expect(c).toBeLessThanOrEqual(last + 1e-9)           // only loosens
+      if (s.phase.startsWith('look')) expect(c).toBe(1)
+      seen[s.phase] = c
+      last = c
+    }
+    expect(seen.startled).toBe(1)        // has hold of it before she looks around
+    expect(seen.drowsy).toBeLessThan(0.01)
+    expect(clutch(s)).toBe(0)
+  })
+
+  it('has let go before she is all the way down', () => {
+    const s = createSleeper()
+    bonkSleeper(s)
+    while (s.phase !== 'drowsy') stepSleeper(s, 1 / 30)
+    while (clutch(s) > 0.01) stepSleeper(s, 1 / 60)
+    expect(s.phase).toBe('drowsy')
+    expect(sitUp(s)).toBeGreaterThan(0.05)
+  })
+})
+
+describe('reach (two-bone arm)', () => {
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+  const shoulder = [0.1, 0.5, 0.2]
+
+  it('puts the hand on a target within reach, with both bones their own length', () => {
+    const target = [0.2, 0.42, 0.25]
+    const { elbow, hand } = reach(shoulder, target, [0, -1, 0], 0.104, 0.092)
+    expect(dist(hand, target)).toBeLessThan(1e-9)
+    expect(dist(shoulder, elbow)).toBeCloseTo(0.104, 6)
+    expect(dist(elbow, hand)).toBeCloseTo(0.092, 6)
+  })
+
+  it('bends the elbow towards the pole', () => {
+    const target = [0.2, 0.5, 0.2]
+    const down = reach(shoulder, target, [0, -1, 0], 0.104, 0.092).elbow
+    const up = reach(shoulder, target, [0, 1, 0], 0.104, 0.092).elbow
+    expect(down[1]).toBeLessThan(0.5)
+    expect(up[1]).toBeGreaterThan(0.5)
+  })
+
+  it('stretches towards a target out of reach without over-extending', () => {
+    const target = [1.1, 0.5, 0.2]
+    const { elbow, hand } = reach(shoulder, target, [0, -1, 0], 0.104, 0.092)
+    expect(dist(shoulder, hand)).toBeLessThanOrEqual(0.196)
+    expect(dist(shoulder, hand)).toBeGreaterThan(0.19)
+    expect(dist(shoulder, elbow)).toBeCloseTo(0.104, 4)
+    expect(hand[0]).toBeGreaterThan(shoulder[0])
+  })
+
+  it('copes with a pole that points straight along the arm, and a target on the shoulder', () => {
+    for (const r of [
+      reach(shoulder, [0.2, 0.5, 0.2], [1, 0, 0], 0.104, 0.092),
+      reach(shoulder, shoulder, [0, -1, 0], 0.104, 0.092),
+    ]) {
+      for (const n of [...r.elbow, ...r.hand]) expect(Number.isFinite(n)).toBe(true)
+      expect(dist(shoulder, r.elbow)).toBeCloseTo(0.104, 4)
+      expect(dist(r.elbow, r.hand)).toBeCloseTo(0.092, 4)
+    }
   })
 })

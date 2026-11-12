@@ -205,3 +205,50 @@ export function sitUp(s) {
   }
   return 1
 }
+
+/**
+ * How firmly she is clutching the blanket to her chest, 0 (arms at rest on
+ * top of it) to 1. She snatches it as she jolts up, holds on while she looks
+ * around and lets go as she sinks back.
+ */
+export function clutch(s) {
+  if (s.phase === 'asleep') return 0
+  const p = phaseProgress(s)
+  const smooth = q => { q = Math.min(1, Math.max(0, q)); return q * q * (3 - 2 * q) }
+  if (s.phase === 'startled') return smooth((p - 0.08) / 0.3)
+  if (s.phase === 'drowsy') return 1 - smooth((p - 0.3) / 0.5)
+  return 1
+}
+
+/**
+ * Two-bone reach (shoulder → elbow → hand), plain arrays in any 3D space.
+ * Returns where the elbow goes and where the hand ends up: the target itself
+ * when it is in reach, otherwise the nearest point the arm can get to.
+ * The elbow bends towards `pole`, a rough direction.
+ * @param {number[]} shoulder @param {number[]} target @param {number[]} pole
+ * @param {number} upper upper-arm length @param {number} fore forearm length
+ */
+export function reach(shoulder, target, pole, upper, fore) {
+  const d = [target[0] - shoulder[0], target[1] - shoulder[1], target[2] - shoulder[2]]
+  const len = Math.hypot(d[0], d[1], d[2])
+  // a target on the shoulder itself gives no direction: any will do
+  const dir = len > 1e-9 ? [d[0] / len, d[1] / len, d[2] / len] : [1, 0, 0]
+  const dist = Math.min(upper + fore - 1e-4, Math.max(Math.abs(upper - fore) + 1e-4, len))
+  // along = how far down the shoulder→hand line the elbow sits; out = how far off it
+  const along = (upper * upper - fore * fore + dist * dist) / (2 * dist)
+  const out = Math.sqrt(Math.max(0, upper * upper - along * along))
+  const dot = pole[0] * dir[0] + pole[1] * dir[1] + pole[2] * dir[2]
+  let perp = [pole[0] - dir[0] * dot, pole[1] - dir[1] * dot, pole[2] - dir[2] * dot]
+  let plen = Math.hypot(perp[0], perp[1], perp[2])
+  if (plen < 1e-6) {
+    // pole along the arm: any sideways direction will do
+    perp = Math.abs(dir[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+    const k = perp[0] * dir[0] + perp[1] * dir[1] + perp[2] * dir[2]
+    perp = [perp[0] - dir[0] * k, perp[1] - dir[1] * k, perp[2] - dir[2] * k]
+    plen = Math.hypot(perp[0], perp[1], perp[2])
+  }
+  return {
+    elbow: [0, 1, 2].map(i => shoulder[i] + dir[i] * along + (perp[i] / plen) * out),
+    hand: [0, 1, 2].map(i => shoulder[i] + dir[i] * dist),
+  }
+}
