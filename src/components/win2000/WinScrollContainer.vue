@@ -233,6 +233,5 @@ onBeforeUnmount(() => { ro?.disconnect(); mo?.disconnect(); stopHold() })
     inset -1px -1px 0 var(--win-border-darkest),
     inset 2px 2px 0 var(--win-bg-light),
     inset -2px -2px 0 var(--win-border-dark);
-  cursor: ns-resize;
 }
 </style>

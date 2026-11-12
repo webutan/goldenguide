@@ -29,7 +29,7 @@ golden-gai-map/
 │   │   └── model/        ← 3D Gai-chan (gaichan.glb + face/*.png) — generated, see scripts/blender/
 │   ├── icons/            ← Win2000 icons (.ico, .png); tags/ = tag icons, desktop/ = desktop icons, app/ = installable-app icons
 │   ├── signs/            ← Street sign assets
-│   ├── cursors/          ← Custom .cur / .ani cursor files
+│   ├── cursors/          ← Classic Windows mouse cursors (.cur, wait.gif), drawn by scripts/make-cursors.py
 │   ├── og/default.png    ← Default link-preview image (scripts/make-og-image.mjs)
 │   ├── manifest.webmanifest ← Installable app manifest (static; not generated)
 │   ├── static-off.webp   ← Desktop wallpaper

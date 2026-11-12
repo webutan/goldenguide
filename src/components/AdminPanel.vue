@@ -1859,7 +1859,7 @@ function setLabelOffset(axis, val) {
 
 /* Tag drag reorder */
 .drag-handle {
-  cursor: grab;
+  cursor: var(--cursor-grab);
   color: var(--win-text-disabled);
   font-size: 14px;
   flex-shrink: 0;
@@ -1867,7 +1867,7 @@ function setLabelOffset(axis, val) {
 }
 
 .drag-handle:active {
-  cursor: grabbing;
+  cursor: var(--cursor-grab);
 }
 
 .tag-list-item.drag-over {

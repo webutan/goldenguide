@@ -55,10 +55,10 @@ select, input[type="checkbox"], input[type="radio"], input[type="file"],
 }
 
 /* Resize handles */
-.resize-ew, [style*="ew-resize"] { cursor: url('/cursors/ew-resize.cur'), ew-resize; }
-.resize-ns, [style*="ns-resize"] { cursor: url('/cursors/ns-resize.cur'), ns-resize; }
-[style*="nwse-resize"]            { cursor: url('/cursors/nwse-resize.cur'), nwse-resize; }
-[style*="nesw-resize"]            { cursor: url('/cursors/nesw-resize.cur'), nesw-resize; }
+.resize-ew, [style*="ew-resize"] { cursor: var(--cursor-ew-resize); }
+.resize-ns, [style*="ns-resize"] { cursor: var(--cursor-ns-resize); }
+[style*="nwse-resize"]            { cursor: var(--cursor-nwse-resize); }
+[style*="nesw-resize"]            { cursor: var(--cursor-nesw-resize); }
 
 /* Precision / crosshair */
 .precision { cursor: var(--cursor-crosshair); }
@@ -68,9 +68,9 @@ select, input[type="checkbox"], input[type="radio"], input[type="file"],
   cursor: var(--cursor-move);
 }
 
-/* Busy / loading — GIF for Firefox/Chrome, ANI for Edge */
+/* Busy / loading */
 .loading-screen {
-  cursor: url('/cursors/wait.gif'), url('/cursors/wait.ani'), wait;
+  cursor: var(--cursor-wait);
 }
 
 #app {

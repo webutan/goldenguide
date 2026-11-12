@@ -36,7 +36,7 @@ Mobile override (`max-width: 768px`): `--taskbar-height: max(52px, calc(52px + e
 }
 ```
 
-**Mouse cursors:** classic Windows arrow, hand and "unavailable" in `public/cursors/` (drawn by `scripts/make-cursors.py`). In CSS always write `cursor: var(--cursor-pointer)` (also `--cursor-default`, `-text`, `-help`, `-not-allowed`, `-crosshair`, `-move`; defined in `win2000.css`), never the bare keyword, which shows the visitor's own system cursor. Elements inherit their parent's cursor.
+**Mouse cursors:** the whole set is classic Windows style in `public/cursors/`, drawn by `scripts/make-cursors.py` (arrow, hand, help, text, crosshair, move, resize arrows, unavailable, hourglass; `wait.gif` is the animated hourglass for loading placeholders). In CSS always write `cursor: var(--cursor-pointer)` (also `--cursor-default`, `-text`, `-help`, `-not-allowed`, `-crosshair`, `-move`, `-grab`, `-ns-resize` / `-ew-resize` / `-nwse-resize` / `-nesw-resize`, `-wait`, `-progress`; defined in `win2000.css`), never the bare keyword, which shows the visitor's own system cursor. Elements inherit their parent's cursor.
 
 **Image rendering:**
 - Pixel-art sprites/icons: `image-rendering: pixelated`

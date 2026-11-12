@@ -62,11 +62,18 @@
      show the visitor's own system cursor. */
   --cursor-default: url('/cursors/default.cur'), default;
   --cursor-pointer: url('/cursors/pointer.cur') 5 0, pointer;
-  --cursor-text: url('/cursors/text.cur'), text;
+  --cursor-text: url('/cursors/text.cur') 4 9, text;
   --cursor-help: url('/cursors/help.cur'), help;
   --cursor-not-allowed: url('/cursors/not-allowed.cur') 9 9, not-allowed;
-  --cursor-crosshair: url('/cursors/crosshair.cur'), crosshair;
-  --cursor-move: url('/cursors/move.cur'), move;
+  --cursor-crosshair: url('/cursors/crosshair.cur') 10 10, crosshair;
+  --cursor-move: url('/cursors/move.cur') 11 11, move;
+  --cursor-grab: url('/cursors/move.cur') 11 11, grab;
+  --cursor-ns-resize: url('/cursors/ns-resize.cur') 5 11, ns-resize;
+  --cursor-ew-resize: url('/cursors/ew-resize.cur') 11 5, ew-resize;
+  --cursor-nwse-resize: url('/cursors/nwse-resize.cur') 8 8, nwse-resize;
+  --cursor-nesw-resize: url('/cursors/nesw-resize.cur') 8 8, nesw-resize;
+  --cursor-wait: url('/cursors/wait.cur') 15 16, wait;
+  --cursor-progress: url('/cursors/progress.cur'), progress;
 
   /* Fonts — pixelated MS Sans Serif + Japanese pixel fallback */
   --win-font: 'W95FA', 'PixelMplus10', 'MS Sans Serif', 'Microsoft Sans Serif', sans-serif;
