@@ -41,7 +41,8 @@ const BUBBLE_RADIUS = 0.072
 // Pose
 const SIT_ANGLE = 1.3        // how far her torso swings up from the futon, radians
 const SIT_TWIST = 0.75       // and turns towards the viewer once she is up
-const HEAD_TURN = 1.0        // head turned to the viewer on the pillow
+const HEAD_TURN = 0.42       // head turned to the viewer on the pillow (more and her twin-tail digs into the bed)
+const CHEST_PROP = 0.2       // her shoulders propped up a little on the pillow, radians
 const HEAD_TUCK = 0.3        // chin tucked by the pillow
 const UPPER_ARM = 0.104      // bone lengths (shoulder → elbow, elbow → fingertips)
 const FOREARM = 0.092
@@ -52,9 +53,10 @@ const FOREARM = 0.092
 // along her side on top of the covers, the other hand rests on the cuff
 // (`rest` as a point, or [height, sideways] likewise).
 // Elbows (standing model's axes: x forward, y up, z to her right): lying, they
-// rest on the futon out to her sides; sitting, they tuck down by her ribs.
+// rest on the futon out to her sides; sitting with the blanket in her fists,
+// they stick out sideways, which keeps her forearms above the hanging cloth.
 const ELBOW_LYING = new Vector3(-1, -0.35, 0.75)
-const ELBOW_SITTING = new Vector3(-0.25, -1, 0.4)
+const ELBOW_SITTING = new Vector3(0.25, -0.2, 1)
 const HANDS = {
   R: { bones: ['upper_armR', 'ArmR'], rest: new Vector3(0.048, 0.375, 0.1), grip: [0.497, 0.04], side: 1 },
   L: { bones: ['upper_armL', 'ArmL'], rest: [0.468, -0.025], grip: [0.497, -0.04], side: -1 },
@@ -63,7 +65,7 @@ const CLOTH = 0.014          // the blanket's thickness over her body
 
 // Blanket: a sheet of ROWS x COLS quads. It runs from past her feet to her
 // lap along the futon, then on up her front to its top edge on her chest.
-const ROWS = 30, COLS = 18
+const ROWS = 40, COLS = 26
 const BLANKET_HALF_WIDTH = 0.235
 const U_LAP = 0.66                           // how far along the sheet her lap is
 const BLANKET_FOOT_Z = BODY_Z - 0.11
@@ -171,9 +173,10 @@ export class SleepScene {
     futon.position.set(0, FUTON_TOP / 2, -0.06)
     const futonEdge = new Mesh(new BoxGeometry(0.64, 0.02, 1.14), new MeshBasicMaterial({ color: 0x8c3b2a }))
     futonEdge.position.set(0, 0.01, -0.06)
-    const pillow = new Mesh(new SphereGeometry(1, 10, 6), toon(0xfffaf0))
-    pillow.scale.set(0.19, 0.05, 0.15)
-    pillow.position.set(-0.02, FUTON_TOP + 0.03, 0.24)
+    // (a squashed ball; _dentPillow() presses her head's shape into it)
+    const pillow = this.pillow = new Mesh(new SphereGeometry(1, 20, 12), toon(0xfffaf0))
+    pillow.scale.set(0.2, 0.062, 0.16)
+    pillow.position.set(0, FUTON_TOP + 0.04, 0.24)
     this.group.add(futonEdge, futon, pillow)
 
     // The blanket: vertices are placed in _drape() every frame
@@ -247,11 +250,34 @@ export class SleepScene {
     this._arms = Object.values(HANDS).map(h => ({
       upper: stage.bones[h.bones[0]],
       fore: stage.bones[h.bones[1]],
-      rest: inSpine(h.rest.isVector3 ? h.rest : front(h.rest[0], h.rest[1], CLOTH + 0.022)),
-      grip: inSpine(front(h.grip[0], h.grip[1], CLOTH + 0.02)),
+      rest: inSpine(h.rest.isVector3 ? h.rest : front(h.rest[0], h.rest[1], CLOTH + 0.04)),
+      grip: inSpine(front(h.grip[0], h.grip[1], CLOTH + 0.03)),
       side: h.side,
     })).filter(a => a.upper && a.fore)
     // The bones posed here, and the idle pose they start each frame from
+    // How thick each arm segment is and how far it runs, measured off its
+    // meshes: the blanket is kept clear of these (see _clearArms)
+    for (const a of this._arms) {
+      a.capsules = [a.upper, a.fore].map(bone => {
+        let radius = 0, length = 0
+        bone.updateWorldMatrix(true, true)
+        bone.traverse(o => {
+          if (!o.isMesh) return
+          const pos = o.geometry.attributes.position
+          for (let i = 0; i < pos.count; i++) {
+            bone.worldToLocal(_v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld))
+            radius = Math.max(radius, Math.hypot(_v.x, _v.z))
+            length = Math.max(length, _v.y)
+          }
+        })
+        return { bone, radius: radius || 0.03, length: length || 0.1, a: new Vector3(), b: new Vector3() }
+      })
+    }
+    // Her head and hair, for pressing their shape into the pillow
+    this._headMeshes = []
+    head.traverse(o => { if (o.isMesh && o.visible) this._headMeshes.push(o) })
+    // straight out from her chest, as a direction in spine space
+    this._forward = inSpine(new Vector3(1, 0, 0).add(spine.getWorldPosition(_v))).sub(inSpine(spine.getWorldPosition(_v))).normalize()
     // standing-model directions → spine space
     this._spineFromStanding = spine.getWorldQuaternion(new Quaternion()).invert()
     this._restPose = new Map()
@@ -349,7 +375,7 @@ export class SleepScene {
     // under the blanket. (The stage has just reset spine and head to the idle
     // pose, so these rotations don't pile up.)
     if (spine) {
-      stage._addWorldRotation(spine, X_AXIS, -up * SIT_ANGLE - (1 - upc) * 0.06 - out * 0.03)
+      stage._addWorldRotation(spine, X_AXIS, -up * SIT_ANGLE - (1 - upc) * CHEST_PROP - out * 0.03)
       if (upc) stage._addWorldRotation(spine, Y_AXIS, -upc * SIT_TWIST)
     }
     // ── head: turned on the pillow while lying; looks about once she is up
@@ -378,6 +404,10 @@ export class SleepScene {
     for (const arm of this._arms) {
       const target = _v.lerpVectors(arm.rest, arm.grip, hold)
       target.addScaledVector(this._across, arm.side * flinch * 0.07)
+      // between resting and gripping, her hand swings out and round the
+      // blanket rather than straight through it
+      const swing = Math.sin(hold * Math.PI)
+      target.addScaledVector(this._forward, swing * 0.055).addScaledVector(this._across, arm.side * swing * 0.04)
       spine.localToWorld(target)
       target.y += flinch * 0.05 + (1 - hold) * out * 0.004
       const shoulder = arm.upper.getWorldPosition(new Vector3())
@@ -393,7 +423,10 @@ export class SleepScene {
 
     this._drape(upc, hold, out)
 
-    if (!this._sleepingHead && phase === 'asleep') this._sleepingHead = head.localToWorld(this._headCentre.clone())
+    if (!this._sleepingHead && phase === 'asleep') {
+      this._sleepingHead = head.localToWorld(this._headCentre.clone())
+      this._dentPillow()
+    }
 
     // ── snot bubble: hangs off her nose, swelling up and away from her face
     const size = bubbleSize(s)
@@ -450,14 +483,15 @@ export class SleepScene {
         cz = sideZ = lerp(BLANKET_FOOT_Z, lap.z, k)
         // up over her toes, a dip at the shins, up again over her thighs
         const toes = Math.exp(-(((k - 0.2) / 0.11) ** 2)) * 0.03
-        cy = lerp(floor, lap.y + 0.012, smoothstep(k, 0, 0.2)) + toes - Math.sin(k * Math.PI) * 0.008
+        // (her thighs stand a little prouder than her lap: give them room)
+        cy = lerp(floor, lap.y + 0.012, smoothstep(k, 0, 0.2)) + toes - Math.sin(k * Math.PI) * 0.008 + smoothstep(k, 0.4, 0.75) * 0.016
       } else {
         torso = (u - U_LAP) / (1 - U_LAP)
         spine.localToWorld(_v.copy(edge))
         // slack between lap and fists when she is sitting
         const sag = Math.sin(torso * Math.PI) * 0.035 * up
         cx = _v.x * torso
-        cy = lerp(lap.y + 0.012, _v.y, torso) - sag * 0.5 + out * 0.007 * Math.sin(torso * Math.PI)
+        cy = lerp(lap.y + 0.028, _v.y, torso) - sag * 0.5 + out * 0.007 * Math.sin(torso * Math.PI)
         cz = lerp(lap.z, _v.z, torso) - sag
         // the sides stay up by the pillow (a little further, even), so the
         // cloth wraps round her hips when she sits
@@ -493,9 +527,107 @@ export class SleepScene {
         pos.setXYZ(i++, x, Math.max(y, floor - 0.002), z)
       }
     }
+    this.blanket.geometry.computeVertexNormals()
+    this._clearArms(floor, hold, up)
     pos.needsUpdate = true
     colour.needsUpdate = true
     this.blanket.geometry.computeVertexNormals()
+  }
+
+  // Her arms always lie outside the blanket: wherever an arm would pass
+  // through or under the cloth, the cloth is pressed in beneath it (towards
+  // her, along its own surface normal), with a soft rim so it reads as
+  // weight on a quilt rather than a cut.
+  _clearArms(floor, hold, up) {
+    const geo = this.blanket.geometry
+    const pos = geo.attributes.position, nor = geo.attributes.normal
+    const capsules = []
+    for (const arm of this._arms) {
+      for (const c of arm.capsules) {
+        c.bone.updateWorldMatrix(true, false)
+        c.a.setFromMatrixPosition(c.bone.matrixWorld)
+        c.b.set(0, c.length, 0).applyMatrix4(c.bone.matrixWorld)
+        capsules.push(c)
+      }
+    }
+    // which way is "out"? The sheet's winding decides the normals' sign: the
+    // middle of the foot end faces up.
+    const probe = (ROWS - 2) * (COLS + 1) + (COLS >> 1)
+    const out = nor.getY(probe) >= 0 ? 1 : -1
+    const RIM = 0.035, SKIN = 0.011
+    // Asleep, an arm lying on the covers is dug out from under them however
+    // deep it is. Sitting up or holding the blanket, her arms are clear of it and
+    // only cloth actually touching an arm moves (anything more would press
+    // the cloth into her lap).
+    const dig = lerp(0.13, 0, Math.max(hold, up))
+    const n = _a, p = _b, q = _v
+    for (let i = 0; i < pos.count; i++) {
+      p.fromBufferAttribute(pos, i)
+      n.fromBufferAttribute(nor, i).multiplyScalar(out)
+      let push = 0
+      for (const c of capsules) {
+        // nearest point of the arm segment to this bit of cloth
+        const abx = c.b.x - c.a.x, aby = c.b.y - c.a.y, abz = c.b.z - c.a.z
+        const t = clamp(((p.x - c.a.x) * abx + (p.y - c.a.y) * aby + (p.z - c.a.z) * abz) / (abx * abx + aby * aby + abz * abz), 0, 1)
+        q.set(p.x - (c.a.x + abx * t), p.y - (c.a.y + aby * t), p.z - (c.a.z + abz * t))
+        const above = q.dot(n)                              // cloth's height over the arm's axis
+        const aside = Math.sqrt(Math.max(0, q.lengthSq() - above * above))
+        const r = c.radius + SKIN
+        if (aside > r + RIM || above > Math.max(r, dig) || above < -r) continue
+        // straight under the arm: all the way beneath it. Out at the rim: easing off.
+        const depth = aside < r ? Math.sqrt(r * r - aside * aside) : 0
+        const ease = aside < r ? 1 : 1 - smoothstep(aside, r, r + RIM)
+        push = Math.max(push, (above + depth) * ease)
+      }
+      if (push > 0) {
+        // over her middle there is a body right under the cloth: only a
+        // shallow dent there, as deep as it likes out on the slopes
+        const side = Math.abs((i % (COLS + 1)) / COLS * 2 - 1)
+        push = Math.min(push, lerp(0.022, 0.13, smoothstep(side, 0.2, 0.5)))
+        p.addScaledVector(n, -push)
+        pos.setXYZ(i, p.x, Math.max(p.y, floor - 0.004), p.z)
+      }
+    }
+  }
+
+  // Press the shape of her sleeping head and hair into the pillow, once: the
+  // pillow's top is lowered to just under them wherever they would sink in.
+  _dentPillow() {
+    const pillow = this.pillow
+    const geo = pillow.geometry, pos = geo.attributes.position
+    pillow.updateWorldMatrix(true, false)
+    const ray = new Raycaster()
+    ray.far = 0.5
+    const up = new Vector3(0, 1, 0)
+    // hair cards are one-sided: look at both faces while measuring
+    const sides = this._headMeshes.map(m => m.material.side)
+    this._headMeshes.forEach(m => { m.material.side = DoubleSide; m.updateWorldMatrix(true, false) })
+    // every hair/head vertex too, so thin strands the rays slip past still count
+    const points = []
+    for (const m of this._headMeshes) {
+      const hp = m.geometry.attributes.position
+      for (let i = 0; i < hp.count; i++) points.push(new Vector3().fromBufferAttribute(hp, i).applyMatrix4(m.matrixWorld))
+    }
+    const bottom = FUTON_TOP + 0.003
+    const GAP = 0.009, NEAR = 0.035
+    for (let i = 0; i < pos.count; i++) {
+      const w = pillow.localToWorld(_v.fromBufferAttribute(pos, i))
+      let ceiling = Infinity
+      ray.set(_a.set(w.x, bottom - 0.2, w.z), up)
+      const first = ray.intersectObjects(this._headMeshes, false)[0]
+      if (first) ceiling = first.point.y
+      for (const pt of points) {
+        if (Math.abs(pt.x - w.x) < NEAR && Math.abs(pt.z - w.z) < NEAR) ceiling = Math.min(ceiling, pt.y)
+      }
+      if (ceiling - GAP < w.y) {
+        w.y = Math.max(bottom, ceiling - GAP)
+        pillow.worldToLocal(w)
+        pos.setXYZ(i, w.x, w.y, w.z)
+      }
+    }
+    this._headMeshes.forEach((m, i) => { m.material.side = sides[i] })
+    pos.needsUpdate = true
+    geo.computeVertexNormals()
   }
 
   dispose() {
