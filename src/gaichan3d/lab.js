@@ -47,7 +47,7 @@ const App = {
         ]),
         h('div', { style: 'display:flex;flex-direction:column;gap:8px' }, [
           h('label', ['mood ', sel('mood', Object.keys(MOODS))]),
-          h('label', ['pose ', sel('pose', ['', 'idle', 'think', 'surprised', 'wave', 'point', 'shy', 'present', 'hips'])]),
+          h('label', ['pose ', sel('pose', ['', 'idle', 'think', 'surprised', 'wave', 'spin', 'point', 'shy', 'present', 'hips'])]),
           h('label', ['prop ', sel('prop', ['', ...Object.keys(PROPS)])]),
           h('label', ['framing ', sel('framing', ['bust', 'half', 'full'])]),
           h('label', [h('input', { type: 'checkbox', checked: s.talking, onChange: e => (s.talking = e.target.checked) }), ' talking']),

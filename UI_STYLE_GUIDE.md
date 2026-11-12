@@ -142,7 +142,7 @@ instead of the PNG sprite. Each script line / interactive node carries its actin
 ```
 
 - **mood** → eyes + resting mouth + default pose: `neutral happy wave thinking surprised embarrassed stern angry smug`
-- **pose** (optional override) → `idle think surprised wave point shy present hips`
+- **pose** (optional override) → `idle think surprised wave spin point shy present hips` (`spin` loops: she pulls the roulette wheel's rim down; see below)
 - **prop** (optional, held in her right hand; implies `present` pose) → `camera can bottle cigarette yen suitcase skateboard lantern cup`
 
 Definitions live in `MOODS` / `PROPS` in `src/gaichan3d/GaiChanStage.js`. On top of the pose clips the
@@ -156,6 +156,8 @@ below is shown (`fallbackSrc`).
 Other scenes can reuse the stage: `framing="wheel"` plus `RouletteWheel` (`src/gaichan3d/RouletteWheel.js`,
 added to the stage's scene from the `ready` event and animated through `stage.addTicker`) is the little
 window in Roulette.exe where she spins the wheel. Pass `fallback-src=""` to show nothing instead of a sprite.
+Her `spin` clip is solved for that wheel's position by `scripts/gaichan/add_spin_clip.py`, which adds the clip
+to `gaichan.glb` directly (animation data only; the model is untouched) and needs only python3 + numpy.
 
 **Sandbox:** `npm run dev` → `/dev/gaichan-lab.html` (controls), `?view=grid` (all moods),
 `?view=props` (all props), `?view=dialogue` (the real dialogue component).
