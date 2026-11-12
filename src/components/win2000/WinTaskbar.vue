@@ -19,7 +19,7 @@ const props = defineProps({
 
 const { t } = useI18n(computed(() => props.lang))
 
-const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang', 'install'])
+const emit = defineEmits(['toggleAdmin', 'switchView', 'update:lang', 'install', 'openApp'])
 
 const { windows, toggle, isActive, minimize, restore } = useWindowManager()
 
@@ -184,6 +184,10 @@ onUnmounted(() => {
     <div v-if="startOpen" class="start-menu" @click="closeStart">
       <div class="start-menu-sidebar">{{ t('goldenGai') }}</div>
       <div class="start-menu-items">
+        <div class="start-menu-item" role="button" @click="emit('openApp', 'roulette')">
+          <img src="/icons/desktop/charmap.png" class="start-menu-icon" alt="" />
+          <span>{{ t('rouletteMenu') }}</span>
+        </div>
         <div class="start-menu-item" role="button" @click="openMissingBar()">
           <span class="start-menu-glyph">&#9998;</span>
           <span>{{ t('suggestMissingMenu') }}</span>

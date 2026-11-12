@@ -16,6 +16,9 @@ import {
 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
+// Scenery for Roulette.exe. Re-exported from here so it stays in this chunk.
+export { RouletteWheel } from './RouletteWheel.js'
+
 const BASE = '/gaichan/model/'
 
 const FACE_TEXTURES = [
@@ -55,11 +58,14 @@ export const PROPS = {
 
 const HAND_TIP = new Vector3(0, 0.092, 0)   // forearm bone length (Arm.R in the .blend)
 
-// Camera framings: look-at height and vertical field of view (scene units ≈ metres)
+// Camera framings: look-at height and vertical field of view (scene units ≈ metres).
+// `z` shifts the view sideways (+z = screen left); default 0 keeps her centred.
 const FRAMINGS = {
   bust: { y: 0.575, dist: 2.4, fov: 13.5 },
   half: { y: 0.55, dist: 2.4, fov: 13 },
   full: { y: 0.42, dist: 2.4, fov: 22 },
+  // Her upper body with the roulette wheel at her right hand (see RouletteWheel.js)
+  wheel: { y: 0.52, z: 0.15, dist: 2.4, fov: 12.5 },
 }
 
 const POSE_FADE = 0.28
@@ -138,6 +144,7 @@ export class GaiChanStage {
     this._pokeT = -1
     this._override = null    // temporary {mood, until}
     this._listeners = {}
+    this._tickers = []       // scenery animated with the stage (see addTicker)
     this._loaded = false
     this._visible = true
   }
@@ -281,8 +288,8 @@ export class GaiChanStage {
     const f = FRAMINGS[name] || FRAMINGS.bust
     this.opts.framing = name
     this.camera.fov = f.fov
-    this.camera.position.set(f.dist, f.y, 0)
-    this.camera.lookAt(0, f.y, 0)
+    this.camera.position.set(f.dist, f.y, f.z || 0)
+    this.camera.lookAt(0, f.y, f.z || 0)
     this.camera.updateProjectionMatrix()
   }
 
@@ -306,6 +313,10 @@ export class GaiChanStage {
   }
 
   setVisible(v) { this._visible = v }
+
+  /** Call fn(dt, clock) on every animation step, e.g. to animate scenery added to `scene`. */
+  addTicker(fn) { this._tickers.push(fn) }
+  removeTicker(fn) { this._tickers = this._tickers.filter(f => f !== fn) }
 
   start() {
     if (this._raf) return
@@ -426,6 +437,7 @@ export class GaiChanStage {
     // ── procedural layer on top of the pose clip
     if (this.opts.procedural) this._procedural(dt, t, s)
     this._placeProp()
+    for (const fn of this._tickers) fn(dt, t)
   }
 
   _procedural(dt, t, s) {

@@ -153,6 +153,10 @@ Rendering is deliberately low-res (`pixelHeight`, default 150px) and upscaled wi
 three.js (~150 KB gz) is lazy-loaded; until the model is ready, or if WebGL is unavailable, the PNG sprite
 below is shown (`fallbackSrc`).
 
+Other scenes can reuse the stage: `framing="wheel"` plus `RouletteWheel` (`src/gaichan3d/RouletteWheel.js`,
+added to the stage's scene from the `ready` event and animated through `stage.addTicker`) is the little
+window in Roulette.exe where she spins the wheel. Pass `fallback-src=""` to show nothing instead of a sprite.
+
 **Sandbox:** `npm run dev` → `/dev/gaichan-lab.html` (controls), `?view=grid` (all moods),
 `?view=props` (all props), `?view=dialogue` (the real dialogue component).
 

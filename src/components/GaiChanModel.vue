@@ -8,10 +8,10 @@ const props = defineProps({
   pose: { type: String, default: null },           // optional override of the mood's pose
   prop: { type: String, default: null },           // held item (camera, can, cigarette …)
   talking: { type: Boolean, default: false },
-  framing: { type: String, default: 'bust' },      // bust | half | full
+  framing: { type: String, default: 'bust' },      // bust | half | full | wheel
   pixelHeight: { type: Number, default: 150 },     // internal render height (lower = chunkier)
   followPointer: { type: Boolean, default: true },
-  fallbackSrc: { type: String, default: '/gaichan/gaichanmouthclosed.png' },
+  fallbackSrc: { type: String, default: '/gaichan/gaichanmouthclosed.png' },  // '' = show nothing until ready
 })
 const emit = defineEmits(['ready', 'poke', 'fallback'])
 
@@ -128,7 +128,7 @@ defineExpose({ getStage: () => stage })
 <template>
   <div ref="wrap" class="gaichan-model" @click="onClick">
     <img
-      v-if="!ready"
+      v-if="!ready && fallbackSrc"
       :src="fallbackSrc"
       class="gaichan-model__fallback"
       alt="Gai-chan"
