@@ -12,6 +12,8 @@ Choice paralysis is real with 280 bars. A playful "just pick one" is fun, sharea
 4. Use Fisher–Yates or a weighted pick, not `sort(random)`.
 5. Respects `prefers-reduced-motion` (skips the animation).
 
+6. (Added during the work, at the owner's request.) A little window in the dialog where the 3D Gai-chan spins a roulette wheel while the reel runs. Hidden when WebGL is unavailable.
+
 ## Acceptance criteria
 - [ ] With filters that match nothing: a friendly Win95 warning, no crash
 - [ ] "Show on map" pans to the bar and opens it

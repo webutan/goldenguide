@@ -42,6 +42,7 @@ const ChatWindow = lazyWindow(() => import('./components/ChatWindow.vue'))
 const BarTwitterPanel = lazyWindow(() => import('./components/BarTwitterPanel.vue'))
 const DatabaseTable = lazyWindow(() => import('./components/DatabaseTable.vue'))
 const ReviewsWindow = lazyWindow(() => import('./components/ReviewsWindow.vue'))
+const RouletteWindow = lazyWindow(() => import('./components/RouletteWindow.vue'))
 
 const { bars, tags, loading, error, dataTime, stale: dataStale, listIsAdmin, reload, refreshQuietly } = useApi()
 const { visitedCount } = useVisited()
@@ -325,6 +326,7 @@ const WINDOW_TITLE_KEYS = {
   chatroom: 'iconChatroom',
   about: 'iconAbout',
   reviews: 'iconReviews',
+  roulette: 'rouletteTitle',
 }
 
 // Keep registered window titles in sync with language
@@ -366,6 +368,19 @@ const hasActiveMapFilters = computed(() =>
   floorFilter.value != null || openNowFilter.value ||
   favoritesFilter.value || visitedFilter.value
 )
+// The map's filters as one object (the shape barPasses takes), for Roulette
+const mapFilters = computed(() => ({
+  tags: activeTags.value,
+  tagMode: tagMode.value,
+  chargeMin: chargeMin.value,
+  chargeMax: chargeMax.value,
+  drinkMin: drinkMin.value,
+  drinkMax: drinkMax.value,
+  floor: floorFilter.value,
+  openNow: openNowFilter.value,
+  favorites: favoritesFilter.value,
+  visited: visitedFilter.value,
+}))
 function clearMapFilters() {
   activeTags.value = []
   chargeMin.value = null
@@ -458,6 +473,8 @@ function handleOpenDb() {
 function handleSwitchView(view) {
   activeView.value = view
   closePopup()
+  // On a phone the roulette is a full-screen panel that would hide the view
+  if (isMobile.value) wm.minimize('roulette')
 }
 
 function handleOpenApp(app) {
@@ -474,6 +491,7 @@ function handleOpenApp(app) {
       chatroom: '<img src="/icons/desktop/network_internet_pcs.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
       about: '&#8505;',
       reviews: '<img src="/icons/winrep-1.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
+      roulette: '<img src="/icons/desktop/charmap.png" width="16" height="16" style="image-rendering:pixelated;vertical-align:middle">',
     }
     if (!wm.getWindow(app)) {
       wm.register(app, WINDOW_TITLE_KEYS[app] ? t(WINDOW_TITLE_KEYS[app]) : app, icons[app] || '')
@@ -481,6 +499,14 @@ function handleOpenApp(app) {
     wm.restore(app)
     wm.focus(app)
   }
+}
+
+// Roulette's "Show on map": open the bar's card on the map and get the
+// roulette out of the way (its taskbar button, icon or menu entry bring it
+// back with the result still on it).
+function handleRouletteShowOnMap(bar) {
+  wm.minimize('roulette')
+  handleSearchSelect({ bar, buildingId: bar.building_id || null })
 }
 
 function handleSelectBuilding({ buildingId, bars: barsInBuilding }) {
@@ -880,7 +906,7 @@ async function handleUnplaceBar(bar) {
          - firstVisit === null: don't show yet (waiting for first-time answer) -->
     <GaiChanDialogue
       :key="rulesWalkKey"
-      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && wm.getWindow('chatroom'))"
+      v-if="(activeView === 'desktop' || tourMode) && firstVisit !== null && !(isMobile && (wm.getWindow('chatroom') || (wm.getWindow('roulette') && !wm.getWindow('roulette').minimized)))"
       :lang="effectiveLang"
       :rules-accepted="rulesAccepted || firstVisit === false"
       :bars="bars"
@@ -1291,6 +1317,51 @@ async function handleUnplaceBar(bar) {
         </WinWindow>
       </template>
 
+      <!-- Roulette window: mobile = full-screen panel, desktop = draggable WinWindow.
+           Shown in every view; minimising keeps the last result. -->
+      <template v-if="wm.getWindow('roulette')">
+        <div v-if="isMobile" v-show="!wm.getWindow('roulette').minimized" class="mobile-feed-panel">
+          <div class="mobile-feed-titlebar">
+            <span v-html="wm.getWindow('roulette').icon" class="mobile-feed-icon"></span>
+            <span class="mobile-feed-title">{{ wm.getWindow('roulette').title }}</span>
+            <button class="mobile-feed-close" :aria-label="t('close')" @click="wm.unregister('roulette')">&#10005;</button>
+          </div>
+          <RouletteWindow
+            :bars="bars"
+            :tags="sortedTags"
+            :lang="effectiveLang"
+            :map-filters="mapFilters"
+            :has-map-filters="hasActiveMapFilters"
+            @show-on-map="handleRouletteShowOnMap"
+            @share-bar="handleShareBar"
+          />
+        </div>
+        <WinWindow
+          v-else
+          :title="wm.getWindow('roulette').title"
+          :icon="wm.getWindow('roulette').icon"
+          :width="330"
+          :initial-x="150"
+          :initial-y="16"
+          :active="wm.isActive('roulette')"
+          :minimized="wm.getWindow('roulette').minimized"
+          :z-index="wm.getWindow('roulette').zIndex"
+          @focus="wm.focus('roulette')"
+          @minimize="wm.minimize('roulette')"
+          @close="wm.unregister('roulette')"
+        >
+          <RouletteWindow
+            :bars="bars"
+            :tags="sortedTags"
+            :lang="effectiveLang"
+            :map-filters="mapFilters"
+            :has-map-filters="hasActiveMapFilters"
+            @show-on-map="handleRouletteShowOnMap"
+            @share-bar="handleShareBar"
+          />
+        </WinWindow>
+      </template>
+
       <!-- Placeholder windows (about, contact) -->
       <template v-for="appId in ['about', 'contact']" :key="appId">
         <WinWindow
@@ -1391,6 +1462,7 @@ async function handleUnplaceBar(bar) {
       @install="openInstallWizard"
       @toggle-admin="handleToggleAdmin"
       @switch-view="handleSwitchView"
+      @open-app="handleOpenApp"
       @update:lang="handleLangSelect"
     />
   </template>

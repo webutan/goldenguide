@@ -55,6 +55,26 @@ const translations = {
   'iconChatroom': { en: 'Chatroom', jp: 'チャット' },
   'iconAbout': { en: 'About', jp: 'について' },
   'iconContact': { en: 'Contact', jp: '連絡先' },
+  'iconRoulette': { en: 'Roulette', jp: 'ルーレット' },
+
+  // Bar Roulette (F02)
+  'rouletteTitle': { en: 'Bar Roulette', jp: 'バールーレット' },
+  'rouletteMenu': { en: 'Bar Roulette...', jp: 'バールーレット...' },
+  'rouletteOptions': { en: 'Pick from', jp: '抽選の条件' },
+  'rouletteUnvisited': { en: 'Not visited yet', jp: 'まだ行っていない店' },
+  'rouletteNoCover': { en: 'No cover charge', jp: 'チャージなし' },
+  'rouletteMapFilters': { en: 'Use my map filters', jp: 'マップのフィルターを使う' },
+  'rouletteNoMapFilters': { en: 'No filters are set on the map.', jp: 'マップにフィルターが設定されていません。' },
+  'rouletteInDraw': { en: '{n} bars in the draw', jp: '抽選対象：{n}軒' },
+  'rouletteReady': { en: 'Press Spin and let fate decide.', jp: '「回す」を押して、運命にまかせましょう。' },
+  'rouletteConsulting': { en: 'Consulting the spirits of Shōwa…', jp: '昭和の精霊におうかがい中…' },
+  'rouletteDecided': { en: 'The spirits have spoken.', jp: '精霊のお告げが出ました。' },
+  'rouletteSpin': { en: 'Spin!', jp: '回す！' },
+  'rouletteSpinAgain': { en: 'Spin again', jp: 'もう一度' },
+  'rouletteShowOnMap': { en: 'Show on map', jp: 'マップで見る' },
+  'rouletteHoursUnknown': { en: 'Hours unknown', jp: '営業時間不明' },
+  'roulettePickedFrom': { en: 'Picked from {n} bars. Open and unvisited bars come up more often.', jp: '{n}軒から抽選。営業中の店・まだ行っていない店が出やすくなっています。' },
+  'rouletteNoMatch': { en: 'No bar matches these options.\n\nUntick one or two and spin again.', jp: '条件に合うお店がありません。\n\nチェックをいくつか外して、もう一度回してください。' },
 
   // LangDialog
   'langQuestion': { en: 'What language do you speak?', jp: '言語を選んでください' },
