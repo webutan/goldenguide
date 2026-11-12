@@ -87,6 +87,7 @@ const gaichanTalking = ref(false)
 let stage = null
 let wheel = null
 let talkTimer = null
+let pullTimer = null
 let unmounted = false
 
 async function onStageReady(readyStage) {
@@ -106,13 +107,16 @@ function reelSeconds(steps) {
 
 watch(phase, (now) => {
   clearTimeout(talkTimer)
+  clearTimeout(pullTimer)
   gaichanTalking.value = false
   if (now === 'spinning') {
-    // She flicks the wheel (the wave pose) and watches it turn
-    gaichanMood.value = 'wave'
-    gaichanPose.value = null
+    // She takes the rim and pulls it down a couple of times (the spin clip),
+    // then lets the wheel run and watches it slow down
+    gaichanMood.value = 'happy'
+    gaichanPose.value = wheel ? wheel.pullPose : null
     stage?.lookAt(-0.9, 0.15)
     wheel?.spin(reelSeconds(reel.value.length))
+    if (wheel) pullTimer = setTimeout(() => { gaichanPose.value = null }, wheel.pullSeconds * 1000)
   } else {
     wheel?.halt()
     stage?.lookAway()
@@ -129,6 +133,7 @@ watch(phase, (now) => {
 onBeforeUnmount(() => {
   unmounted = true
   clearTimeout(talkTimer)
+  clearTimeout(pullTimer)
   // Before GaiChanModel disposes the stage the wheel lives in
   wheel?.dispose()
   wheel = null

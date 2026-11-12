@@ -15,8 +15,14 @@ What it does to the (in-memory) scene before exporting — the .blend is never s
   * gives the head's eye/mouth slots stable material names (Face.EyeA/B, Face.Mouth)
     so the web runtime can swap textures on them
   * replaces the EEVEE-only "Shader to RGB" hair material with a plain colour
-  * authors one action per VN pose (idle, think, surprised, wave, point, shy,
-    present, hips) and exports each as a glTF animation clip
+  * authors one action per VN pose (idle, think, surprised, wave, spin, point,
+    shy, present, hips) and exports each as a glTF animation clip
+
+The "spin" clip (she pulls the roulette wheel) in the shipped .glb was added
+by scripts/gaichan/add_spin_clip.py, which edits the .glb directly and samples
+the motion on every frame. LOOPS['spin'] below is the same motion as keyed
+poses (from `add_spin_clip.py --keys`), so that a re-export from the .blend
+keeps a spin clip; run add_spin_clip.py afterwards for the exact version.
 
 To add/adjust a pose, edit POSES below (or author an action named "pose.<name>"
 by hand in Blender — any action with that prefix is exported too).
@@ -142,6 +148,11 @@ POSES = {
         'upper_arm.R': (0.15,  -1.0, 0.15), 'Arm.R': (0.10, -0.25, 1.0),
         'Head': [('X', 6)],
     },
+    'spin': {
+        **IDLE_ARMS,
+        'upper_arm.R': (0.12, -0.96, 0.27), 'Arm.R': (0.21, -0.46, 0.86),
+        'Head': [('Z', 10), ('X', 5)],
+    },
     'point': {
         **IDLE_ARMS,
         'upper_arm.R': (0.55, -0.55, -0.35), 'Arm.R': (1.0,   0.0, 0.35),
@@ -169,6 +180,20 @@ LOOPS = {
         (1,  {'Arm.R': (0.10, -0.55, 1.0)}),
         (7,  {'Arm.R': (0.10,  0.15, 1.0)}),
         (13, {'Arm.R': (0.10, -0.55, 1.0)}),
+    ],
+    # hand on the wheel's rim up high (1), pulls it down (3-7), comes back up in front of her
+    'spin': [
+        (1,  {'upper_arm.R': (0.12, -0.96, 0.27),  'Arm.R': (0.21, -0.46, 0.86)}),
+        (3,  {'upper_arm.R': (0.18, -0.96, -0.21), 'Arm.R': (0.14, -0.08, 0.99)}),
+        (5,  {'upper_arm.R': (0.15, -0.40, -0.90), 'Arm.R': (0.19, -0.41, 0.89)}),
+        (7,  {'upper_arm.R': (0.01, -0.14, -0.99), 'Arm.R': (0.35, -0.94, -0.03)}),
+        (9,  {'upper_arm.R': (0.05, 0.13, -0.99),  'Arm.R': (0.57, -0.73, -0.38)}),
+        (11, {'upper_arm.R': (0.09, 0.26, -0.96),  'Arm.R': (0.79, -0.58, -0.17)}),
+        (13, {'upper_arm.R': (0.26, 0.29, -0.92),  'Arm.R': (0.77, -0.51, 0.39)}),
+        (15, {'upper_arm.R': (0.78, 0.14, -0.61),  'Arm.R': (0.17, -0.47, 0.87)}),
+        (17, {'upper_arm.R': (0.95, -0.30, -0.03), 'Arm.R': (-0.22, -0.35, 0.91)}),
+        (19, {'upper_arm.R': (0.49, -0.85, 0.20),  'Arm.R': (0.04, -0.20, 0.98)}),
+        (21, {'upper_arm.R': (0.12, -0.96, 0.27),  'Arm.R': (0.21, -0.46, 0.86)}),
     ],
 }
 
