@@ -11,6 +11,7 @@ import { slotBarIds, removeSlotAt } from '../utils/partitions.js'
 const StickerSheet = defineAsyncComponent(() => import('./admin/StickerSheet.vue')) // G05, with the QR encoder
 const showStickers = ref(false)
 import { useDialog } from '../composables/useDialog.js'
+import { STREET_COLORS, STREET_COLOR_DEFAULT } from '../utils/streets.js'
 import { useI18n } from '../composables/useI18n.js'
 import { updateBar as apiUpdateBar, createBar as apiCreateBar, deleteBar as apiDeleteBar, createTag, updateTag, deleteTag, uploadPhoto, fetchBarPhotos, deletePhoto } from '../api/index.js'
 
@@ -430,14 +431,6 @@ function onTagDragEnd() {
 
 // === Buildings tab (partition editor) ===
 
-const STREET_COLORS = {
-  'hanazono-1':  '#8B2500',
-  'hanazono-3':  '#005559',
-  'hanazono-5':  '#3a5c20',
-  'hanazono-8':  '#6a1a48',
-  'maneki-dori': '#4a3010',
-}
-const STREET_COLOR_DEFAULT = '#1a0e2a'
 const STREET_NAMES = {
   'hanazono-1':  'Hanazono 1 (red)',
   'hanazono-3':  'Hanazono 3 (teal)',
@@ -1569,7 +1562,7 @@ function setLabelOffset(axis, val) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);
@@ -1596,7 +1589,7 @@ function setLabelOffset(axis, val) {
   align-items: center;
   justify-content: space-between;
   padding: 3px 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .bar-list-item:hover {
@@ -1618,7 +1611,7 @@ function setLabelOffset(axis, val) {
   border: none;
   box-shadow: inset 1px 1px 0 var(--win-border-light), inset -1px -1px 0 var(--win-border-dark);
   width: 16px; height: 16px;
-  cursor: pointer; font-size: 8px;
+  cursor: var(--cursor-pointer); font-size: 8px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; color: var(--win-text);
 }
@@ -1743,7 +1736,7 @@ function setLabelOffset(axis, val) {
   align-items: center;
   gap: 2px;
   font-size: 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .edit-tag-item input {
@@ -1802,7 +1795,7 @@ function setLabelOffset(axis, val) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-dark),
     inset -1px -1px 0 var(--win-border-light);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* Photo upload */
@@ -1866,7 +1859,7 @@ function setLabelOffset(axis, val) {
 
 /* Tag drag reorder */
 .drag-handle {
-  cursor: grab;
+  cursor: var(--cursor-grab);
   color: var(--win-text-disabled);
   font-size: 14px;
   flex-shrink: 0;
@@ -1874,7 +1867,7 @@ function setLabelOffset(axis, val) {
 }
 
 .drag-handle:active {
-  cursor: grabbing;
+  cursor: var(--cursor-grab);
 }
 
 .tag-list-item.drag-over {
@@ -1929,7 +1922,7 @@ function setLabelOffset(axis, val) {
   height: 22px;
   padding: 0;
   border: 1px solid var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .reset-color-btn {
@@ -1939,7 +1932,7 @@ function setLabelOffset(axis, val) {
   background: var(--win-bg);
   border: 1px solid var(--win-border-dark);
   color: var(--win-text);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .color-hint {
@@ -2030,7 +2023,7 @@ function setLabelOffset(axis, val) {
   height: 18px;
   padding: 0;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -2052,11 +2045,11 @@ function setLabelOffset(axis, val) {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .partition-bar-check input[type="checkbox"] {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex-shrink: 0;
 }
 
@@ -2111,7 +2104,7 @@ function setLabelOffset(axis, val) {
   background: var(--win-bg);
   border: none;
   padding: 2px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
@@ -2131,7 +2124,7 @@ function setLabelOffset(axis, val) {
   background: none;
   border: none;
   color: var(--valhalla-orange);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-size: 12px;
   font-weight: bold;
   padding: 0 4px;
@@ -2158,7 +2151,7 @@ function setLabelOffset(axis, val) {
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
   padding: 2px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);

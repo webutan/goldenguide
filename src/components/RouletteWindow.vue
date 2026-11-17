@@ -381,7 +381,7 @@ const winnerTags = computed(() => {
 .roulette-options:disabled :deep(.win-checkbox),
 .roulette-options :deep(.win-checkbox.is-disabled) {
   color: var(--win-text-disabled);
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 .roulette-count {

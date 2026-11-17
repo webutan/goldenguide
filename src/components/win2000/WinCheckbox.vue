@@ -27,7 +27,7 @@ defineEmits(['update:modelValue'])
   display: flex;
   align-items: center;
   gap: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);

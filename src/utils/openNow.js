@@ -14,7 +14,7 @@
 //   - 24h (close === open):          the whole calendar day, [00:00, 24:00)
 
 export const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-const DAY_MIN = 24 * 60
+export const DAY_MIN = 24 * 60
 const WEEK_MIN = 7 * DAY_MIN
 
 function timeToMinutes(timeStr) {
@@ -26,7 +26,7 @@ function timeToMinutes(timeStr) {
 
 // Returns null (no hours that day), 'unknown' (open/close missing), or
 // { start, end } in minutes relative to that day's midnight.
-function dayInterval(schedule, dayIndex) {
+export function dayInterval(schedule, dayIndex) {
   const name = DAY_NAMES[((dayIndex % 7) + 7) % 7]
   if (schedule.closedDays && schedule.closedDays.includes(name)) return null
   const hours = (schedule.overrides && schedule.overrides[name]) || schedule.default

@@ -436,7 +436,7 @@ onUnmounted(() => {
 
 .wizard-buttons .win-btn:disabled {
   color: var(--win-text-disabled);
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 @media (max-width: 768px) {

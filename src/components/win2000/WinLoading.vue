@@ -31,7 +31,7 @@ const { t } = useI18n(props.lang)
   font-size: var(--win-font-size);
   color: var(--win-text);
   background: var(--win-bg);
-  cursor: url('/cursors/wait.gif'), url('/cursors/wait.ani'), wait;
+  cursor: var(--cursor-wait);
 }
 
 .win-loading-icon {

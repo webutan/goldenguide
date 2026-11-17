@@ -49,7 +49,7 @@ function annotationText(ann) {
         :transform="ann.rotation ? `rotate(${ann.rotation}, ${ann.x}, ${ann.y})` : undefined"
         preserveAspectRatio="xMidYMid meet"
         :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedId === ann.id }]"
-        :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
+        :style="adminMode ? 'cursor: var(--cursor-grab)' : 'pointer-events: none'"
         @mousedown="emit('annotationMousedown', $event, ann)"
       />
       <text v-else
@@ -62,7 +62,7 @@ function annotationText(ann) {
         font-family="var(--win-font), monospace"
         font-weight="bold"
         :class="['annotation-text', { 'annotation-admin': adminMode, 'annotation-selected': selectedId === ann.id }]"
-        :style="adminMode ? 'cursor: grab' : 'pointer-events: none'"
+        :style="adminMode ? 'cursor: var(--cursor-grab)' : 'pointer-events: none'"
         @mousedown="emit('annotationMousedown', $event, ann)"
       >{{ annotationText(ann) }}</text>
     </template>

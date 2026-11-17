@@ -111,7 +111,7 @@ function handleSent() {
   padding: 2px;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .suggest-thanks-close-box {

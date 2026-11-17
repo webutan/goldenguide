@@ -316,7 +316,7 @@ function floorLabel(floor) {
   height: 22px;
   background: transparent;
   border: 1px solid transparent;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
@@ -443,7 +443,7 @@ function floorLabel(floor) {
   flex-direction: column;
   align-items: center;
   padding: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
 }
 
@@ -560,7 +560,7 @@ function floorLabel(floor) {
 }
 
 .price-unknown {
-  cursor: help;
+  cursor: var(--cursor-help);
 }
 
 .icon-floor {

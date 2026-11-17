@@ -214,7 +214,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
             <!-- Tags (click-to-edit) -->
             <td
               class="dbt-td dbt-td--tags"
-              style="min-width:180px;width:180px;position:relative;cursor:pointer"
+              style="min-width:180px;width:180px;position:relative;cursor:var(--cursor-pointer)"
               @click.stop="toggleTagPicker(bar, $event)"
             >
               <div class="dbt-tag-chips">
@@ -437,7 +437,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
 
 .dbt-status--saving { color: var(--valhalla-orange); animation: dbt-spin 0.8s linear infinite; }
 .dbt-status--saved  { color: #5cba6a; }
-.dbt-status--error  { color: #e94560; cursor: help; }
+.dbt-status--error  { color: #e94560; cursor: var(--cursor-help); }
 
 @keyframes dbt-spin {
   from { transform: rotate(0deg); }
@@ -455,13 +455,13 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
   outline: none;
   font: inherit;
   color: var(--win-text);
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 .dbt-input:focus {
   background: var(--win-highlight);
   color: var(--win-highlight-text);
-  cursor: text;
+  cursor: var(--cursor-text);
 }
 
 .dbt-input[type="number"] {
@@ -469,7 +469,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
 }
 
 .dbt-check {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   accent-color: var(--valhalla-orange);
   width: 13px;
   height: 13px;
@@ -528,7 +528,7 @@ onUnmounted(() => document.removeEventListener('click', closeTagPicker))
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-size: 11px;
   color: var(--win-text);
 }

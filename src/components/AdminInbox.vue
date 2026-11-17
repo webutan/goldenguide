@@ -304,7 +304,7 @@ async function setStatus(suggestion, next) {
   color: var(--win-text);
   background: var(--win-bg);
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);

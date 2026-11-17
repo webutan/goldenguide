@@ -352,7 +352,7 @@ function clearAll() {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   white-space: nowrap;
 }
 .clear-all-btn:active {
@@ -428,7 +428,7 @@ function clearAll() {
 .tree-toggle {
   background: none;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   padding: 0;
   width: 12px;
   height: 12px;
@@ -463,7 +463,7 @@ function clearAll() {
   background: var(--win-bg);
   border: none;
   color: var(--win-text-disabled);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .tag-mode-btn.active {
@@ -541,7 +541,7 @@ function clearAll() {
   -webkit-appearance: none;
   appearance: none;
   pointer-events: all;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   width: 11px;
   height: 18px;
   background: var(--win-bg);
@@ -557,7 +557,7 @@ function clearAll() {
 
 .win-slider::-moz-range-thumb {
   pointer-events: all;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   width: 11px;
   height: 18px;
   background: var(--win-bg);
@@ -591,7 +591,7 @@ function clearAll() {
   display: flex;
   align-items: center;
   gap: 4px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   padding: 1px 2px;
   min-height: 18px;
 }
@@ -651,7 +651,7 @@ function clearAll() {
   background: var(--win-bg);
   border: none;
   padding: 2px 6px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);

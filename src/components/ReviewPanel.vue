@@ -142,7 +142,7 @@ function timeAgo(dateStr) {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,7 +261,7 @@ button.rp-drawing-lazy {
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark),
     2px 2px 4px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   align-items: center;
   justify-content: center;
   padding: 4px;

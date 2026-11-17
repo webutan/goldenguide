@@ -47,7 +47,7 @@ defineEmits(['minimize', 'maximize', 'close', 'pointerdown'])
   -webkit-user-select: none;
   /* Dragged with pointer events: keep touch from scrolling/zooming the page instead */
   touch-action: none;
-  cursor: default;
+  cursor: var(--cursor-default);
   flex-shrink: 0;
 }
 
@@ -83,7 +83,7 @@ defineEmits(['minimize', 'maximize', 'close', 'pointerdown'])
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;

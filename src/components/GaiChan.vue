@@ -237,7 +237,7 @@ onUnmounted(() => clearInterval(typingTimer))
     inset -1px -1px 0 var(--win-border-dark),
     inset 2px 2px 0 var(--win-border-mid),
     inset -2px -2px 0 var(--win-border-darkest);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 12px;
   color: var(--win-text);

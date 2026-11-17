@@ -188,6 +188,10 @@ onUnmounted(() => {
           <img src="/icons/desktop/charmap.png" class="start-menu-icon" alt="" />
           <span>{{ t('rouletteMenu') }}</span>
         </div>
+        <div class="start-menu-item" role="button" @click="emit('openApp', 'tonight')">
+          <img src="/icons/desktop/calendar.png" class="start-menu-icon" alt="" />
+          <span>{{ t('tonightMenu') }}</span>
+        </div>
         <div class="start-menu-item" role="button" @click="emit('openApp', 'screensaver')">
           <img src="/icons/desktop/monitor_blue_grad.png" class="start-menu-icon" alt="" />
           <span>{{ t('screensaverMenu') }}</span>
@@ -367,7 +371,7 @@ onUnmounted(() => {
     inset -1px -1px 0 var(--win-border-dark),
     inset 2px 2px 0 var(--win-border-mid),
     inset -2px -2px 0 var(--win-border-darkest);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   font-weight: bold;
@@ -437,7 +441,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
@@ -485,7 +489,7 @@ onUnmounted(() => {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
@@ -523,7 +527,7 @@ onUnmounted(() => {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   color: var(--win-text);
 }
 
@@ -554,7 +558,7 @@ onUnmounted(() => {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: var(--win-font-size);
   color: var(--win-text);
@@ -609,7 +613,7 @@ onUnmounted(() => {
   box-shadow:
     inset 1px 1px 0 var(--win-border-light),
     inset -1px -1px 0 var(--win-border-dark);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: var(--win-font);
   font-size: 10px;
   color: var(--win-text);
@@ -652,7 +656,7 @@ onUnmounted(() => {
   align-items: baseline;
   gap: 2px;
   color: var(--win-text-disabled);
-  cursor: default;
+  cursor: var(--cursor-default);
   outline: none;
 }
 
@@ -683,7 +687,7 @@ onUnmounted(() => {
   padding: 0;
   background: transparent;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .tray-net-icon {
@@ -727,7 +731,7 @@ onUnmounted(() => {
   font-family: var(--win-font);
   font-size: 11px;
   line-height: 1.3;
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 .tray-net-balloon-title {

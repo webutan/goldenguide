@@ -25,7 +25,7 @@ defineEmits(['click'])
   color: var(--win-text);
   border: none;
   padding: 4px 12px;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   min-width: 75px;
   min-height: 23px;
   box-shadow:
@@ -54,7 +54,7 @@ defineEmits(['click'])
 
 .win-btn:disabled {
   color: var(--win-text-disabled);
-  cursor: default;
+  cursor: var(--cursor-default);
 }
 
 .win-btn.small {

@@ -209,7 +209,7 @@ onUnmounted(() => {
   overflow: hidden;
   padding: 20px;
   box-sizing: border-box;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* Desktop: logo floated to top-right */
